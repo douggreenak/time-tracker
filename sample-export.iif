@@ -1,0 +1,5 @@
+!TIMEACT	DATE	JOB	EMP	ITEM	PITEM	DURATION	NOTE	BILLINGSTATUS
+TIMEACT	11/20/2026	Apex Energy Solutions:Turbine Unit 4 Upgrade	Doug Mitchell	Field Engineering		03:45	Measured vibration harmonic oscillations on turbine shaft bearing housing. Inspected grease fittings. [Location: ON SITE - Plant 4 North Bay]	1
+TIMEACT	11/21/2026	Metro Water District:Pumping Station B Seismic Retrofit	Doug Mitchell	Calculations		02:30	Shear wall reinforcement stress analysis using FEA solver. Generated safety factor report. [Location: OFFICE - Engineering Office Room 302]	1
+TIMEACT	11/21/2026	Highland Industrial Park:Phase 2 Drainage Engineering	Doug Mitchell	CAD Drafting		01:45	Updated stormwater retention basin contours and culvert elevations in Civil 3D. [Location: REMOTE - Home Office]	1
+TIMEACT	11/19/2026	Internal Overhead	Doug Mitchell	Admin Overhead		01:00	Monthly OSHA compliance & field gear calibration meeting. [Location: OFFICE - Main Conference Room]	0
