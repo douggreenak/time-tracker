@@ -28,7 +28,7 @@ export function LoginScreen() {
     fetch("/api/auth/users")
       .then((r) => r.json())
       .then((j) => {
-        if (!j.success) return setError("Can't reach the server. Try again in a moment.");
+        if (!j.success) return setError(j.error || "Can't reach the server. Try again in a moment.");
         setPeople(j.data.users);
         setIsDemo(j.data.isDemo);
         setNeedsSetup(j.data.needsSetup);

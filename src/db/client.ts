@@ -25,7 +25,9 @@ async function open(): Promise<Db> {
     const { drizzle } = await import("drizzle-orm/neon-http");
     db = drizzle(neon(url), { schema }) as unknown as Db;
   } else {
-    const dir = process.env.PGLITE_DIR || ".data/pglite";
+    // Serverless hosts (Vercel) have a read-only project folder; only /tmp is writable, and it is
+    // wiped between cold starts. Set DATABASE_URL (e.g. Neon) for data that persists there.
+    const dir = process.env.PGLITE_DIR || (process.env.VERCEL ? "/tmp/pglite" : ".data/pglite");
     if (!dir.startsWith("memory://")) mkdirSync(dir, { recursive: true });
     const { PGlite } = await import("@electric-sql/pglite");
     const { drizzle } = await import("drizzle-orm/pglite");

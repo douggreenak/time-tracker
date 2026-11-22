@@ -13,6 +13,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("auth/users failed:", error);
-    return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: `Database error: ${error instanceof Error ? error.message : String(error)}` }, { status: 500 });
   }
 }
