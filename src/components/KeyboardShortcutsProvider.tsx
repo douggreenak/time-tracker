@@ -79,7 +79,7 @@ export function KeyboardShortcutsProvider({ children }: { children: React.ReactN
       }
       if (e.key === "3") {
         e.preventDefault();
-        router.push("/settings");
+        router.push("/customers");
         return;
       }
       if (e.key === "0") {

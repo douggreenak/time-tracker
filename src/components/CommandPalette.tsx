@@ -38,7 +38,7 @@ export function CommandPalette() {
     {
       id: "nav-engineer",
       title: "Track Time",
-      subtitle: "Stopwatch timer, GPS site tagging & manual logs",
+      subtitle: "Spreadsheet-style entry, with a stopwatch when you need it",
       icon: <Clock className="h-4 w-4 text-primary" />,
       shortcut: "1",
       perform: () => router.push("/engineer"),
@@ -53,11 +53,11 @@ export function CommandPalette() {
     },
     {
       id: "nav-settings",
-      title: "Go to Directory & Settings",
-      subtitle: "QuickBooks customers, sub-jobs & service items",
+      title: "Go to Customers & Projects",
+      subtitle: "Manage customers, projects and QuickBooks names",
       icon: <Settings className="h-4 w-4 text-muted-foreground" />,
       shortcut: "3",
-      perform: () => router.push("/settings"),
+      perform: () => router.push("/customers"),
     },
     {
       id: "export-iif",

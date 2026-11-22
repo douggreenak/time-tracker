@@ -192,7 +192,7 @@ export default function AccountantPage() {
   const hasFilters = filterCustomer !== "all" || filterUser !== "all" || filterBillable !== "all" || filterStatus !== "all" || !!searchQuery;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="w-full px-4 py-5 sm:px-6">
 
       {/* ── Header ── */}
       <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -316,7 +316,7 @@ export default function AccountantPage() {
 
       {/* ── Success Banner ── */}
       {successMsg && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {successMsg}
         </div>

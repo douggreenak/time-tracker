@@ -16,7 +16,7 @@ export function KeyboardShortcutsModal() {
         { keys: ["⌘", "K"], desc: "Open the command palette" },
         { keys: ["1"], desc: "Go to Time Tracker" },
         { keys: ["2"], desc: "Go to Timesheets & exports" },
-        { keys: ["3"], desc: "Go to Directory" },
+        { keys: ["3"], desc: "Go to Customers & projects" },
         { keys: ["0"], desc: "Return to home overview" },
         { keys: ["?"], desc: "Toggle this shortcut sheet" },
         { keys: ["Esc"], desc: "Close an active dialog or palette" },

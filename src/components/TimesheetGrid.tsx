@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Lock, Plus, Search, Trash2 } from "lucide-react";
 import type { CustomerItem, ServiceItem, TimeEntryItem } from "@/db/mock-data";
 import { cn } from "@/components/ui";
+import { Combobox, type ComboOption } from "@/components/ui/combobox";
+import { cellBase, TextCell } from "@/components/ui/cell";
 
 type LocationType = TimeEntryItem["locationType"];
 type Status = TimeEntryItem["status"];
@@ -58,44 +60,6 @@ function weekStart(d: string) {
   return dt.toLocaleDateString("en-CA");
 }
 
-const cellBase =
-  "block h-9 w-full bg-transparent px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/60 " +
-  "focus:bg-card focus:shadow-[inset_0_0_0_2px_hsl(var(--primary))] disabled:cursor-not-allowed disabled:text-muted-foreground";
-const selectCell = cn(cellBase, "m3-select cursor-pointer appearance-none truncate pr-6 [background-position:right_0.4rem_center] [background-size:12px_12px]");
-
-/** Text-like cell that keeps a local draft and commits on blur / Enter; Escape reverts. */
-function TextCell({
-  value,
-  onCommit,
-  className,
-  disabled,
-  ...rest
-}: {
-  value: string;
-  onCommit: (v: string) => void;
-  className?: string;
-  disabled?: boolean;
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "className">) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  return (
-    <input
-      {...rest}
-      disabled={disabled}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => draft !== value && onCommit(draft)}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          setDraft(value);
-          (e.target as HTMLInputElement).blur();
-        }
-      }}
-      className={cn(cellBase, className)}
-    />
-  );
-}
-
 interface Props {
   entries: TimeEntryItem[];
   setEntries: React.Dispatch<React.SetStateAction<TimeEntryItem[]>>;
@@ -105,6 +69,10 @@ interface Props {
   userName: string;
   onChanged: () => void;
   onMessage: (m: { type: "success" | "error"; text: string }) => void;
+  /** Create-on-type: each resolves to the new record's id, or null if it failed. */
+  onCreateCustomer: (name: string) => Promise<string | null>;
+  onCreateJob: (customerId: string, name: string) => Promise<string | null>;
+  onCreateService: (name: string) => Promise<string | null>;
 }
 
 export function TimesheetGrid({
@@ -116,6 +84,9 @@ export function TimesheetGrid({
   userName,
   onChanged,
   onMessage,
+  onCreateCustomer,
+  onCreateJob,
+  onCreateService,
 }: Props) {
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
@@ -135,10 +106,10 @@ export function TimesheetGrid({
   // Seed the entry row once reference data arrives (and if the chosen ones disappear).
   useEffect(() => {
     setDraft((d) => {
-      const cust = customers.some((c) => c.id === d.customerId) ? d.customerId : customers[0]?.id ?? "";
-      const srv = serviceItems.find((s) => s.id === d.serviceItemId) ?? serviceItems[0];
-      if (cust === d.customerId && srv?.id === d.serviceItemId) return d;
-      return { ...d, customerId: cust, serviceItemId: srv?.id ?? "", isBillable: srv?.defaultBillable ?? true };
+      const cust = d.customerId || customers.find((c) => c.isActive)?.id || "";
+      const srv = serviceItems.find((s) => s.id === d.serviceItemId) ?? (d.serviceItemId ? undefined : serviceItems[0]);
+      if (cust === d.customerId && (srv?.id ?? d.serviceItemId) === d.serviceItemId) return d;
+      return { ...d, customerId: cust, serviceItemId: srv?.id ?? d.serviceItemId, isBillable: srv?.defaultBillable ?? d.isBillable };
     });
   }, [customers, serviceItems]);
 
@@ -174,6 +145,19 @@ export function TimesheetGrid({
 
   const shownMinutes = visible.reduce((n, e) => n + e.durationMinutes, 0);
   const shownBillable = visible.reduce((n, e) => n + (e.isBillable ? e.durationMinutes : 0), 0);
+
+  const customerOptions = (currentId?: string): ComboOption[] =>
+    customers.filter((c) => c.isActive || c.id === currentId).map((c) => ({ id: c.id, label: c.name }));
+  const jobOptions = (customerId: string, currentId?: string | null): ComboOption[] =>
+    lookupJobs(customerId)
+      .filter((j) => j.isActive || j.id === currentId)
+      .map((j) => ({ id: j.id, label: j.name }));
+  const serviceOptions: ComboOption[] = serviceItems.map((x) => ({
+    id: x.id,
+    label: x.name,
+    hint: x.defaultBillable ? undefined : "non-billable",
+  }));
+  const locationOptions: ComboOption[] = LOCATIONS.map((l) => ({ id: l.id, label: l.label }));
 
   const lookupJobs = (customerId: string) => customers.find((c) => c.id === customerId)?.jobs ?? [];
 
@@ -241,7 +225,7 @@ export function TimesheetGrid({
       focusCell("new", "hours");
       return;
     }
-    if (!draft.customerId || !draft.serviceItemId) {
+    if (!customers.some((c) => c.id === draft.customerId) || !serviceItems.some((x) => x.id === draft.serviceItemId)) {
       onMessage({ type: "error", text: "Choose a customer and a service item." });
       return;
     }
@@ -291,7 +275,7 @@ export function TimesheetGrid({
     const row = el.dataset.r;
     const col = el.dataset.c;
     if (!row || !col) return;
-    const isSelect = el instanceof HTMLSelectElement;
+    const isSelect = false;
     const isDate = el instanceof HTMLInputElement && el.type === "date";
     const isCheckbox = el instanceof HTMLInputElement && el.type === "checkbox";
 
@@ -328,13 +312,14 @@ export function TimesheetGrid({
     new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <section className="rounded-2xl border border-border/70 bg-card shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
       {/* Summary + search */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border/70 px-4 py-3">
         <Stat label="Today" value={stats.day} />
         <Stat label="This week" value={stats.week} />
         <Stat label="Billable" value={stats.billable} sub={stats.total ? `${Math.round((stats.billable / stats.total) * 100)}%` : undefined} />
         <Stat label="All logged" value={stats.total} />
+        <WeekBars entries={entries} />
         <div className="relative ml-auto w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -347,8 +332,8 @@ export function TimesheetGrid({
         </div>
       </div>
 
-      <div ref={gridRef} onKeyDown={onGridKeyDown} className="m3-scroll max-h-[34rem] overflow-auto">
-        <table className="w-full min-w-[78rem] border-separate border-spacing-0 text-left">
+      <div ref={gridRef} onKeyDown={onGridKeyDown} className="m3-scroll h-[calc(100dvh-21.5rem)] min-h-[16rem] overflow-auto">
+        <table className="w-full min-w-[70rem] border-separate border-spacing-0 text-left">
           <thead className="sticky top-0 z-20">
             <tr>
               {COLUMNS.map((c) => (
@@ -383,64 +368,67 @@ export function TimesheetGrid({
                 />
               </td>
               <td>
-                <select
+                <Combobox
                   aria-label="New entry customer"
                   data-r="new"
                   data-c="customer"
+                  placeholder="Customer…"
                   value={draft.customerId}
-                  onChange={(e) => setDraft({ ...draft, customerId: e.target.value, jobId: "" })}
-                  className={selectCell}
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  options={customerOptions()}
+                  onSelect={(id) => setDraft({ ...draft, customerId: id, jobId: "" })}
+                  onCreate={async (name) => {
+                    const id = await onCreateCustomer(name);
+                    if (id) setDraft((d) => ({ ...d, customerId: id, jobId: "" }));
+                  }}
+                />
               </td>
               <td>
-                <select
+                <Combobox
                   aria-label="New entry job"
                   data-r="new"
                   data-c="job"
+                  placeholder="Project…"
+                  emptyLabel="— no project —"
                   value={draft.jobId}
-                  onChange={(e) => setDraft({ ...draft, jobId: e.target.value })}
-                  className={selectCell}
-                >
-                  <option value="">— no job —</option>
-                  {lookupJobs(draft.customerId).map((j) => (
-                    <option key={j.id} value={j.id}>{j.name}</option>
-                  ))}
-                </select>
+                  options={jobOptions(draft.customerId)}
+                  onSelect={(id) => setDraft({ ...draft, jobId: id })}
+                  onCreate={
+                    draft.customerId
+                      ? async (name) => {
+                          const id = await onCreateJob(draft.customerId, name);
+                          if (id) setDraft((d) => ({ ...d, jobId: id }));
+                        }
+                      : undefined
+                  }
+                />
               </td>
               <td>
-                <select
+                <Combobox
                   aria-label="New entry service item"
                   data-r="new"
                   data-c="service"
+                  placeholder="Service item…"
                   value={draft.serviceItemId}
-                  onChange={(e) => {
-                    const s = serviceItems.find((x) => x.id === e.target.value);
-                    setDraft({ ...draft, serviceItemId: e.target.value, isBillable: s?.defaultBillable ?? draft.isBillable });
+                  options={serviceOptions}
+                  onSelect={(id) => {
+                    const x = serviceItems.find((i) => i.id === id);
+                    setDraft({ ...draft, serviceItemId: id, isBillable: x?.defaultBillable ?? draft.isBillable });
                   }}
-                  className={selectCell}
-                >
-                  {serviceItems.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                  onCreate={async (name) => {
+                    const id = await onCreateService(name);
+                    if (id) setDraft((d) => ({ ...d, serviceItemId: id, isBillable: true }));
+                  }}
+                />
               </td>
               <td>
-                <select
+                <Combobox
                   aria-label="New entry location"
                   data-r="new"
                   data-c="location"
                   value={draft.locationType}
-                  onChange={(e) => setDraft({ ...draft, locationType: e.target.value as LocationType })}
-                  className={selectCell}
-                >
-                  {LOCATIONS.map((l) => (
-                    <option key={l.id} value={l.id}>{l.label}</option>
-                  ))}
-                </select>
+                  options={locationOptions}
+                  onSelect={(id) => setDraft({ ...draft, locationType: id as LocationType })}
+                />
               </td>
               <td>
                 <input
@@ -524,68 +512,62 @@ export function TimesheetGrid({
                       />
                     </td>
                     <td>
-                      <select
+                      <Combobox
                         aria-label="Customer"
                         data-r={e.id}
                         data-c="customer"
                         disabled={locked}
                         value={e.customerId}
-                        onChange={(ev) => changeCustomer(e, ev.target.value)}
-                        className={selectCell}
-                      >
-                        {!customers.some((c) => c.id === e.customerId) && (
-                          <option value={e.customerId}>{e.customerName}</option>
-                        )}
-                        {customers.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                        options={customerOptions(e.customerId)}
+                        onSelect={(id) => changeCustomer(e, id)}
+                        onCreate={async (name) => {
+                          const id = await onCreateCustomer(name);
+                          if (id) changeCustomer(e, id);
+                        }}
+                      />
                     </td>
                     <td>
-                      <select
+                      <Combobox
                         aria-label="Job"
                         data-r={e.id}
                         data-c="job"
                         disabled={locked}
+                        placeholder="— no project —"
+                        emptyLabel="— no project —"
                         value={e.jobId ?? ""}
-                        onChange={(ev) => changeJob(e, ev.target.value)}
-                        className={selectCell}
-                      >
-                        <option value="">— no job —</option>
-                        {lookupJobs(e.customerId).map((j) => (
-                          <option key={j.id} value={j.id}>{j.name}</option>
-                        ))}
-                      </select>
+                        options={jobOptions(e.customerId, e.jobId)}
+                        onSelect={(id) => changeJob(e, id)}
+                        onCreate={async (name) => {
+                          const id = await onCreateJob(e.customerId, name);
+                          if (id) changeJob(e, id);
+                        }}
+                      />
                     </td>
                     <td>
-                      <select
+                      <Combobox
                         aria-label="Service item"
                         data-r={e.id}
                         data-c="service"
                         disabled={locked}
                         value={e.serviceItemId}
-                        onChange={(ev) => changeService(e, ev.target.value)}
-                        className={selectCell}
-                      >
-                        {serviceItems.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                        options={serviceOptions}
+                        onSelect={(id) => changeService(e, id)}
+                        onCreate={async (name) => {
+                          const id = await onCreateService(name);
+                          if (id) changeService(e, id);
+                        }}
+                      />
                     </td>
                     <td>
-                      <select
+                      <Combobox
                         aria-label="Location"
                         data-r={e.id}
                         data-c="location"
                         disabled={locked}
                         value={e.locationType}
-                        onChange={(ev) => patchEntry(e, { locationType: ev.target.value as LocationType })}
-                        className={selectCell}
-                      >
-                        {LOCATIONS.map((l) => (
-                          <option key={l.id} value={l.id}>{l.label}</option>
-                        ))}
-                      </select>
+                        options={locationOptions}
+                        onSelect={(id) => patchEntry(e, { locationType: id as LocationType })}
+                      />
                     </td>
                     <td>
                       <TextCell
@@ -691,6 +673,49 @@ export function TimesheetGrid({
 /** Fragment wrapper so a day header and its row can share one key. */
 function RowGroup({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
+}
+
+/** Mon–Sun mini chart for the current week; the dashed line marks an 8h day. */
+function WeekBars({ entries }: { entries: TimeEntryItem[] }) {
+  const days = useMemo(() => {
+    const start = new Date(`${weekStart(today())}T00:00:00`);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const key = d.toLocaleDateString("en-CA");
+      const minutes = entries.filter((e) => e.date === key).reduce((n, e) => n + e.durationMinutes, 0);
+      return { key, minutes, label: d.toLocaleDateString(undefined, { weekday: "narrow" }), isToday: key === today() };
+    });
+  }, [entries]);
+  const scale = Math.max(480, ...days.map((d) => d.minutes));
+  return (
+    <div className="flex flex-col gap-0.5" aria-label="Hours this week">
+      <div className="relative flex h-10 items-end gap-1">
+        <div
+          className="pointer-events-none absolute inset-x-0 border-t border-dashed border-outline-variant"
+          style={{ bottom: `${(480 / scale) * 100}%` }}
+        />
+        {days.map((d) => (
+          <div key={d.key} className="flex h-full w-4 flex-col items-center justify-end gap-0.5" title={`${d.key}: ${fmtHours(d.minutes)}h`}>
+            <div
+              className={cn(
+                "w-full rounded-t-[3px] transition-all duration-500 ease-expressive",
+                d.isToday ? "bg-primary" : d.minutes ? "bg-primary/45" : "bg-surface-high"
+              )}
+              style={{ height: `${Math.max(d.minutes ? 8 : 3, (d.minutes / scale) * 100)}%` }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        {days.map((d) => (
+          <span key={d.key} className={cn("w-4 text-center text-[9px] font-medium", d.isToday ? "text-primary" : "text-muted-foreground")}>
+            {d.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
