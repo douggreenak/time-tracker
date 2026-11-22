@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // first request after a cold start may create the tables
 
 /** Public: just enough for the sign-in screen (names + roles, never emails or hashes). */
 export async function GET() {

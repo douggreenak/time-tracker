@@ -42,6 +42,22 @@ async function open(): Promise<Db> {
     db = drizzle(new PGlite(dir), { schema });
   }
 
+  await ensureSchema(db);
+  await seedIfEmpty(db);
+  return db;
+}
+
+const SCHEMA_VERSION = `v${DDL.length}-${DDL.reduce((n, d) => (n * 31 + d.length) % 1000003, 7)}`;
+
+/** Creates/upgrades tables. Remembers the version so later cold starts skip ~30 slow round trips. */
+async function ensureSchema(db: Db) {
+  try {
+    const rows = await db.execute(sql`select value from app_meta where key = 'schema_version'`);
+    const list = (Array.isArray(rows) ? rows : (rows as unknown as { rows: { value: string }[] }).rows) as { value: string }[];
+    if (list[0]?.value === SCHEMA_VERSION) return;
+  } catch {
+    /* app_meta doesn't exist yet: first run */
+  }
   for (const stmt of DDL) {
     try {
       await db.execute(sql.raw(stmt));
@@ -50,8 +66,9 @@ async function open(): Promise<Db> {
       await db.execute(sql.raw(stmt));
     }
   }
-  await seedIfEmpty(db);
-  return db;
+  await db.execute(
+    sql`insert into app_meta (key, value) values ('schema_version', ${SCHEMA_VERSION}) on conflict (key) do update set value = excluded.value`
+  );
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -62,7 +79,7 @@ const isSeeded = async (db: Db) => (await db.select().from(schema.appMeta).where
  * (serverless): whoever inserts the 'seed_lock' row does the seeding, everyone else waits for 'seeded'.
  */
 async function seedIfEmpty(db: Db) {
-  for (let attempt = 0; attempt < 60; attempt++) {
+  for (let attempt = 0; attempt < 12; attempt++) {
     if (await isSeeded(db)) return;
 
     const claimed = await db
@@ -92,12 +109,12 @@ async function seedIfEmpty(db: Db) {
 
     // Someone else is seeding. If their lock is stale (they crashed), clear it and try again.
     const [lock] = await db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`);
-    if (lock && Date.now() - Number(lock.value) > 60_000) {
+    if (lock && Date.now() - Number(lock.value) > 20_000) {
       await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`);
     }
     await sleep(500);
   }
-  throw new Error("Timed out waiting for the database to finish its first-time setup. Refresh in a moment.");
+  throw new Error("The database is still doing its first-time setup. Try again in a few seconds.");
 }
 
 export function getDb(): Promise<Db> {

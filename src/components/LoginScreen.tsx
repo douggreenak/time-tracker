@@ -24,11 +24,20 @@ export function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [tries, setTries] = useState(0);
+
+  // The first visit after a deploy can take a while (database setup), so wait, retry, and then say what's wrong.
   useEffect(() => {
-    fetch("/api/auth/users")
-      .then((r) => r.json())
-      .then((j) => {
-        if (!j.success) return setError(j.error || "Can't reach the server. Try again in a moment.");
+    let cancelled = false;
+    const load = async (attempt: number) => {
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 20000);
+        const j = await fetch("/api/auth/users", { signal: ctl.signal, cache: "no-store" }).then((r) => r.json());
+        clearTimeout(timer);
+        if (cancelled) return;
+        if (!j.success) throw new Error(j.error || "server error");
+        setError(null);
         setPeople(j.data.users);
         setIsDemo(j.data.isDemo);
         setNeedsSetup(j.data.needsSetup);
@@ -37,9 +46,18 @@ export function LoginScreen() {
           last = localStorage.getItem(LAST_KEY) ?? "";
         } catch {}
         setUserId(j.data.users.find((u: Person) => u.id === last)?.id ?? j.data.users[0]?.id ?? "");
-      })
-      .catch(() => setError("Can't reach the server. Try again in a moment."));
-  }, []);
+      } catch (e) {
+        if (cancelled) return;
+        if (attempt < 3) return void setTimeout(() => load(attempt + 1), 2500);
+        setError(e instanceof Error && e.name !== "AbortError" && e.message !== "server error" && !/JSON|fetch/i.test(e.message) ? e.message : "The server is taking too long or can't be reached.");
+      }
+    };
+    setError(null);
+    load(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [tries]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,8 +104,8 @@ export function LoginScreen() {
           </div>
         </div>
 
-        {people === null && !error ? (
-          <div className="flex justify-center py-6 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
+        {people === null ? (
+          error ? null : <div className="flex justify-center py-6 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : (
           <>
             {needsSetup ? (
@@ -153,7 +171,12 @@ export function LoginScreen() {
             )}
           </>
         )}
-        {error && people === null && <p role="alert" className="text-center text-sm text-destructive">{error}</p>}
+        {error && people === null && (
+          <div className="space-y-3 text-center">
+            <p role="alert" className="text-sm text-destructive">{error}</p>
+            <button type="button" onClick={() => setTries((n) => n + 1)} className="rounded-full border border-outline-variant px-4 py-1.5 text-xs font-semibold hover:bg-foreground/[0.05]">Try again</button>
+          </div>
+        )}
       </form>
     </div>
   );

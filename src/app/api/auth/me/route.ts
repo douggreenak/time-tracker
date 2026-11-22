@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // first request after a cold start may create the tables
 
 export async function GET() {
   try {

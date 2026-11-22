@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { getDb, storageMode } from "@/db/client";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // first request after a cold start may create the tables
 
 /** Public deploy check: is the database reachable, and is it the kind that keeps data? No secrets or records. */
 export async function GET() {
