@@ -11,7 +11,8 @@
     "test": "node scripts/test-quickbooks-export.mjs && node scripts/verify-setup.mjs",
     "test:build": "npm run test && npm run build",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
@@ -24,6 +25,7 @@
     "tailwind-merge": "^3.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^22.13.4",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
