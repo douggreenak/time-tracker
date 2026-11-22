@@ -27,7 +27,7 @@ for (const doc of requiredDocs) {
   }
 }
 
-// 2. Check source pages
+// 2. Check source pages & components
 const requiredPages = [
   "src/app/page.tsx",
   "src/app/engineer/page.tsx",
@@ -45,6 +45,11 @@ const requiredPages = [
   "src/db/schema.ts",
   "src/db/store.ts",
   "src/db/mock-data.ts",
+  "src/components/AuthGate.tsx",
+  "src/components/CommandPalette.tsx",
+  "src/components/KeyboardShortcutsModal.tsx",
+  "src/components/KeyboardShortcutsProvider.tsx",
+  "src/components/NavHeaderActions.tsx",
 ];
 
 let allPagesPresent = true;

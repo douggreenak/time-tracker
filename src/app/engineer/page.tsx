@@ -18,8 +18,10 @@ import {
   RefreshCw,
   Trash2,
   Navigation,
+  Check,
 } from "lucide-react";
 import { CustomerItem, ServiceItem, TimeEntryItem, UserItem } from "@/db/mock-data";
+import { formatQuickBooksDuration } from "@/lib/quickbooks";
 
 export default function EngineerPage() {
   // Mode toggle: Live Timer vs Manual Entry
@@ -39,13 +41,12 @@ export default function EngineerPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-  const [timerStartTime, setTimerStartTime] = useState<number | null>(null);
 
   // Timer Form Selection
   const [timerCustomerId, setTimerCustomerId] = useState("");
   const [timerJobId, setTimerJobId] = useState("");
   const [timerServiceItemId, setTimerServiceItemId] = useState("");
-  const [timerLocationType, setTimerLocationType] = useState<"office" | "on_site" | "remote" | "travel">("office");
+  const [timerLocationType, setTimerLocationType] = useState<"office" | "on_site" | "remote" | "travel">("on_site");
   const [timerLocationName, setTimerLocationName] = useState("");
   const [timerNotes, setTimerNotes] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -78,24 +79,20 @@ export default function EngineerPage() {
 
       if (custRes.success) {
         setCustomers(custRes.data);
-        if (custRes.data.length > 0) {
+        if (custRes.data.length > 0 && !timerCustomerId) {
           setTimerCustomerId(custRes.data[0].id);
           setManualCustomerId(custRes.data[0].id);
         }
       }
       if (srvRes.success) {
         setServiceItems(srvRes.data);
-        if (srvRes.data.length > 0) {
+        if (srvRes.data.length > 0 && !timerServiceItemId) {
           setTimerServiceItemId(srvRes.data[0].id);
           setManualServiceItemId(srvRes.data[0].id);
         }
       }
-      if (userRes.success) {
-        setUsers(userRes.data);
-      }
-      if (entriesRes.success) {
-        setRecentEntries(entriesRes.data);
-      }
+      if (userRes.success) setUsers(userRes.data);
+      if (entriesRes.success) setRecentEntries(entriesRes.data);
     } catch (err) {
       console.error("Failed to load initial data", err);
     } finally {
@@ -120,6 +117,58 @@ export default function EngineerPage() {
     };
   }, [timerRunning, timerPaused]);
 
+  // Keyboard Shortcuts for Engineer Page
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
+      if (isInput) return;
+
+      // Space -> Start / Pause / Resume timer
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!timerRunning) {
+          handleStartTimer();
+        } else if (timerPaused) {
+          handleResumeTimer();
+        } else {
+          handlePauseTimer();
+        }
+        return;
+      }
+
+      // S -> Stop and save timer
+      if (e.key.toLowerCase() === "s" && timerRunning) {
+        e.preventDefault();
+        handleStopAndSaveTimer();
+        return;
+      }
+
+      // T -> Timer mode
+      if (e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        setActiveTab("timer");
+        return;
+      }
+
+      // N -> New manual entry mode
+      if (e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setActiveTab("manual");
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [timerRunning, timerPaused, secondsElapsed, timerCustomerId, timerJobId, timerServiceItemId, timerLocationType, timerLocationName, timerNotes]);
+
   // Format seconds to HH:MM:SS
   const formatTime = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -132,7 +181,6 @@ export default function EngineerPage() {
   const handleStartTimer = () => {
     setTimerRunning(true);
     setTimerPaused(false);
-    setTimerStartTime(Date.now() - secondsElapsed * 1000);
   };
 
   const handlePauseTimer = () => {
@@ -170,7 +218,7 @@ export default function EngineerPage() {
           locationName: timerLocationName || null,
           latitude: gpsCoordinates?.lat || null,
           longitude: gpsCoordinates?.lng || null,
-          notes: timerNotes || "Logged via Live Timer",
+          notes: timerNotes || "Logged via Live Stopwatch",
           isBillable: selectedSrv?.defaultBillable ?? true,
           status: "submitted",
         }),
@@ -178,20 +226,20 @@ export default function EngineerPage() {
 
       const json = await res.json();
       if (json.success) {
-        setFeedbackMsg({ type: "success", text: `Saved ${durationMinutes} minutes for ${selectedCust?.name}!` });
-        // Reset timer
+        setFeedbackMsg({
+          type: "success",
+          text: `Logged ${durationMinutes} minutes (${(durationMinutes / 60).toFixed(2)}h) for ${selectedCust?.name}!`,
+        });
         setTimerRunning(false);
         setTimerPaused(false);
         setSecondsElapsed(0);
-        setTimerStartTime(null);
         setTimerNotes("");
         setGpsCoordinates(null);
-        // Refresh entry list
         fetchData();
       } else {
         setFeedbackMsg({ type: "error", text: json.error || "Failed to save timer" });
       }
-    } catch (err) {
+    } catch {
       setFeedbackMsg({ type: "error", text: "Network error saving timer" });
     } finally {
       setIsSubmitting(false);
@@ -199,11 +247,10 @@ export default function EngineerPage() {
   };
 
   const handleResetTimer = () => {
-    if (confirm("Reset current timer back to 00:00:00?")) {
+    if (confirm("Reset stopwatch back to 00:00:00?")) {
       setTimerRunning(false);
       setTimerPaused(false);
       setSecondsElapsed(0);
-      setTimerStartTime(null);
     }
   };
 
@@ -222,12 +269,12 @@ export default function EngineerPage() {
         });
         setTimerLocationType("on_site");
         if (!timerLocationName) {
-          setTimerLocationName(`GPS Site (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`);
+          setTimerLocationName(`Site GPS (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`);
         }
         setGpsLoading(false);
       },
       (err) => {
-        alert(`Location access denied or unavailable: ${err.message}`);
+        alert(`Location access unavailable: ${err.message}`);
         setGpsLoading(false);
       },
       { timeout: 10000, enableHighAccuracy: true }
@@ -273,8 +320,7 @@ export default function EngineerPage() {
 
       const json = await res.json();
       if (json.success) {
-        setFeedbackMsg({ type: "success", text: `Successfully logged ${hrs}h ${mins}m!` });
-        // Clear manual inputs
+        setFeedbackMsg({ type: "success", text: `Successfully logged ${hrs}h ${mins}m to timesheet!` });
         setManualHours("");
         setManualMinutes("");
         setManualNotes("");
@@ -283,7 +329,7 @@ export default function EngineerPage() {
       } else {
         setFeedbackMsg({ type: "error", text: json.error || "Failed to log entry" });
       }
-    } catch (err) {
+    } catch {
       setFeedbackMsg({ type: "error", text: "Error submitting time entry" });
     } finally {
       setIsSubmitting(false);
@@ -292,7 +338,7 @@ export default function EngineerPage() {
 
   // Delete an entry
   const handleDeleteEntry = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this time entry?")) return;
+    if (!confirm("Delete this timesheet entry?")) return;
     try {
       const res = await fetch(`/api/time-entries/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -303,375 +349,384 @@ export default function EngineerPage() {
     }
   };
 
-  // Current selected customer's jobs
   const timerCustJobs = customers.find((c) => c.id === timerCustomerId)?.jobs || [];
   const manualCustJobs = customers.find((c) => c.id === manualCustomerId)?.jobs || [];
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Top Banner & Engineer Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            Engineer Time Tracker
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-semibold mb-2">
+            <span>Field & Office Mobility Engine</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Engineer Timesheet Tracker
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Track live on-site hours or enter past project timesheets.
+            Record on-site stopwatch hours, GPS geo-tags, or enter retroactive logs
           </p>
         </div>
 
         {/* Engineer Profile Switcher */}
         <div className="flex items-center gap-2">
-          <label htmlFor="user-select" className="text-xs font-semibold text-slate-500">Engineer:</label>
+          <span className="text-xs font-medium text-slate-500">Engineer:</span>
           <select
-            id="user-select"
             value={currentUserId}
             onChange={(e) => setCurrentUserId(e.target.value)}
-            className="text-xs font-semibold bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 shadow-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
           >
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} ({u.role})
+                {u.name} (${u.defaultHourlyRate}/hr)
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Alert / Feedback message */}
+      {/* Mode Switcher: Expressive Segmented Tabs */}
+      <div className="flex items-center justify-center mb-6">
+        <div className="inline-flex p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/60 shadow-2xs">
+          <button
+            onClick={() => setActiveTab("timer")}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+              activeTab === "timer"
+                ? "bg-white text-emerald-800 shadow-xs font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Clock className="w-4 h-4 text-emerald-600" />
+            <span>Live Stopwatch</span>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.2 text-[10px] font-mono bg-slate-100 text-slate-400 rounded">
+              T
+            </kbd>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("manual")}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition ${
+              activeTab === "manual"
+                ? "bg-white text-indigo-800 shadow-xs font-bold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <PlusCircle className="w-4 h-4 text-indigo-600" />
+            <span>Manual Time Entry</span>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.2 text-[10px] font-mono bg-slate-100 text-slate-400 rounded">
+              N
+            </kbd>
+          </button>
+        </div>
+      </div>
+
+      {/* Notifications */}
       {feedbackMsg && (
         <div
-          className={`mb-6 p-3.5 rounded-xl text-sm font-medium flex items-center justify-between shadow-sm ${
+          className={`mb-6 p-4 rounded-2xl border text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in duration-150 ${
             feedbackMsg.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              : "bg-red-50 text-red-800 border border-red-200"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
           }`}
         >
           <div className="flex items-center gap-2">
             {feedbackMsg.type === "success" ? (
-              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <AlertCircle className="w-5 h-5 text-rose-600" />
             )}
             <span>{feedbackMsg.text}</span>
           </div>
           <button
             onClick={() => setFeedbackMsg(null)}
-            className="text-xs opacity-70 hover:opacity-100 font-bold"
+            className="text-xs underline hover:opacity-80"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      {/* Tab Selector: Live Stopwatch vs Manual Form */}
-      <div className="flex bg-slate-200/80 p-1 rounded-xl mb-6 shadow-inner">
-        <button
-          onClick={() => setActiveTab("timer")}
-          className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition ${
-            activeTab === "timer"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <Clock className="w-4 h-4 text-emerald-600" />
-          <span>Live Stopwatch Timer</span>
-          {timerRunning && (
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab("manual")}
-          className={`flex-1 py-2.5 text-xs sm:text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition ${
-            activeTab === "manual"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <PlusCircle className="w-4 h-4 text-indigo-600" />
-          <span>Manual Entry Mode</span>
-        </button>
-      </div>
-
-      {/* TAB 1: LIVE STOPWATCH TIMER */}
+      {/* Tab 1: Live Stopwatch */}
       {activeTab === "timer" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-8">
-          {/* Big Digital Display */}
-          <div className="text-center py-6 border-b border-slate-100">
-            <div className="font-mono text-5xl sm:text-7xl font-extrabold tracking-tight text-slate-900 select-none">
+        <div className="space-y-6">
+          {/* Stopwatch Digital Display Card */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] text-center relative overflow-hidden">
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+              {timerRunning && !timerPaused
+                ? "Active Field Session Recording"
+                : timerPaused
+                ? "Stopwatch Paused"
+                : "Ready to Track"}
+            </div>
+
+            {/* Huge Monospace Timer */}
+            <div className="text-5xl sm:text-7xl font-extrabold text-slate-900 tracking-tight font-mono py-2 select-none">
               {formatTime(secondsElapsed)}
             </div>
-            <div className="mt-2 flex items-center justify-center gap-2 text-xs font-semibold">
-              {timerRunning ? (
-                timerPaused ? (
-                  <span className="text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                    PAUSED
-                  </span>
-                ) : (
-                  <span className="text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                    LOGGING LIVE TIME
-                  </span>
-                )
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+              {!timerRunning ? (
+                <button
+                  onClick={handleStartTimer}
+                  className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center gap-2"
+                >
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>Start Stopwatch</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-emerald-700/80 rounded text-emerald-100">
+                    Space
+                  </kbd>
+                </button>
+              ) : timerPaused ? (
+                <button
+                  onClick={handleResumeTimer}
+                  className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition flex items-center gap-2"
+                >
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>Resume Timer</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-emerald-700/80 rounded text-emerald-100">
+                    Space
+                  </kbd>
+                </button>
               ) : (
-                <span className="text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
-                  STOPPED
-                </span>
+                <button
+                  onClick={handlePauseTimer}
+                  className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-amber-500/20 transition flex items-center gap-2"
+                >
+                  <Pause className="w-5 h-5 fill-current" />
+                  <span>Pause Timer</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-amber-600/80 rounded text-amber-100">
+                    Space
+                  </kbd>
+                </button>
+              )}
+
+              {timerRunning && (
+                <button
+                  onClick={handleStopAndSaveTimer}
+                  disabled={isSubmitting}
+                  className="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                  <span>Stop & Save Log</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-indigo-700/80 rounded text-indigo-100">
+                    S
+                  </kbd>
+                </button>
+              )}
+
+              {secondsElapsed > 0 && !timerRunning && (
+                <button
+                  onClick={handleResetTimer}
+                  className="px-4 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition"
+                >
+                  Reset
+                </button>
               )}
             </div>
           </div>
 
-          {/* Timer Controls Buttons */}
-          <div className="py-6 flex flex-wrap items-center justify-center gap-3 border-b border-slate-100">
-            {!timerRunning ? (
-              <button
-                onClick={handleStartTimer}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition active:scale-95"
-              >
-                <Play className="w-5 h-5 fill-current" />
-                <span>Start Timer</span>
-              </button>
-            ) : (
-              <>
-                {timerPaused ? (
-                  <button
-                    onClick={handleResumeTimer}
-                    className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition"
-                  >
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>Resume</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handlePauseTimer}
-                    className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition"
-                  >
-                    <Pause className="w-4 h-4 fill-current" />
-                    <span>Pause</span>
-                  </button>
-                )}
+          {/* Timer Classification & Location Card */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-5">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
+              Session Activity & Site Mapping
+            </h3>
 
-                <button
-                  onClick={handleStopAndSaveTimer}
-                  disabled={isSubmitting}
-                  className="flex-1 sm:flex-initial px-6 py-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition disabled:opacity-50"
+            <div className="grid sm:grid-cols-2 gap-4">
+              {/* Customer */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Client / Customer Account
+                </label>
+                <select
+                  value={timerCustomerId}
+                  onChange={(e) => {
+                    setTimerCustomerId(e.target.value);
+                    setTimerJobId("");
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
                 >
-                  <Square className="w-4 h-4 fill-current text-rose-500" />
-                  <span>{isSubmitting ? "Saving..." : "Stop & Save Entry"}</span>
-                </button>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <button
-                  onClick={handleResetTimer}
-                  className="px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition"
-                  title="Reset to 0"
+              {/* Sub-Job */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  QuickBooks Sub-Job (Customer:Job)
+                </label>
+                <select
+                  value={timerJobId}
+                  onChange={(e) => setTimerJobId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Reset</span>
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Pre-fill Details for Current Timer Session */}
-          <div className="pt-6 grid sm:grid-cols-2 gap-4">
-            {/* Customer Dropdown */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Customer *
-              </label>
-              <select
-                value={timerCustomerId}
-                onChange={(e) => {
-                  setTimerCustomerId(e.target.value);
-                  setTimerJobId("");
-                }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sub-Job Dropdown */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Sub-Job / Phase (Optional)
-              </label>
-              <select
-                value={timerJobId}
-                onChange={(e) => setTimerJobId(e.target.value)}
-                disabled={timerCustJobs.length === 0}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 transition"
-              >
-                <option value="">-- No Sub-Job (General Customer) --</option>
-                {timerCustJobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.name}
-                  </option>
-                ))}
-              </select>
+                  <option value="">General Project Overhead (No Job)</option>
+                  {timerCustJobs.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Service Item */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Service Item (QuickBooks) *
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                QuickBooks Service Item
               </label>
               <select
                 value={timerServiceItemId}
                 onChange={(e) => setTimerServiceItemId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
               >
                 {serviceItems.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.defaultBillable ? "Billable" : "Non-billable"})
+                    {s.name} ({s.defaultBillable ? "Billable" : "Non-Billable"})
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Location Category & GPS Capture */}
+            {/* Location Category Pills */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Location Type
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Work Location Type
                 </label>
                 <button
                   type="button"
                   onClick={handleCaptureGPS}
                   disabled={gpsLoading}
-                  className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition"
                 >
-                  <Navigation className="w-3 h-3 text-emerald-600" />
-                  <span>{gpsLoading ? "Acquiring..." : "Get GPS"}</span>
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>{gpsLoading ? "Acquiring GPS..." : "Stamp GPS Coordinates"}</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
-                  { id: "office", label: "Office", icon: Building },
-                  { id: "on_site", label: "On-Site", icon: MapPin },
-                  { id: "remote", label: "Remote", icon: Laptop },
-                  { id: "travel", label: "Travel", icon: Car },
-                ].map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setTimerLocationType(id as any)}
-                    className={`py-2 px-1 text-xs font-semibold rounded-lg flex flex-col items-center justify-center gap-1 border transition ${
-                      timerLocationType === id
-                        ? "bg-emerald-50 border-emerald-500 text-emerald-800"
-                        : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
-                    <span>{label}</span>
-                  </button>
-                ))}
+                  { id: "on_site", label: "On-Site Client", icon: <MapPin className="w-3.5 h-3.5 text-amber-600" /> },
+                  { id: "office", label: "Office", icon: <Building className="w-3.5 h-3.5 text-blue-600" /> },
+                  { id: "remote", label: "Remote", icon: <Laptop className="w-3.5 h-3.5 text-emerald-600" /> },
+                  { id: "travel", label: "Travel / Transit", icon: <Car className="w-3.5 h-3.5 text-purple-600" /> },
+                ].map((loc) => {
+                  const active = timerLocationType === loc.id;
+                  return (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      onClick={() => setTimerLocationType(loc.id as any)}
+                      className={`flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-semibold border transition ${
+                        active
+                          ? "bg-indigo-50/80 border-indigo-300 text-indigo-900 shadow-2xs"
+                          : "bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {loc.icon}
+                      <span>{loc.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
 
-            {/* Optional Location Name / Address */}
-            <div className="sm:col-span-2">
-              <input
-                type="text"
-                placeholder="Specific Site Address / Office Room / Facility Area (optional)"
-                value={timerLocationName}
-                onChange={(e) => setTimerLocationName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+              {gpsCoordinates && (
+                <div className="mt-2 text-[11px] text-emerald-700 font-mono font-medium flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>GPS Lat: {gpsCoordinates.lat}, Lng: {gpsCoordinates.lng} stamped</span>
+                </div>
+              )}
             </div>
 
             {/* Notes */}
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Activity Notes / Work Performed
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Session Field Notes (Transferred into QuickBooks TIMEACT Note)
               </label>
               <textarea
                 rows={2}
-                placeholder="Describe engineering tasks performed for the QuickBooks invoice/timesheet..."
                 value={timerNotes}
                 onChange={(e) => setTimerNotes(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Observed turbine harmonic frequencies, calibrated bearings, site walk findings..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
               />
             </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: MANUAL TIME ENTRY FORM */}
+      {/* Tab 2: Manual Time Entry Form */}
       {activeTab === "manual" && (
         <form
           onSubmit={handleManualSubmit}
-          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-8"
+          className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-5"
         >
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Log Completed Hours</h3>
+              <p className="text-xs text-slate-500">Retroactively record engineering time</p>
+            </div>
+            <Calendar className="w-5 h-5 text-indigo-600" />
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            {/* Date */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Date</label>
+              <input
+                type="date"
+                required
+                value={manualDate}
+                onChange={(e) => setManualDate(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-mono font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
+              />
+            </div>
+
+            {/* Hours */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Hours</label>
+              <input
+                type="number"
+                min="0"
+                max="24"
+                placeholder="e.g. 3"
+                value={manualHours}
+                onChange={(e) => setManualHours(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
+              />
+            </div>
+
+            {/* Minutes */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Minutes</label>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                placeholder="e.g. 45"
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(e.target.value === "" ? "" : Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Customer & Job */}
           <div className="grid sm:grid-cols-2 gap-4">
-            {/* Work Date */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Date *
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  required
-                  value={manualDate}
-                  onChange={(e) => setManualDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-
-            {/* Duration (Hours & Minutes) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Duration (Hours & Minutes) *
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="24"
-                    placeholder="Hours"
-                    value={manualHours}
-                    onChange={(e) => setManualHours(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">hrs</span>
-                </div>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    step="5"
-                    placeholder="Mins"
-                    value={manualMinutes}
-                    onChange={(e) => setManualMinutes(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">min</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Customer */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Customer *
-              </label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Client / Customer</label>
               <select
                 value={manualCustomerId}
                 onChange={(e) => {
                   setManualCustomerId(e.target.value);
                   setManualJobId("");
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
               >
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -681,18 +736,14 @@ export default function EngineerPage() {
               </select>
             </div>
 
-            {/* Job / Project */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Sub-Job / Phase
-              </label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Sub-Job</label>
               <select
                 value={manualJobId}
                 onChange={(e) => setManualJobId(e.target.value)}
-                disabled={manualCustJobs.length === 0}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
               >
-                <option value="">-- No Sub-Job (General Customer) --</option>
+                <option value="">General Project Overhead (No Job)</option>
                 {manualCustJobs.map((j) => (
                   <option key={j.id} value={j.id}>
                     {j.name}
@@ -700,20 +751,16 @@ export default function EngineerPage() {
                 ))}
               </select>
             </div>
+          </div>
 
-            {/* Service Item */}
+          {/* Service Item & Billable */}
+          <div className="grid sm:grid-cols-2 gap-4 items-center">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Service Item (QuickBooks) *
-              </label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Service Item</label>
               <select
                 value={manualServiceItemId}
-                onChange={(e) => {
-                  setManualServiceItemId(e.target.value);
-                  const s = serviceItems.find((item) => item.id === e.target.value);
-                  if (s) setManualBillable(s.defaultBillable);
-                }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={(e) => setManualServiceItemId(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
               >
                 {serviceItems.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -723,192 +770,125 @@ export default function EngineerPage() {
               </select>
             </div>
 
-            {/* Location Type */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Work Location
+            <div className="pt-6 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="manual-billable"
+                checked={manualBillable}
+                onChange={(e) => setManualBillable(e.target.checked)}
+                className="rounded text-indigo-600 border-slate-300 w-4 h-4 focus:ring-indigo-500"
+              />
+              <label htmlFor="manual-billable" className="text-xs font-semibold text-slate-800 cursor-pointer">
+                Billable to Client (QuickBooks Status: 1)
               </label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[
-                  { id: "office", label: "Office", icon: Building },
-                  { id: "on_site", label: "On-Site", icon: MapPin },
-                  { id: "remote", label: "Remote", icon: Laptop },
-                  { id: "travel", label: "Travel", icon: Car },
-                ].map(({ id, label, icon: Icon }) => (
+            </div>
+          </div>
+
+          {/* Location Category */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Location Type</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { id: "office", label: "Office", icon: <Building className="w-3.5 h-3.5 text-blue-600" /> },
+                { id: "on_site", label: "On-Site Client", icon: <MapPin className="w-3.5 h-3.5 text-amber-600" /> },
+                { id: "remote", label: "Remote", icon: <Laptop className="w-3.5 h-3.5 text-emerald-600" /> },
+                { id: "travel", label: "Travel / Transit", icon: <Car className="w-3.5 h-3.5 text-purple-600" /> },
+              ].map((loc) => {
+                const active = manualLocationType === loc.id;
+                return (
                   <button
-                    key={id}
+                    key={loc.id}
                     type="button"
-                    onClick={() => setManualLocationType(id as any)}
-                    className={`py-2 px-1 text-xs font-semibold rounded-lg flex flex-col items-center justify-center gap-1 border transition ${
-                      manualLocationType === id
-                        ? "bg-indigo-50 border-indigo-500 text-indigo-800"
-                        : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                    onClick={() => setManualLocationType(loc.id as any)}
+                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-semibold border transition ${
+                      active
+                        ? "bg-indigo-50/80 border-indigo-300 text-indigo-900 shadow-2xs"
+                        : "bg-slate-50/60 border-slate-200 text-slate-600 hover:bg-slate-100"
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
-                    <span>{label}</span>
+                    {loc.icon}
+                    <span>{loc.label}</span>
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Location Detail & Billable Toggle */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Location Details (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Field Substation 3, Room 102"
-                value={manualLocationName}
-                onChange={(e) => setManualLocationName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center pt-6">
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={manualBillable}
-                  onChange={(e) => setManualBillable(e.target.checked)}
-                  className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                />
-                <div>
-                  <span className="text-sm font-bold text-slate-900">Billable to Customer</span>
-                  <p className="text-xs text-slate-500">Includes in QuickBooks billing invoice</p>
-                </div>
-              </label>
-            </div>
-
-            {/* Notes */}
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Work Description / Notes
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Describe what was accomplished for accounting and project audit..."
-                value={manualNotes}
-                onChange={(e) => setManualNotes(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+                );
+              })}
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 flex items-center gap-2 transition disabled:opacity-50"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>{isSubmitting ? "Logging Entry..." : "Submit Time Entry"}</span>
-            </button>
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Description / Notes</label>
+            <textarea
+              rows={2}
+              value={manualNotes}
+              onChange={(e) => setManualNotes(e.target.value)}
+              placeholder="Performed structural load calculations, reviewed blueprints with client..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-600/20 focus:outline-none"
+            />
           </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition active:scale-[0.99] disabled:opacity-50"
+          >
+            {isSubmitting ? "Logging Timesheet..." : "Add to Timesheet"}
+          </button>
         </form>
       )}
 
-      {/* RECENT ENTRIES LIST */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span>Recent Logged Entries</span>
-            <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
-              {recentEntries.length}
-            </span>
-          </h2>
-          <button
-            onClick={fetchData}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>Refresh</span>
-          </button>
+      {/* Recent Entries Section for Current Engineer */}
+      <div className="mt-8 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Your Recent Timesheet Records</h3>
+            <p className="text-xs text-slate-400">Recently logged hours by Doug Mitchell</p>
+          </div>
+          <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+            {recentEntries.length} entries
+          </span>
         </div>
 
-        {loading ? (
-          <div className="text-center py-8 text-sm text-slate-400">Loading entries...</div>
-        ) : recentEntries.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-sm">
-            No time entries recorded yet. Start the stopwatch timer or add a manual entry above.
-          </div>
+        {recentEntries.length === 0 ? (
+          <div className="py-8 text-center text-xs text-slate-400">No time entries logged yet.</div>
         ) : (
-          <div className="space-y-3">
-            {recentEntries.map((entry) => {
-              const hrs = Math.floor(entry.durationMinutes / 60);
-              const mins = entry.durationMinutes % 60;
-
-              return (
-                <div
-                  key={entry.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-sm hover:border-slate-300 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-900 text-sm">{entry.customerName}</span>
-                      {entry.jobName && (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                          {entry.jobName}
-                        </span>
-                      )}
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          entry.locationType === "on_site"
-                            ? "bg-amber-100 text-amber-800"
-                            : entry.locationType === "office"
-                            ? "bg-blue-100 text-blue-800"
-                            : entry.locationType === "travel"
-                            ? "bg-purple-100 text-purple-800"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {entry.locationType.replace("_", " ")}
-                      </span>
-                      {entry.isBillable ? (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Billable
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                          Non-billable
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-xs text-slate-500 flex items-center gap-3">
-                      <span>{entry.date}</span>
-                      <span>•</span>
-                      <span>{entry.serviceItemName}</span>
-                      {entry.locationName && (
-                        <>
-                          <span>•</span>
-                          <span className="italic">{entry.locationName}</span>
-                        </>
-                      )}
-                    </div>
-
-                    {entry.notes && (
-                      <p className="text-xs text-slate-600 pt-1 leading-relaxed">{entry.notes}</p>
-                    )}
+          <div className="divide-y divide-slate-100">
+            {recentEntries.slice(0, 6).map((entry) => (
+              <div key={entry.id} className="py-3 flex items-center justify-between gap-4 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                  <span className="font-mono font-semibold text-slate-800">{entry.date}</span>
+                  <div className="font-semibold text-slate-900">
+                    {entry.customerName}
+                    {entry.jobName && <span className="text-slate-400 font-normal"> :{entry.jobName}</span>}
                   </div>
-
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 gap-2 shrink-0">
-                    <div className="text-base font-extrabold text-slate-900 font-mono">
-                      {hrs > 0 ? `${hrs}h ` : ""}
-                      {mins}m
-                    </div>
-                    <button
-                      onClick={() => handleDeleteEntry(entry.id)}
-                      className="text-slate-400 hover:text-red-600 transition p-1"
-                      title="Delete entry"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  <span className="text-slate-400 hidden sm:inline">•</span>
+                  <span className="text-slate-500">{entry.serviceItemName}</span>
                 </div>
-              );
-            })}
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-mono font-bold text-slate-900 text-sm">
+                    {formatQuickBooksDuration(entry.durationMinutes)}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                      entry.status === "approved"
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : entry.status === "exported"
+                        ? "bg-purple-50 text-purple-800 border border-purple-200"
+                        : "bg-amber-50 text-amber-800 border border-amber-200"
+                    }`}
+                  >
+                    {entry.status}
+                  </span>
+                  <button
+                    onClick={() => handleDeleteEntry(entry.id)}
+                    className="text-slate-400 hover:text-rose-600 p-1 rounded transition"
+                    title="Delete entry"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
