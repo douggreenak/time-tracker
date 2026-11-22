@@ -4,40 +4,92 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.75rem;
+    color-scheme: light;
+
+    /* Surfaces */
+    --background: 231 100% 99%;
+    --foreground: 240 7% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 7% 11%;
+    --surface-container-low: 228 60% 98%;
+    --surface-container: 222 43% 96%;
+    --surface-container-high: 224 36% 93%;
+    --surface-container-highest: 222 27% 91%;
+
+    /* Primary — Google blue tonal roles */
+    --primary: 217 90% 43%;
+    --primary-foreground: 0 0% 100%;
+    --primary-container: 217 91% 91%;
+    --on-primary-container: 217 90% 15%;
+
+    /* Secondary — neutral-blue tonal roles */
+    --secondary: 222 14% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-container: 224 72% 92%;
+    --on-secondary-container: 222 29% 20%;
+
+    /* Tertiary — teal accent */
+    --tertiary: 183 75% 21%;
+    --tertiary-foreground: 0 0% 100%;
+    --tertiary-container: 183 82% 79%;
+    --on-tertiary-container: 184 100% 13%;
+
+    /* Error */
+    --destructive: 0 75% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Neutrals */
+    --muted: 222 43% 96%;
+    --muted-foreground: 222 9% 29%;
+    --accent: 224 72% 92%;
+    --accent-foreground: 222 29% 20%;
+    --border: 231 11% 85%;
+    --input: 231 11% 82%;
+    --outline: 224 5% 48%;
+    --outline-variant: 231 11% 79%;
+    --ring: 217 90% 43%;
+    --radius: 1.75rem;
   }
 
   .dark {
-    --background: 222.2 47.4% 11.2%;
-    --foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    color-scheme: dark;
+
+    --background: 222 14% 8%;
+    --foreground: 220 14% 93%;
+    --card: 222 12% 11%;
+    --card-foreground: 220 14% 93%;
+    --surface-container-low: 222 14% 11%;
+    --surface-container: 222 13% 14%;
+    --surface-container-high: 222 12% 18%;
+    --surface-container-highest: 222 11% 21%;
+
+    --primary: 217 100% 80%;
+    --primary-foreground: 217 90% 18%;
+    --primary-container: 217 65% 33%;
+    --on-primary-container: 217 100% 92%;
+
+    --secondary: 222 10% 76%;
+    --secondary-foreground: 222 14% 15%;
+    --secondary-container: 222 20% 25%;
+    --on-secondary-container: 224 72% 92%;
+
+    --tertiary: 183 60% 70%;
+    --tertiary-foreground: 184 100% 13%;
+    --tertiary-container: 183 70% 25%;
+    --on-tertiary-container: 183 82% 85%;
+
+    --destructive: 6 100% 84%;
+    --destructive-foreground: 0 100% 21%;
+
+    --muted: 222 14% 15%;
+    --muted-foreground: 222 10% 74%;
+    --accent: 222 20% 22%;
+    --accent-foreground: 220 14% 93%;
+    --border: 222 12% 26%;
+    --input: 222 12% 26%;
+    --outline: 222 8% 54%;
+    --outline-variant: 222 12% 30%;
+    --ring: 217 100% 80%;
   }
 }
 
@@ -45,14 +97,94 @@
   * {
     @apply border-border;
   }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 0;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-semibold;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Material tonal label ("label-large" role) */
+  .m3-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* Material chip used as a section eyebrow */
+  .m3-eyebrow {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-primary;
+  }
+
+  /* Material numeric emphasis for KPI values */
+  .m3-metric {
+    @apply font-mono font-semibold tabular-nums tracking-[-0.02em];
+  }
+
+  /* Material state layer for quiet interactive surfaces */
+  .m3-state {
+    @apply transition-colors duration-200 ease-expressive hover:bg-foreground/[0.06] active:bg-foreground/[0.1];
+  }
+
+  .m3-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--outline-variant)) transparent;
+  }
+
+  .m3-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .m3-scroll::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--outline-variant));
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  .m3-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Subtle expressive hairline used on app shells */
+  .m3-divider {
+    @apply border-border/60;
+  }
+
+  /* Native-appearance chevron for Material dropdowns */
+  .m3-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23565E71' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    background-size: 16px 16px;
   }
 }

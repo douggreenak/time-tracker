@@ -50,64 +50,71 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-        <div className="w-full max-w-md bg-background rounded-xl p-8 sm:p-10 shadow-lg border border-border/60 text-center relative overflow-hidden">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold mb-6 border border-primary/20">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Secure Field & Office Gateway</span>
+      <div className="flex min-h-screen items-center justify-center bg-surface-low p-4">
+        <div className="w-full max-w-md animate-m3-in rounded-[28px] border border-border/60 bg-card p-8 text-center shadow-m3-2 sm:p-10">
+          <div className="mb-6 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-primary">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Secure gateway</span>
           </div>
 
-          <div className="w-16 h-16 mx-auto rounded-xl bg-primary flex items-center justify-center text-primary-foreground mb-6 shadow-lg shadow-primary/25">
-            <Lock className="w-7 h-7 stroke-[2.2]" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-[22px] bg-primary text-primary-foreground shadow-m3-1">
+            <Lock className="h-7 w-7" strokeWidth={2.1} />
           </div>
 
-          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
-            Field & Office TimeTrack
+          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">
+            Field &amp; Office TimeTrack
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-            Enter authorized PIN or management password to access engineering timesheets and QuickBooks records.
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            Enter your authorized PIN to access engineering timesheets and
+            QuickBooks records.
           </p>
 
-          <form onSubmit={handleUnlock} className="mt-8 space-y-4">
-            <div className="relative">
-              <Input
-                type="password"
-                value={pinInput}
-                onChange={(e) => {
-                  setPinInput(e.target.value);
-                  setErrorMsg(null);
-                }}
-                autoFocus
-                placeholder="Enter PIN (Default: 1234)"
-                className="w-full px-4 py-3.5 rounded-lg text-slate-900 font-mono text-center tracking-widest placeholder:tracking-normal placeholder:font-sans placeholder:text-sm placeholder:text-muted-foreground focus:bg-white focus:ring-2 focus:ring-ring/30 focus:border-ring transition"
-              />
-            </div>
+          <form onSubmit={handleUnlock} className="mt-8 space-y-3">
+            <Input
+              type="password"
+              value={pinInput}
+              onChange={(e) => {
+                setPinInput(e.target.value);
+                setErrorMsg(null);
+              }}
+              autoFocus
+              placeholder="Enter PIN"
+              aria-label="Access PIN"
+              className="h-14 rounded-full bg-surface-container-low px-6 text-center font-mono text-base tracking-[0.3em] placeholder:text-sm placeholder:font-sans placeholder:tracking-normal"
+            />
 
             {errorMsg && (
-              <div className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl py-2 px-3">
+              <div
+                role="alert"
+                className="animate-m3-fade rounded-2xl bg-destructive/10 px-4 py-2.5 text-xs font-medium text-destructive"
+              >
                 {errorMsg}
               </div>
             )}
 
             <Button
               type="submit"
-              className="w-full py-3.5 px-4 shadow-sm shadow-primary/20 flex items-center justify-center gap-2"
+              size="lg"
+              className="w-full shadow-m3-1"
             >
-              <KeyRound className="w-4 h-4" />
-              <span>Unlock System</span>
+              <KeyRound className="h-4 w-4" />
+              <span>Unlock</span>
             </Button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-border/40 flex flex-col gap-2.5">
+          <div className="mt-6 border-t border-border/60 pt-6">
             <Button
               type="button"
-              variant="outline"
+              variant="tonal"
               onClick={handleQuickDemoUnlock}
-              className="w-full py-2.5 px-3 text-xs flex items-center justify-center gap-1.5"
+              className="w-full text-xs"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Quick 1-Click Demo Unlock (PIN: 1234)</span>
+              <Sparkles className="h-3.5 w-3.5 text-tertiary" />
+              <span>Explore with demo access</span>
             </Button>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Demo PIN: <span className="font-mono font-semibold text-foreground">1234</span>
+            </p>
           </div>
         </div>
       </div>

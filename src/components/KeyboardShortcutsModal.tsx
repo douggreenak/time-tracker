@@ -2,8 +2,7 @@
 
 import React from "react";
 import { useKeyboardShortcuts } from "./KeyboardShortcutsProvider";
-import { X, Command, HardHat, BarChart3, Settings, Play, CheckSquare, Download, Search, Shield } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 
 export function KeyboardShortcutsModal() {
   const { isHelpOpen, setIsHelpOpen } = useKeyboardShortcuts();
@@ -12,82 +11,92 @@ export function KeyboardShortcutsModal() {
 
   const shortcutSections = [
     {
-      title: "Global Navigation",
+      title: "Global navigation",
       items: [
-        { keys: ["⌘", "K"], desc: "Open Command Palette / Quick Search" },
-        { keys: ["1"], desc: "Switch to Engineer Tracker view" },
-        { keys: ["2"], desc: "Switch to Accountant Audits & Exports view" },
-        { keys: ["3"], desc: "Switch to Customers & Service Items directory" },
-        { keys: ["0"], desc: "Return to Home Overview" },
-        { keys: ["?"], desc: "Toggle this Keyboard Shortcuts dialog" },
-        { keys: ["Esc"], desc: "Close active modal, palette, or menu" },
+        { keys: ["⌘", "K"], desc: "Open the command palette" },
+        { keys: ["1"], desc: "Go to the Engineer tracker" },
+        { keys: ["2"], desc: "Go to Accountant audits & exports" },
+        { keys: ["3"], desc: "Go to the customer & service directory" },
+        { keys: ["0"], desc: "Return to the home overview" },
+        { keys: ["?"], desc: "Toggle this shortcut sheet" },
+        { keys: ["Esc"], desc: "Close an active dialog or palette" },
       ],
     },
     {
-      title: "Engineer Mode (Field & Office)",
+      title: "Engineer mode",
       items: [
-        { keys: ["Space"], desc: "Start, pause, or resume live stopwatch timer" },
-        { keys: ["S"], desc: "Stop active timer and log time entry" },
-        { keys: ["T"], desc: "Switch to Live Timer tab" },
-        { keys: ["N"], desc: "Switch to Manual Time Entry tab" },
+        { keys: ["Space"], desc: "Start, pause, or resume the stopwatch" },
+        { keys: ["S"], desc: "Stop the timer and log the entry" },
+        { keys: ["T"], desc: "Switch to the live timer tab" },
+        { keys: ["N"], desc: "Switch to manual time entry" },
       ],
     },
     {
-      title: "Accountant Portal",
+      title: "Accountant portal",
       items: [
-        { keys: ["P"], desc: "Cycle calculation time period (Today, Week, Month, etc.)" },
-        { keys: ["/"], desc: "Focus search filter input" },
-        { keys: ["A"], desc: "Batch approve selected timesheet entries" },
-        { keys: ["X"], desc: "Batch mark selected entries as exported" },
-        { keys: ["I"], desc: "Direct download QuickBooks Desktop .IIF file" },
-        { keys: ["C"], desc: "Direct download structured CSV audit file" },
+        { keys: ["P"], desc: "Cycle the calculation period" },
+        { keys: ["/"], desc: "Focus the search filter" },
+        { keys: ["A"], desc: "Approve selected entries" },
+        { keys: ["X"], desc: "Mark selected entries as exported" },
+        { keys: ["I"], desc: "Download the QuickBooks .IIF file" },
+        { keys: ["C"], desc: "Download the CSV audit file" },
       ],
     },
   ];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4 backdrop-blur-sm animate-m3-fade"
       onClick={() => setIsHelpOpen(false)}
     >
       <div
-        className="w-full max-w-2xl bg-background rounded-xl shadow-2xl border border-border/60 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Keyboard shortcuts"
+        className="w-full max-w-2xl animate-m3-in overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-m3-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-6 py-5 border-b border-border/40 flex items-center justify-between bg-muted/50">
+        <div className="flex items-center justify-between border-b border-border/60 bg-surface-low px-6 py-5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm border border-primary/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 font-mono text-sm font-semibold text-primary">
               ⌘
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground">Keyboard Shortcuts</h3>
-              <p className="text-xs text-muted-foreground">Navigate and execute actions with precision</p>
+              <h3 className="text-base font-semibold tracking-[-0.01em] text-foreground">
+                Keyboard shortcuts
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Move through the workspace without leaving the clock
+              </p>
             </div>
           </div>
           <button
             onClick={() => setIsHelpOpen(false)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition"
             aria-label="Close"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors duration-200 ease-expressive hover:bg-foreground/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <X className="w-4 h-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-6 max-h-[70vh] overflow-y-auto space-y-6">
+        <div className="m3-scroll max-h-[70vh] space-y-6 overflow-y-auto p-6">
           {shortcutSections.map((section) => (
             <div key={section.title}>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 px-1">
-                {section.title}
-              </h4>
-              <div className="bg-muted/50 rounded-lg border border-border/40 divide-y divide-border/60 overflow-hidden">
+              <h4 className="m3-label mb-2 px-1">{section.title}</h4>
+              <div className="divide-y divide-border/60 overflow-hidden rounded-2xl bg-surface-low">
                 {section.items.map((item, idx) => (
-                  <div key={idx} className="px-4 py-2.5 flex items-center justify-between text-sm">
-                    <span className="text-foreground font-medium text-xs sm:text-sm">{item.desc}</span>
-                    <div className="flex items-center gap-1 shrink-0">
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between gap-4 px-4 py-2.5"
+                  >
+                    <span className="text-xs font-normal text-foreground sm:text-sm">
+                      {item.desc}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
                       {item.keys.map((k, kIdx) => (
                         <kbd
                           key={kIdx}
-                          className="px-2 py-1 text-xs font-mono font-semibold text-foreground bg-background border border-border rounded-lg shadow-sm min-w-[24px] text-center"
+                          className="min-w-[26px] rounded-lg border border-outline-variant bg-card px-2 py-1 text-center font-mono text-[11px] font-semibold text-foreground shadow-xs"
                         >
                           {k}
                         </kbd>
@@ -100,11 +109,15 @@ export function KeyboardShortcutsModal() {
           ))}
         </div>
 
-        <div className="px-6 py-3.5 bg-muted border-t border-border/40 text-xs text-muted-foreground flex items-center justify-between">
-          <span>
-            Press <kbd className="px-1.5 py-0.5 font-mono text-[11px] bg-background border rounded">Esc</kbd> to dismiss
+        <div className="flex items-center justify-between border-t border-border/60 bg-surface-low px-6 py-3.5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            Press
+            <kbd className="rounded-md border border-outline-variant bg-card px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+              Esc
+            </kbd>
+            to dismiss
           </span>
-          <span className="text-primary font-semibold">TimeTrack</span>
+          <span className="font-medium text-primary">TimeTrack</span>
         </div>
       </div>
     </div>

@@ -1,8 +1,7 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
-export interface CardProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => {
@@ -10,7 +9,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          "rounded-xl border border-input bg-background shadow-sm",
+          "rounded-xl border border-border/60 bg-card text-card-foreground shadow-sm",
           className
         )}
         {...props}
@@ -45,7 +44,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
       <h3
         ref={ref}
         className={cn(
-          "text-2xl font-semibold leading-none tracking-tight",
+          "text-base font-semibold leading-tight tracking-[-0.01em] text-foreground",
           className
         )}
         {...props}
@@ -61,11 +60,7 @@ export interface CardContentProps
 export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
   ({ className, ...props }, ref) => {
     return (
-      <div
-        ref={ref}
-        className={cn("p-6 pt-0", className)}
-        {...props}
-      />
+      <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
     );
   }
 );

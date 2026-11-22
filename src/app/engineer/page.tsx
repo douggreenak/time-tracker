@@ -34,10 +34,10 @@ import { cn } from "@/components/ui";
 type LocationType = "office" | "on_site" | "remote" | "travel";
 
 const LOCATION_OPTS: { id: LocationType; label: string; icon: React.ReactNode }[] = [
-  { id: "on_site", label: "On-Site Client", icon: <MapPin className="w-3.5 h-3.5 text-amber-600" /> },
-  { id: "office", label: "Office", icon: <Building className="w-3.5 h-3.5 text-blue-600" /> },
-  { id: "remote", label: "Remote", icon: <Laptop className="w-3.5 h-3.5 text-emerald-600" /> },
-  { id: "travel", label: "Travel / Transit", icon: <Car className="w-3.5 h-3.5 text-purple-600" /> },
+  { id: "on_site", label: "On-site client", icon: <MapPin className="h-3.5 w-3.5" /> },
+  { id: "office", label: "Office", icon: <Building className="h-3.5 w-3.5" /> },
+  { id: "remote", label: "Remote", icon: <Laptop className="h-3.5 w-3.5" /> },
+  { id: "travel", label: "Travel", icon: <Car className="h-3.5 w-3.5" /> },
 ];
 
 export default function EngineerPage() {
@@ -350,43 +350,30 @@ export default function EngineerPage() {
   const timerCustJobs = customers.find((c) => c.id === timerCustomerId)?.jobs || [];
   const manualCustJobs = customers.find((c) => c.id === manualCustomerId)?.jobs || [];
 
-  const LocationPill = ({ id, label, icon, active }: { id: LocationType; label: string; icon: React.ReactNode; active: boolean }) => (
-    <button
-      type="button"
-      onClick={() => {}}
-      className={cn(
-        "flex items-center justify-center gap-2 p-2.5 rounded-lg text-xs font-semibold border transition",
-        active
-          ? "bg-primary/10 border-primary/30 text-primary-900 shadow-sm"
-          : "bg-muted/60 border-border text-muted-foreground hover:bg-muted"
-      )}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border/60 mb-6">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="mb-6 flex flex-col justify-between gap-5 border-b border-border/60 pb-6 sm:flex-row sm:items-center">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-secondary text-primary-foreground text-xs font-semibold mb-2 border border-border/60">
-            <span>Field & Office Mobility Engine</span>
+          <div className="m3-eyebrow mb-3">
+            <span>Field &amp; office mobility</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+          <h1 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground sm:text-[2rem]">
             Engineer Timesheet Tracker
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+          <p className="mt-1 text-sm text-muted-foreground">
             Record on-site stopwatch hours, GPS geo-tags, or enter retroactive logs
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Engineer:</span>
+          <label htmlFor="engineer-select" className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            Engineer
+          </label>
           <select
+            id="engineer-select"
             value={currentUserId}
             onChange={(e) => setCurrentUserId(e.target.value)}
-            className="h-9 px-3 rounded-lg border border-input bg-background text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20"
+            className="h-10 cursor-pointer rounded-full border border-outline-variant bg-surface-low px-4 text-xs font-semibold text-foreground transition-colors duration-200 ease-expressive hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
           >
             {users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -397,47 +384,47 @@ export default function EngineerPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-center mb-6">
-        <div className="inline-flex p-1.5 bg-secondary/60 rounded-xl border border-border/60 shadow-xs">
+      <div className="mb-6 flex items-center justify-center">
+        <div className="inline-flex gap-1 rounded-full bg-surface-container p-1.5">
           <button
             onClick={() => setActiveTab("timer")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive sm:text-sm ${
               activeTab === "timer"
-                ? "bg-background text-primary-foreground shadow-sm font-bold"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-card text-primary shadow-xs"
+                : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
             }`}
           >
-            <Clock className="w-4 h-4 text-primary" />
-            <span>Live Stopwatch</span>
+            <Clock className="h-4 w-4" />
+            <span>Live stopwatch</span>
           </button>
 
           <button
             onClick={() => setActiveTab("manual")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive sm:text-sm ${
               activeTab === "manual"
-                ? "bg-background text-primary-foreground shadow-sm font-bold"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-card text-primary shadow-xs"
+                : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
             }`}
           >
-            <PlusCircle className="w-4 h-4 text-primary" />
-            <span>Manual Time Entry</span>
+            <PlusCircle className="h-4 w-4" />
+            <span>Manual entry</span>
           </button>
         </div>
       </div>
 
       {feedbackMsg && (
         <div
-          className={`mb-6 p-4 rounded-xl text-sm font-semibold flex items-center justify-between shadow-sm border ${
+          className={`mb-6 flex items-center justify-between gap-4 rounded-2xl px-5 py-4 text-sm font-medium ${
             feedbackMsg.type === "success"
-              ? "bg-emerald-50 border-emerald-100 text-emerald-800"
-              : "bg-rose-50 border-rose-100 text-rose-800"
+              ? "bg-tertiary-container/50 text-tertiary-on-container"
+              : "bg-destructive/10 text-destructive"
           }`}
         >
           <div className="flex items-center gap-2">
             {feedbackMsg.type === "success" ? (
-              <CheckCircle className="w-5 h-5 text-emerald-600" />
+              <CheckCircle className="h-5 w-5 text-tertiary" />
             ) : (
-              <AlertCircle className="w-5 h-5 text-rose-600" />
+              <AlertCircle className="h-5 w-5 text-destructive" />
             )}
             <span>{feedbackMsg.text}</span>
           </div>
@@ -452,8 +439,8 @@ export default function EngineerPage() {
 
       {activeTab === "timer" && (
         <div className="space-y-6">
-          <div className="bg-background rounded-xl border border-border/60 shadow-sm p-6 sm:p-8 text-center relative overflow-hidden">
-            <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+          <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-surface-low p-6 text-center shadow-sm sm:p-10">
+            <div className="m3-label mb-2">
               {timerRunning && !timerPaused
                 ? "Active Field Session Recording"
                 : timerPaused
@@ -461,7 +448,7 @@ export default function EngineerPage() {
                 : "Ready to Track"}
             </div>
 
-            <div className="text-5xl sm:text-7xl font-extrabold text-foreground tracking-tight font-mono py-2 select-none">
+            <div className="select-none py-3 font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.04em] tabular-nums text-foreground sm:text-[5rem]">
               {formatTime(secondsElapsed)}
             </div>
 
@@ -533,8 +520,8 @@ export default function EngineerPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                  Session Activity & Site Mapping
+                <h3 className="m3-label">
+                  Session activity &amp; site mapping
                 </h3>
               </div>
             </CardHeader>
@@ -606,10 +593,10 @@ export default function EngineerPage() {
                         type="button"
                         onClick={() => setTimerLocationType(loc.id)}
                         className={cn(
-                          "flex items-center justify-center gap-2 p-2.5 rounded-lg text-xs font-semibold border transition",
+                          "flex items-center justify-center gap-2 rounded-full border px-3 py-2.5 text-xs font-medium transition-all duration-200 ease-expressive",
                           active
-                            ? "bg-primary/10 border-primary/30 text-primary-900 shadow-sm"
-                            : "bg-muted/60 border-border text-muted-foreground hover:bg-muted"
+                            ? "border-transparent bg-secondary-container text-secondary-on-container shadow-xs"
+                            : "border-outline-variant bg-transparent text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
                         )}
                       >
                         {loc.icon}
@@ -634,7 +621,7 @@ export default function EngineerPage() {
                   value={timerNotes}
                   onChange={(e) => setTimerNotes(e.target.value)}
                   placeholder="Observed site findings, calibrated bearings, walk notes..."
-                  className="w-full px-3 py-2 rounded-lg border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-ring/20 focus:outline-none"
+                  className="w-full rounded-md border border-outline-variant bg-surface-low px-4 py-3 text-sm font-normal text-foreground transition-colors duration-200 ease-expressive placeholder:text-muted-foreground/80 hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
                 />
               </div>
             </CardContent>
@@ -645,11 +632,11 @@ export default function EngineerPage() {
       {activeTab === "manual" && (
         <form
           onSubmit={handleManualSubmit}
-          className="bg-background rounded-xl border border-border/60 shadow-sm p-6 sm:p-8 space-y-5"
+          className="space-y-5 rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:p-8"
         >
-          <div className="flex items-center justify-between pb-4 border-b border-border/40">
+          <div className="flex items-center justify-between border-b border-border/60 pb-4">
             <div>
-              <h3 className="text-base font-bold text-foreground">Log Completed Hours</h3>
+              <h3 className="text-base font-semibold tracking-[-0.01em] text-foreground">Log completed hours</h3>
               <p className="text-xs text-muted-foreground">Retroactively record engineering time</p>
             </div>
             <Calendar className="w-5 h-5 text-primary" />
@@ -757,8 +744,8 @@ export default function EngineerPage() {
                     className={cn(
                       "flex items-center justify-center gap-2 p-2.5 rounded-lg text-xs font-semibold border transition",
                       active
-                        ? "bg-primary/10 border-primary/30 text-primary-900 shadow-sm"
-                        : "bg-muted/60 border-border text-muted-foreground hover:bg-muted"
+                        ? "border-transparent bg-secondary-container text-secondary-on-container shadow-xs"
+                        : "border-outline-variant bg-transparent text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
                     )}
                   >
                     {loc.icon}
@@ -776,7 +763,7 @@ export default function EngineerPage() {
               value={manualNotes}
               onChange={(e) => setManualNotes(e.target.value)}
               placeholder="Performed structural load calculations, reviewed blueprints..."
-              className="w-full px-3 py-2 rounded-lg border border-input bg-background text-xs font-medium focus:ring-2 focus:ring-ring/20 focus:outline-none"
+              className="w-full rounded-md border border-outline-variant bg-surface-low px-4 py-3 text-sm font-normal text-foreground transition-colors duration-200 ease-expressive placeholder:text-muted-foreground/80 hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
             />
           </div>
 
@@ -785,14 +772,14 @@ export default function EngineerPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm shadow-sm shadow-primary/20 transition active:scale-[0.99] disabled:opacity-50"
+            className="w-full rounded-full bg-primary py-3.5 text-sm font-medium text-primary-foreground shadow-m3-1 transition-all duration-200 ease-expressive hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
           >
             {isSubmitting ? "Logging Timesheet..." : "Add to Timesheet"}
           </button>
         </form>
       )}
 
-      <div className="mt-8 bg-background rounded-xl border border-border/60 shadow-sm p-6">
+      <div className="mt-8 rounded-xl border border-border/60 bg-card p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/40">
           <div>
             <h3 className="text-sm font-bold text-foreground">Your Recent Timesheet Records</h3>

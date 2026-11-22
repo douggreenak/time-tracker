@@ -503,17 +503,17 @@ export default function AccountantPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 mb-6 border-b border-border/60">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mb-6 flex flex-col justify-between gap-4 border-b border-border/60 pb-6 md:flex-row md:items-center">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-secondary text-primary-foreground text-xs font-semibold mb-2 border border-border/60">
-            <span>Accounting & QuickBooks Controller</span>
+          <div className="m3-eyebrow mb-3">
+            <span>Accounting &amp; QuickBooks control</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-            Timesheet Audits & Financial Calculations
+          <h1 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground sm:text-[2rem]">
+            Timesheet Audits &amp; Financial Calculations
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Calculate period realization, verify labor costs, and export to QuickBooks Desktop (.IIF)
+          <p className="mt-1 text-sm text-muted-foreground">
+            Calculate period realisation, verify labour costs, and export to QuickBooks Desktop (.IIF)
           </p>
         </div>
 
@@ -542,13 +542,11 @@ export default function AccountantPage() {
         <CardHeader className="pb-3">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary" />
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Calculation Time Period
-              </span>
+              <Calendar className="h-4 w-4 text-primary" />
+              <span className="m3-label">Calculation period</span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 bg-muted/50 p-1.5 rounded-xl border border-border/40">
+            <div className="flex flex-wrap items-center gap-1 rounded-full bg-surface-container p-1.5">
               {[
                 { id: "today", label: "Today" },
                 { id: "yesterday", label: "Yesterday" },
@@ -567,10 +565,10 @@ export default function AccountantPage() {
                     key={p.id}
                     onClick={() => setPeriod(p.id as PeriodPreset)}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-semibold transition",
+                      "rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
                       active
-                        ? "bg-background text-primary shadow-sm font-bold"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                        ? "bg-card text-primary shadow-xs"
+                        : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
                     )}
                   >
                     {p.label}
@@ -612,14 +610,14 @@ export default function AccountantPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Total Period Hours
               </span>
               <Clock className="w-4 h-4 text-primary" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight font-mono">
+            <div className="m3-metric text-[1.75rem] text-foreground sm:text-[2rem]">
               {metrics.totalHours.toFixed(2)}h
             </div>
             <div className="text-xs text-muted-foreground mt-1 font-medium">
@@ -631,16 +629,16 @@ export default function AccountantPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Billable Realization
               </span>
-              <Badge className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+              <Badge className="bg-tertiary-container/60 text-tertiary-on-container">
                 {metrics.realizationRate.toFixed(1)}%
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-extrabold text-emerald-700 tracking-tight font-mono">
+            <div className="m3-metric text-[1.75rem] text-tertiary sm:text-[2rem]">
               {metrics.billableHours.toFixed(2)}h
             </div>
             <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden mt-2">
@@ -655,14 +653,14 @@ export default function AccountantPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Est. Billable Revenue
               </span>
               <DollarSign className="w-4 h-4 text-primary" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight font-mono">
+            <div className="m3-metric text-[1.75rem] text-foreground sm:text-[2rem]">
               ${metrics.totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="text-xs text-muted-foreground mt-1 font-medium">
@@ -674,14 +672,14 @@ export default function AccountantPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Active Coverage
               </span>
               <Briefcase className="w-4 h-4 text-muted-foreground" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight font-mono">
+            <div className="m3-metric text-[1.75rem] text-foreground sm:text-[2rem]">
               {metrics.activeCustomerCount} <span className="text-sm text-muted-foreground font-normal">Clients</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1 font-medium">
@@ -692,9 +690,9 @@ export default function AccountantPage() {
       </div>
 
       {actionSuccessMsg && (
-        <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-sm font-semibold flex items-center justify-between shadow-sm">
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-tertiary-container/50 px-5 py-4 text-sm font-medium text-tertiary-on-container">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <CheckCircle2 className="h-5 w-5 text-tertiary" />
             <span>{actionSuccessMsg}</span>
           </div>
           <button
@@ -708,16 +706,14 @@ export default function AccountantPage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-1.5 bg-muted/50 p-1.5 rounded-xl border border-border/40">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">                <div className="flex flex-wrap items-center gap-1 rounded-full bg-surface-container p-1.5">
               <button
-                onClick={() => setViewMode("table")}
-                className={cn(
-                  "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition",
-                  viewMode === "table"
-                    ? "bg-background text-primary shadow-sm font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                onClick={() => setViewMode("table")}                  className={cn(
+                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
+                    viewMode === "table"
+                      ? "bg-card text-primary shadow-xs"
+                      : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                  )}
               >
                 <CheckSquare className="w-3.5 h-3.5" />
                 <span>Detailed Audit Table</span>
@@ -727,26 +723,24 @@ export default function AccountantPage() {
               </button>
 
               <button
-                onClick={() => setViewMode("customer_summary")}
-                className={cn(
-                  "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition",
-                  viewMode === "customer_summary"
-                    ? "bg-background text-primary shadow-sm font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                onClick={() => setViewMode("customer_summary")}                  className={cn(
+                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
+                    viewMode === "customer_summary"
+                      ? "bg-card text-primary shadow-xs"
+                      : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                  )}
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>By Customer ({customerBreakdown.length})</span>
               </button>
 
               <button
-                onClick={() => setViewMode("engineer_summary")}
-                className={cn(
-                  "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition",
-                  viewMode === "engineer_summary"
-                    ? "bg-background text-primary shadow-sm font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
+                onClick={() => setViewMode("engineer_summary")}                  className={cn(
+                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
+                    viewMode === "engineer_summary"
+                      ? "bg-card text-primary shadow-xs"
+                      : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                  )}
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>By Engineer ({engineerBreakdown.length})</span>
@@ -754,14 +748,14 @@ export default function AccountantPage() {
             </div>
 
             <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="accountant-search-input"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search notes, engineers, jobs, sites... (Press / to focus)"
-                className="w-full pl-9 pr-8 py-2 rounded-lg bg-muted border border-border text-xs font-medium focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 transition"
+                className="w-full rounded-full border-0 bg-surface-low pl-10 pr-9 text-xs font-normal"
               />
               {searchQuery && (
                 <button
@@ -842,7 +836,7 @@ export default function AccountantPage() {
       </Card>
 
       {selectedEntryIds.size > 0 && viewMode === "table" && (
-        <div className="mb-4 p-3 rounded-xl bg-primary text-primary-foreground flex items-center justify-between shadow-lg">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-primary px-4 py-3 text-primary-foreground shadow-m3-2">
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/20">
               {selectedEntryIds.size} Selected
@@ -885,7 +879,7 @@ export default function AccountantPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="bg-muted text-muted-foreground font-semibold uppercase tracking-wider text-[11px] border-b border-border/60 select-none">
+              <thead className="select-none border-b border-border/60 bg-surface-container text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 <tr>
                   <th className="py-3.5 px-4 w-10">
                     <input
@@ -959,8 +953,8 @@ export default function AccountantPage() {
                       <tr
                         key={e.id}
                         className={cn(
-                          "hover:bg-muted/60 transition",
-                          isChecked ? "bg-primary/10" : ""
+                          "transition-colors duration-150",
+                          isChecked ? "bg-primary/[0.06]" : "hover:bg-surface-low"
                         )}
                       >
                         <td className="py-3 px-4">
@@ -995,24 +989,24 @@ export default function AccountantPage() {
 
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span className={cn(
-                            "inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full",
+                            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium",
                             e.locationType === "on_site"
-                              ? "bg-amber-50 text-amber-800 border border-amber-100"
+                              ? "bg-tertiary-container/60 text-tertiary-on-container"
                               : e.locationType === "office"
-                              ? "bg-blue-50 text-blue-800 border border-blue-100"
+                              ? "bg-primary-container text-primary-on-container"
                               : e.locationType === "remote"
-                              ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
-                              : "bg-purple-50 text-purple-800 border border-purple-100"
+                              ? "bg-secondary-container text-secondary-on-container"
+                              : "bg-surface-high text-foreground"
                           )}>
-                            {e.locationType === "on_site" && <MapPin className="w-3 h-3 text-amber-600" />}
-                            {e.locationType === "office" && <Building className="w-3 h-3 text-blue-600" />}
-                            {e.locationType === "remote" && <Laptop className="w-3 h-3 text-emerald-600" />}
-                            {e.locationType === "travel" && <Car className="w-3 h-3 text-purple-600" />}
+                            {e.locationType === "on_site" && <MapPin className="h-3 w-3" />}
+                            {e.locationType === "office" && <Building className="h-3 w-3" />}
+                            {e.locationType === "remote" && <Laptop className="h-3 w-3" />}
+                            {e.locationType === "travel" && <Car className="h-3 w-3" />}
                             <span className="capitalize">{e.locationType.replace("_", " ")}</span>
                           </span>
                         </td>
 
-                        <td className="py-3 px-3 text-right font-mono font-bold text-foreground whitespace-nowrap">
+                        <td className="whitespace-nowrap py-3 px-3 text-right font-mono font-semibold tabular-nums text-foreground">
                           {formatQuickBooksDuration(e.durationMinutes)}
                           <span className="text-[10px] text-muted-foreground font-normal ml-1">
                             ({(e.durationMinutes / 60).toFixed(2)}h)
@@ -1021,11 +1015,11 @@ export default function AccountantPage() {
 
                         <td className="py-3 px-3 text-center whitespace-nowrap">
                           {e.isBillable ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            <span className="rounded-full bg-tertiary-container/60 px-2.5 py-1 text-[10px] font-medium text-tertiary-on-container">
                               Yes
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                            <span className="rounded-full bg-surface-high px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
                               No
                             </span>
                           )}
@@ -1041,12 +1035,12 @@ export default function AccountantPage() {
                               )
                             }
                             className={cn(
-                              "text-[11px] font-bold rounded-lg px-2 py-1 border transition focus:outline-none focus:ring-2 focus:ring-ring/20",
+                              "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors duration-200 ease-expressive focus:outline-none focus:ring-2 focus:ring-primary/25",
                               e.status === "approved"
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-100"
+                                ? "border-transparent bg-tertiary-container/60 text-tertiary-on-container"
                                 : e.status === "exported"
-                                ? "bg-purple-50 text-purple-800 border-purple-100"
-                                : "bg-amber-50 text-amber-800 border-amber-100"
+                                ? "border-transparent bg-primary-container text-primary-on-container"
+                                : "border-transparent bg-surface-high text-foreground"
                             )}
                           >
                             <option value="draft">Draft</option>

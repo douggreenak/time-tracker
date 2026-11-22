@@ -8,8 +8,6 @@ import {
   HardHat,
   BarChart3,
   Settings,
-  Clock,
-  PlusCircle,
   FileSpreadsheet,
   FileText,
   Lock,
@@ -17,8 +15,9 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui";
+
+const AUTH_STORAGE_KEY = "timetracker_auth_state_v1";
 
 export function CommandPalette() {
   const { isPaletteOpen, setIsPaletteOpen, setIsHelpOpen } = useKeyboardShortcuts();
@@ -38,17 +37,17 @@ export function CommandPalette() {
   const actions = [
     {
       id: "nav-engineer",
-      title: "Go to Engineer View",
+      title: "Go to Engineer view",
       subtitle: "Stopwatch timer, GPS site tagging & manual logs",
-      icon: <HardHat className="w-4 h-4 text-primary" />,
+      icon: <HardHat className="h-4 w-4 text-primary" />,
       shortcut: "1",
       perform: () => router.push("/engineer"),
     },
     {
       id: "nav-accountant",
-      title: "Go to Accountant View",
-      subtitle: "Audits, time period calculations & QuickBooks exports",
-      icon: <BarChart3 className="w-4 h-4 text-primary" />,
+      title: "Go to Accountant view",
+      subtitle: "Audits, period calculations & QuickBooks exports",
+      icon: <BarChart3 className="h-4 w-4 text-primary" />,
       shortcut: "2",
       perform: () => router.push("/accountant"),
     },
@@ -56,7 +55,7 @@ export function CommandPalette() {
       id: "nav-settings",
       title: "Go to Directory & Settings",
       subtitle: "QuickBooks customers, sub-jobs & service items",
-      icon: <Settings className="w-4 h-4 text-muted-foreground" />,
+      icon: <Settings className="h-4 w-4 text-muted-foreground" />,
       shortcut: "3",
       perform: () => router.push("/settings"),
     },
@@ -64,7 +63,7 @@ export function CommandPalette() {
       id: "export-iif",
       title: "Export QuickBooks Desktop .IIF",
       subtitle: "Download official TIMEACT tab-delimited timer file",
-      icon: <FileSpreadsheet className="w-4 h-4 text-purple-600" />,
+      icon: <FileSpreadsheet className="h-4 w-4 text-tertiary" />,
       shortcut: "I",
       perform: () => {
         window.location.href = "/api/export/iif";
@@ -72,9 +71,9 @@ export function CommandPalette() {
     },
     {
       id: "export-csv",
-      title: "Export Timesheet .CSV",
-      subtitle: "Download full structured CSV for Excel / reporting",
-      icon: <FileText className="w-4 h-4 text-blue-600" />,
+      title: "Export timesheet .CSV",
+      subtitle: "Download full structured CSV for Excel or reporting",
+      icon: <FileText className="h-4 w-4 text-primary" />,
       shortcut: "C",
       perform: () => {
         window.location.href = "/api/export/csv";
@@ -82,20 +81,22 @@ export function CommandPalette() {
     },
     {
       id: "shortcuts-help",
-      title: "View All Keyboard Shortcuts",
-      subtitle: "See full cheat sheet of keyboard commands",
-      icon: <HelpCircle className="w-4 h-4 text-amber-600" />,
+      title: "View all keyboard shortcuts",
+      subtitle: "Open the full shortcut cheat sheet",
+      icon: <HelpCircle className="h-4 w-4 text-muted-foreground" />,
       shortcut: "?",
       perform: () => setIsHelpOpen(true),
     },
     {
       id: "lock-app",
-      title: "Lock Application",
-      subtitle: "Require PIN / Password authentication",
-      icon: <Lock className="w-4 h-4 text-rose-600" />,
+      title: "Lock application",
+      subtitle: "Require PIN authentication to continue",
+      icon: <Lock className="h-4 w-4 text-destructive" />,
       shortcut: "L",
       perform: () => {
-        localStorage.removeItem("timetracker_auth");
+        try {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        } catch {}
         window.location.reload();
       },
     },
@@ -113,7 +114,9 @@ export function CommandPalette() {
       setSelectedIndex((prev) => (prev + 1) % Math.max(1, filtered.length));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + filtered.length) % Math.max(1, filtered.length));
+      setSelectedIndex(
+        (prev) => (prev - 1 + filtered.length) % Math.max(1, filtered.length)
+      );
     } else if (e.key === "Enter" && filtered[selectedIndex]) {
       e.preventDefault();
       setIsPaletteOpen(false);
@@ -125,15 +128,18 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-900/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-foreground/30 p-4 pt-20 backdrop-blur-sm animate-m3-fade"
       onClick={() => setIsPaletteOpen(false)}
     >
       <div
-        className="w-full max-w-xl bg-background rounded-xl shadow-2xl border border-border/60 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="w-full max-w-xl animate-m3-in overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-m3-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 flex items-center gap-3 border-b border-border/40">
-          <Search className="w-5 h-5 text-muted-foreground shrink-0" />
+        <div className="flex items-center gap-3 border-b border-border/60 px-5 py-4">
+          <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
           <Input
             ref={inputRef}
             type="text"
@@ -143,18 +149,18 @@ export function CommandPalette() {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search commands, views, or exports..."
-            className="w-full text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none bg-transparent pl-0"
+            placeholder="Search commands, views, or exports…"
+            className="h-8 border-0 bg-transparent px-0 text-sm font-normal focus-visible:bg-transparent focus-visible:ring-0"
           />
-          <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted-foreground bg-muted rounded border">
+          <kbd className="rounded-md border border-outline-variant bg-surface-low px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground">
             Esc
           </kbd>
         </div>
 
-        <div className="p-2 max-h-80 overflow-y-auto">
+        <div className="m3-scroll max-h-80 overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No commands matching "{query}"
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No commands matching “{query}”
             </div>
           ) : (
             filtered.map((item, idx) => {
@@ -168,26 +174,42 @@ export function CommandPalette() {
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={cn(
-                    "px-4 py-3 rounded-xl flex items-center justify-between cursor-pointer transition",
-                    isSelected ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
+                    "flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-3 transition-colors duration-150",
+                    isSelected
+                      ? "bg-secondary-container text-secondary-on-container"
+                      : "text-muted-foreground hover:bg-surface-low"
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center border border-border/40">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                        isSelected ? "bg-card" : "bg-surface-container"
+                      )}
+                    >
                       {item.icon}
                     </div>
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{item.title}</div>
-                      <div className="text-xs text-muted-foreground">{item.subtitle}</div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground">
+                        {item.title}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {item.subtitle}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {item.shortcut && (
-                      <kbd className="px-2 py-0.5 text-xs font-mono font-semibold text-muted-foreground bg-muted border border-border/40 rounded-md">
+                      <kbd className="rounded-md border border-outline-variant bg-card px-2 py-0.5 font-mono text-[11px] font-semibold text-muted-foreground">
                         {item.shortcut}
                       </kbd>
                     )}
-                    <ArrowRight className={`w-4 h-4 text-muted-foreground ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                    <ArrowRight
+                      className={cn(
+                        "h-4 w-4",
+                        isSelected ? "opacity-100" : "opacity-0"
+                      )}
+                    />
                   </div>
                 </div>
               );
@@ -195,12 +217,25 @@ export function CommandPalette() {
           )}
         </div>
 
-        <div className="px-5 py-2.5 bg-muted/50 border-t border-border/40 text-[11px] text-muted-foreground flex items-center justify-between">
+        <div className="flex items-center justify-between border-t border-border/60 bg-surface-low px-5 py-3 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-2">
-            <span>Navigate: <kbd className="px-1 py-0.2 font-mono bg-background border rounded">↑</kbd> <kbd className="px-1 py-0.2 font-mono bg-background border rounded">↓</kbd></span>
-            <span>Select: <kbd className="px-1 py-0.2 font-mono bg-background border rounded">↵</kbd></span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-outline-variant bg-card px-1 py-0.5 font-mono">
+                ↑
+              </kbd>
+              <kbd className="rounded border border-outline-variant bg-card px-1 py-0.5 font-mono">
+                ↓
+              </kbd>
+              navigate
+            </span>
+            <span className="flex items-center gap-1">
+              <kbd className="rounded border border-outline-variant bg-card px-1 py-0.5 font-mono">
+                ↵
+              </kbd>
+              select
+            </span>
           </div>
-          <span>TimeTrack</span>
+          <span className="font-medium">TimeTrack</span>
         </div>
       </div>
     </div>

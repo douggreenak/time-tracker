@@ -1,21 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
-import {
-  Clock,
-  BarChart3,
-  Settings,
-  HardHat,
-  Search,
-  Lock,
-  HelpCircle,
-} from "lucide-react";
+import { Clock } from "lucide-react";
 import { KeyboardShortcutsProvider } from "@/components/KeyboardShortcutsProvider";
 import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { CommandPalette } from "@/components/CommandPalette";
 import { AuthGate } from "@/components/AuthGate";
 import { NavHeaderActions } from "@/components/NavHeaderActions";
-import { Badge } from "@/components/ui/badge";
+import { NavLinks } from "@/components/NavLinks";
 
 export const metadata: Metadata = {
   title: "Field & Office Time Tracker | QuickBooks Ready",
@@ -30,57 +22,28 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
+      <body className="flex min-h-screen flex-col bg-background text-foreground">
         <KeyboardShortcutsProvider>
           <AuthGate>
-            <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border/60">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex h-16 items-center justify-between">
-                  <Link
-                    href="/"
-                    className="flex items-center gap-2.5 transition"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-sm shadow-primary/20">
-                      <Clock className="w-5 h-5 stroke-[2.2]" />
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="text-sm font-semibold tracking-tight text-foreground">
-                        TimeTrack
-                      </div>
-                      <div className="text-[11px] font-medium text-muted-foreground hidden sm:block">
-                        Field & Office • QuickBooks Desktop Ready
-                      </div>
-                    </div>
-                  </Link>
+            <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+              <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+                <Link href="/" className="group flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-primary text-primary-foreground shadow-m3-1 transition-transform duration-300 ease-expressive group-hover:scale-105">
+                    <Clock className="h-5 w-5" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+                      TimeTrack
+                    </span>
+                    <span className="hidden text-[11px] font-medium text-muted-foreground sm:block">
+                      Field &amp; Office · QuickBooks ready
+                    </span>
+                  </div>
+                </Link>
 
-                  <nav className="flex items-center gap-1 sm:gap-2">
-                    <Link
-                      href="/engineer"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-muted-foreground hover:text-primary hover:bg-secondary/50 transition"
-                    >
-                      <HardHat className="w-3.5 h-3.5" />
-                      <span>Engineer</span>
-                    </Link>
+                <NavLinks />
 
-                    <Link
-                      href="/accountant"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-muted-foreground hover:text-primary hover:bg-secondary/50 transition"
-                    >
-                      <BarChart3 className="w-3.5 h-3.5" />
-                      <span>Accountant</span>
-                    </Link>
-
-                    <Link
-                      href="/settings"
-                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                      <span>Directory</span>
-                    </Link>
-                  </nav>
-
-                  <NavHeaderActions />
-                </div>
+                <NavHeaderActions />
               </div>
             </header>
 
@@ -89,31 +52,28 @@ export default function RootLayout({
             <CommandPalette />
             <KeyboardShortcutsModal />
 
-            <footer className="border-t border-border bg-background/50 py-5 text-xs text-muted-foreground text-center mt-auto">
-              <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="h-5 w-5 px-0 text-[10px]">
+            <footer className="mt-auto border-t border-border/60 bg-surface-low/70 py-6 text-xs text-muted-foreground">
+              <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 sm:flex-row sm:px-6 lg:px-8">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
                     QB
-                  </Badge>
+                  </span>
                   <span className="font-medium">
-                    QuickBooks Desktop IIF (TIMEACT) & CSV Engine Active
+                    QuickBooks Desktop IIF (TIMEACT) &amp; CSV engine active
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span>
-                    Press{" "}
-                    <kbd className="px-1.5 py-0.5 font-mono text-[10px] bg-secondary rounded border">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center gap-1.5 rounded-full bg-surface-container px-2.5 py-1">
+                    <kbd className="font-mono text-[10px] font-semibold text-foreground">
                       ⌘K
-                    </kbd>{" "}
-                    for commands
+                    </kbd>
+                    commands
                   </span>
-                  <span>•</span>
-                  <span>
-                    Press{" "}
-                    <kbd className="px-1.5 py-0.5 font-mono text-[10px] bg-secondary rounded border">
+                  <span className="flex items-center gap-1.5 rounded-full bg-surface-container px-2.5 py-1">
+                    <kbd className="font-mono text-[10px] font-semibold text-foreground">
                       ?
-                    </kbd>{" "}
-                    for shortcuts
+                    </kbd>
+                    shortcuts
                   </span>
                 </div>
               </div>

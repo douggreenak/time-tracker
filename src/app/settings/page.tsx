@@ -137,25 +137,25 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border/60 mb-6">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mb-6 flex flex-col justify-between gap-4 border-b border-border/60 pb-6 sm:flex-row sm:items-center">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-secondary text-primary-foreground text-xs font-semibold mb-2 border border-border/60">
-            <span>QuickBooks Master Directory</span>
+          <div className="m3-eyebrow mb-3">
+            <span>QuickBooks master directory</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-            Directory & Service Item Mapping
+          <h1 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground sm:text-[2rem]">
+            Directory &amp; Service Item Mapping
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Manage Clients, Customer:Job hierarchies, QuickBooks Service Items, and Engineer Rates
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage clients, Customer:Job hierarchies, QuickBooks service items, and engineer rates
           </p>
         </div>
       </div>
 
       {feedback && (
-        <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-sm">
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-tertiary-container/50 px-5 py-4 text-sm font-medium text-tertiary-on-container">
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <CheckCircle className="h-4 w-4 shrink-0 text-tertiary" />
             <span>{feedback}</span>
           </div>
           <button onClick={() => setFeedback(null)} className="opacity-70 hover:opacity-100">
@@ -164,38 +164,38 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 bg-muted/60 p-1.5 rounded-xl border border-border/60 shadow-xs mb-6 max-w-md">
+      <div className="mb-6 flex max-w-md items-center gap-1 rounded-full bg-surface-container p-1.5">
         <button
           onClick={() => setActiveTab("customers")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-            activeTab === "customers" ? "bg-background text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex-1 rounded-full py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive ${
+            activeTab === "customers" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
           }`}
         >
-          Customers & Jobs
+          Customers &amp; Jobs
         </button>
         <button
           onClick={() => setActiveTab("services")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-            activeTab === "services" ? "bg-background text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex-1 rounded-full py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive ${
+            activeTab === "services" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
           }`}
         >
           Service Items
         </button>
         <button
           onClick={() => setActiveTab("employees")}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-            activeTab === "employees" ? "bg-background text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex-1 rounded-full py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive ${
+            activeTab === "employees" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
           }`}
         >
-          Engineers & Staff
+          Engineers &amp; Staff
         </button>
       </div>
 
       {activeTab === "customers" && (
         <div className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
-            <form onSubmit={handleCreateCustomer} className="bg-background rounded-xl border border-border/60 shadow-sm p-6">
-              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+            <form onSubmit={handleCreateCustomer} className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 text-base font-semibold tracking-[-0.01em] text-foreground">
                 <Building className="w-4 h-4 text-primary" />
                 <span>Add New Customer</span>
               </h3>
@@ -228,8 +228,8 @@ export default function SettingsPage() {
               </div>
             </form>
 
-            <form onSubmit={handleCreateJob} className="bg-background rounded-xl border border-border/60 shadow-sm p-6">
-              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+            <form onSubmit={handleCreateJob} className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 text-base font-semibold tracking-[-0.01em] text-foreground">
                 <Briefcase className="w-4 h-4 text-primary" />
                 <span>Add Sub-Job / Phase</span>
               </h3>
@@ -271,7 +271,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                   Active Customers & Sub-Jobs ({customers.length})
                 </h3>
               </div>
@@ -307,8 +307,8 @@ export default function SettingsPage() {
 
       {activeTab === "services" && (
         <div className="space-y-6">
-          <form onSubmit={handleCreateServiceItem} className="bg-background rounded-xl border border-border/60 shadow-sm p-6 max-w-xl">
-            <h3 className="text-sm font-bold text-foreground mb-4">Add QuickBooks Service Item</h3>
+          <form onSubmit={handleCreateServiceItem} className="max-w-xl rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+            <h3 className="mb-4 text-base font-semibold tracking-[-0.01em] text-foreground">Add QuickBooks service item</h3>
             <div className="space-y-3.5">
               <div>
                 <Label>Service Item Name</Label>
@@ -353,7 +353,7 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                   Active QuickBooks Service Items ({serviceItems.length})
                 </h3>
               </div>
@@ -385,7 +385,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Registered Engineers & Billing Rates ({users.length})
               </h3>
             </div>
