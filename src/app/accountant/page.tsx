@@ -2,1167 +2,516 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  BarChart3,
-  Download,
-  FileSpreadsheet,
-  FileText,
-  Filter,
-  CheckCircle2,
-  Calendar,
-  DollarSign,
-  Clock,
-  Briefcase,
-  Building,
-  MapPin,
-  RefreshCw,
-  Search,
-  ChevronDown,
-  ChevronUp,
-  Layers,
-  Users,
-  CheckSquare,
-  ArrowUpDown,
-  Car,
-  Laptop,
-  Check,
+  Download, FileSpreadsheet, Calendar, DollarSign, Clock,
+  Briefcase, Building, MapPin, RefreshCw, Search,
+  Layers, Users, ArrowUpDown, Car, Laptop, Check, CheckCircle2, CheckSquare,
 } from "lucide-react";
 import { CustomerItem, ServiceItem, TimeEntryItem, UserItem } from "@/db/mock-data";
-import { formatQuickBooksDuration, formatQuickBooksJob } from "@/lib/quickbooks";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { formatQuickBooksDuration } from "@/lib/quickbooks";
 import { cn } from "@/components/ui";
 
 type PeriodPreset =
-  | "today"
-  | "yesterday"
-  | "this_week"
-  | "last_week"
-  | "this_month"
-  | "last_month"
-  | "this_quarter"
-  | "ytd"
-  | "all"
-  | "custom";
+  | "today" | "yesterday" | "this_week" | "last_week"
+  | "this_month" | "last_month" | "this_quarter" | "ytd" | "all" | "custom";
 
-type ViewMode = "table" | "customer_summary" | "engineer_summary";
+type ViewMode = "table" | "customer_summary" | "staff_summary";
+
+const PERIODS: { id: PeriodPreset; label: string }[] = [
+  { id: "today",        label: "Today" },
+  { id: "this_week",    label: "This week" },
+  { id: "last_week",    label: "Last week" },
+  { id: "this_month",   label: "This month" },
+  { id: "last_month",   label: "Last month" },
+  { id: "this_quarter", label: "Quarter" },
+  { id: "ytd",          label: "YTD" },
+  { id: "all",          label: "All" },
+  { id: "custom",       label: "Custom" },
+];
 
 export default function AccountantPage() {
-  const [entries, setEntries] = useState<TimeEntryItem[]>([]);
-  const [customers, setCustomers] = useState<CustomerItem[]>([]);
+  const [entries,      setEntries]      = useState<TimeEntryItem[]>([]);
+  const [customers,    setCustomers]    = useState<CustomerItem[]>([]);
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users,        setUsers]        = useState<UserItem[]>([]);
+  const [loading,      setLoading]      = useState(true);
 
-  const [period, setPeriod] = useState<PeriodPreset>("this_week");
-  const [customStartDate, setCustomStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split("T")[0];
-  });
-  const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [period,          setPeriod]          = useState<PeriodPreset>("this_week");
+  const [customStartDate, setCustomStartDate] = useState(() => { const d = new Date(); d.setDate(d.getDate()-30); return d.toISOString().split("T")[0]; });
+  const [customEndDate,   setCustomEndDate]   = useState(() => new Date().toISOString().split("T")[0]);
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
-  const [selectedUserId, setSelectedUserId] = useState<string>("all");
-  const [selectedBillable, setSelectedBillable] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [filterCustomer, setFilterCustomer] = useState("all");
+  const [filterUser,     setFilterUser]     = useState("all");
+  const [filterBillable, setFilterBillable] = useState("all");
+  const [filterStatus,   setFilterStatus]   = useState("all");
+  const [searchQuery,    setSearchQuery]    = useState("");
 
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [viewMode,         setViewMode]         = useState<ViewMode>("table");
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
-  const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<"date" | "durationMinutes" | "userName" | "customerName">("date");
-  const [sortAsc, setSortAsc] = useState(false);
+  const [successMsg,       setSuccessMsg]       = useState<string | null>(null);
+  const [sortField,        setSortField]        = useState<"date" | "durationMinutes" | "userName" | "customerName">("date");
+  const [sortAsc,          setSortAsc]          = useState(false);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [custRes, srvRes, userRes, entriesRes] = await Promise.all([
-        fetch("/api/customers").then((r) => r.json()),
-        fetch("/api/service-items").then((r) => r.json()),
-        fetch("/api/users").then((r) => r.json()),
-        fetch("/api/time-entries").then((r) => r.json()),
+        fetch("/api/customers").then(r => r.json()),
+        fetch("/api/service-items").then(r => r.json()),
+        fetch("/api/users").then(r => r.json()),
+        fetch("/api/time-entries").then(r => r.json()),
       ]);
-
-      if (custRes.success) setCustomers(custRes.data);
-      if (srvRes.success) setServiceItems(srvRes.data);
-      if (userRes.success) setUsers(userRes.data);
+      if (custRes.success)    setCustomers(custRes.data);
+      if (srvRes.success)     setServiceItems(srvRes.data);
+      if (userRes.success)    setUsers(userRes.data);
       if (entriesRes.success) setEntries(entriesRes.data);
-    } catch (err) {
-      console.error("Error fetching accountant data", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable);
-
-      if (isInput) return;
-
-      if (e.key.toLowerCase() === "p") {
-        e.preventDefault();
-        const presets: PeriodPreset[] = [
-          "today", "yesterday", "this_week", "last_week", "this_month",
-          "last_month", "this_quarter", "all",
-        ];
-        setPeriod((prev) => {
-          const idx = presets.indexOf(prev);
-          return presets[(idx + 1) % presets.length];
-        });
-        return;
-      }
-
-      if (e.key === "/") {
-        e.preventDefault();
-        const searchInput = document.getElementById("accountant-search-input") as HTMLInputElement | null;
-        searchInput?.focus();
-        return;
-      }
-
-      if (e.key.toLowerCase() === "a" && selectedEntryIds.size > 0) {
-        e.preventDefault();
-        handleUpdateStatus("approved");
-        return;
-      }
-
-      if (e.key.toLowerCase() === "x" && selectedEntryIds.size > 0) {
-        e.preventDefault();
-        handleUpdateStatus("exported");
-        return;
-      }
-
-      if (e.key.toLowerCase() === "i") {
-        e.preventDefault();
-        handleDownloadIIF();
-        return;
-      }
-
-      if (e.key.toLowerCase() === "c") {
-        e.preventDefault();
-        handleDownloadCSV();
-        return;
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedEntryIds, period]);
+  useEffect(() => { loadData(); }, []);
 
   const dateRangeBounds = useMemo(() => {
-    const now = new Date();
+    const now   = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    const formatDate = (d: Date) => {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${day}`;
-    };
+    const fmt   = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 
     switch (period) {
-      case "today": {
-        const s = formatDate(today);
-        return { start: s, end: s, label: "Today" };
-      }
-      case "yesterday": {
-        const y = new Date(today);
-        y.setDate(today.getDate() - 1);
-        const s = formatDate(y);
-        return { start: s, end: s, label: "Yesterday" };
-      }
-      case "this_week": {
-        const d = new Date(today);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(d.setDate(diff));
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        return { start: formatDate(monday), end: formatDate(sunday), label: "This Week" };
-      }
-      case "last_week": {
-        const d = new Date(today);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1) - 7;
-        const lastMonday = new Date(d.setDate(diff));
-        const lastSunday = new Date(lastMonday);
-        lastSunday.setDate(lastMonday.getDate() + 6);
-        return { start: formatDate(lastMonday), end: formatDate(lastSunday), label: "Last Week" };
-      }
-      case "this_month": {
-        const first = new Date(today.getFullYear(), today.getMonth(), 1);
-        const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        return { start: formatDate(first), end: formatDate(last), label: "This Month" };
-      }
-      case "last_month": {
-        const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const last = new Date(today.getFullYear(), today.getMonth(), 0);
-        return { start: formatDate(first), end: formatDate(last), label: "Last Month" };
-      }
-      case "this_quarter": {
-        const currentQuarter = Math.floor(today.getMonth() / 3);
-        const first = new Date(today.getFullYear(), currentQuarter * 3, 1);
-        const last = new Date(today.getFullYear(), (currentQuarter + 1) * 3, 0);
-        return { start: formatDate(first), end: formatDate(last), label: `Q${currentQuarter + 1}` };
-      }
-      case "ytd": {
-        const first = new Date(today.getFullYear(), 0, 1);
-        return { start: formatDate(first), end: formatDate(today), label: "Year to Date" };
-      }
-      case "custom": {
-        return { start: customStartDate, end: customEndDate, label: "Custom Range" };
-      }
-      case "all":
-      default:
-        return { start: null, end: null, label: "All Time" };
+      case "today":        { const s = fmt(today); return { start: s, end: s, label: "Today" }; }
+      case "yesterday":    { const y = new Date(today); y.setDate(y.getDate()-1); const s = fmt(y); return { start: s, end: s, label: "Yesterday" }; }
+      case "this_week":    { const d = new Date(today); const diff = d.getDate()-d.getDay()+(d.getDay()===0?-6:1); const mon = new Date(d.setDate(diff)); const sun = new Date(mon); sun.setDate(mon.getDate()+6); return { start: fmt(mon), end: fmt(sun), label: "This week" }; }
+      case "last_week":    { const d = new Date(today); const diff = d.getDate()-d.getDay()+(d.getDay()===0?-6:1)-7; const mon = new Date(d.setDate(diff)); const sun = new Date(mon); sun.setDate(mon.getDate()+6); return { start: fmt(mon), end: fmt(sun), label: "Last week" }; }
+      case "this_month":   { const f = new Date(today.getFullYear(),today.getMonth(),1); const l = new Date(today.getFullYear(),today.getMonth()+1,0); return { start: fmt(f), end: fmt(l), label: "This month" }; }
+      case "last_month":   { const f = new Date(today.getFullYear(),today.getMonth()-1,1); const l = new Date(today.getFullYear(),today.getMonth(),0); return { start: fmt(f), end: fmt(l), label: "Last month" }; }
+      case "this_quarter": { const q = Math.floor(today.getMonth()/3); const f = new Date(today.getFullYear(),q*3,1); const l = new Date(today.getFullYear(),(q+1)*3,0); return { start: fmt(f), end: fmt(l), label: `Q${q+1}` }; }
+      case "ytd":          { const f = new Date(today.getFullYear(),0,1); return { start: fmt(f), end: fmt(today), label: "YTD" }; }
+      case "custom":       return { start: customStartDate, end: customEndDate, label: "Custom" };
+      default:             return { start: null, end: null, label: "All time" };
     }
   }, [period, customStartDate, customEndDate]);
 
   const userRateMap = useMemo(() => {
     const map = new Map<string, number>();
-    users.forEach((u) => map.set(u.id, u.defaultHourlyRate || 145.0));
+    users.forEach(u => map.set(u.id, u.defaultHourlyRate || 145.0));
     return map;
   }, [users]);
 
   const filteredEntries = useMemo(() => {
     return entries
-      .filter((e) => {
+      .filter(e => {
         if (dateRangeBounds.start && e.date < dateRangeBounds.start) return false;
-        if (dateRangeBounds.end && e.date > dateRangeBounds.end) return false;
-        if (selectedCustomerId !== "all" && e.customerId !== selectedCustomerId) return false;
-        if (selectedUserId !== "all" && e.userId !== selectedUserId) return false;
-        if (selectedBillable === "billable" && !e.isBillable) return false;
-        if (selectedBillable === "non_billable" && e.isBillable) return false;
-        if (selectedStatus !== "all" && e.status !== selectedStatus) return false;
-
+        if (dateRangeBounds.end   && e.date > dateRangeBounds.end)   return false;
+        if (filterCustomer !== "all" && e.customerId !== filterCustomer) return false;
+        if (filterUser     !== "all" && e.userId     !== filterUser)     return false;
+        if (filterBillable === "billable"     && !e.isBillable) return false;
+        if (filterBillable === "non_billable" &&  e.isBillable) return false;
+        if (filterStatus   !== "all" && e.status !== filterStatus) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
-          const match =
-            e.customerName.toLowerCase().includes(q) ||
-            (e.jobName && e.jobName.toLowerCase().includes(q)) ||
-            e.userName.toLowerCase().includes(q) ||
-            e.serviceItemName.toLowerCase().includes(q) ||
-            (e.notes && e.notes.toLowerCase().includes(q)) ||
-            (e.locationName && e.locationName.toLowerCase().includes(q));
-          if (!match) return false;
+          if (![e.customerName, e.jobName||"", e.userName, e.serviceItemName, e.notes||"", e.locationName||""].some(x => x.toLowerCase().includes(q))) return false;
         }
-
         return true;
       })
       .sort((a, b) => {
         let cmp = 0;
-        if (sortField === "date") cmp = a.date.localeCompare(b.date);
-        else if (sortField === "durationMinutes") cmp = a.durationMinutes - b.durationMinutes;
-        else if (sortField === "userName") cmp = a.userName.localeCompare(b.userName);
-        else if (sortField === "customerName") cmp = a.customerName.localeCompare(b.customerName);
+        if (sortField === "date")            cmp = a.date.localeCompare(b.date);
+        if (sortField === "durationMinutes") cmp = a.durationMinutes - b.durationMinutes;
+        if (sortField === "userName")        cmp = a.userName.localeCompare(b.userName);
+        if (sortField === "customerName")    cmp = a.customerName.localeCompare(b.customerName);
         return sortAsc ? cmp : -cmp;
       });
-  }, [
-    entries,
-    dateRangeBounds,
-    selectedCustomerId,
-    selectedUserId,
-    selectedBillable,
-    selectedStatus,
-    searchQuery,
-    sortField,
-    sortAsc,
-  ]);
+  }, [entries, dateRangeBounds, filterCustomer, filterUser, filterBillable, filterStatus, searchQuery, sortField, sortAsc]);
 
   const metrics = useMemo(() => {
-    let totalMinutes = 0;
-    let billableMinutes = 0;
-    let totalRevenue = 0;
-    let totalCost = 0;
-    const activeCustomersSet = new Set<string>();
-    const activeJobsSet = new Set<string>();
-
-    filteredEntries.forEach((e) => {
-      totalMinutes += e.durationMinutes;
-      const rate = userRateMap.get(e.userId) || 145.0;
+    let totalMins = 0, billableMins = 0, revenue = 0;
+    const custSet = new Set<string>(), jobSet = new Set<string>();
+    filteredEntries.forEach(e => {
+      totalMins += e.durationMinutes;
       const hours = e.durationMinutes / 60;
-
-      const costRate = 75.0;
-      totalCost += hours * costRate;
-
-      if (e.isBillable) {
-        billableMinutes += e.durationMinutes;
-        totalRevenue += hours * rate;
-      }
-
-      activeCustomersSet.add(e.customerId);
-      if (e.jobId) activeJobsSet.add(e.jobId);
+      if (e.isBillable) { billableMins += e.durationMinutes; revenue += hours * (userRateMap.get(e.userId)||145); }
+      custSet.add(e.customerId);
+      if (e.jobId) jobSet.add(e.jobId);
     });
-
-    const totalHours = totalMinutes / 60;
-    const billableHours = billableMinutes / 60;
-    const nonBillableHours = totalHours - billableHours;
-    const realizationRate = totalMinutes > 0 ? (billableMinutes / totalMinutes) * 100 : 0;
-    const grossMargin = totalRevenue - totalCost;
-    const marginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0;
-
     return {
-      totalMinutes,
-      totalHours,
-      billableHours,
-      nonBillableHours,
-      realizationRate,
-      totalRevenue,
-      totalCost,
-      grossMargin,
-      marginPct,
-      activeCustomerCount: activeCustomersSet.size,
-      activeJobCount: activeJobsSet.size,
+      totalHours:    totalMins / 60,
+      billableHours: billableMins / 60,
+      realizationPct: totalMins > 0 ? (billableMins / totalMins) * 100 : 0,
+      revenue,
+      customerCount: custSet.size,
+      jobCount:      jobSet.size,
     };
   }, [filteredEntries, userRateMap]);
 
   const customerBreakdown = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        customerId: string;
-        customerName: string;
-        totalMinutes: number;
-        billableMinutes: number;
-        revenue: number;
-        jobs: Map<string, { jobName: string; minutes: number }>;
-      }
-    >();
-
-    filteredEntries.forEach((e) => {
-      let item = map.get(e.customerId);
-      if (!item) {
-        item = {
-          customerId: e.customerId,
-          customerName: e.customerName,
-          totalMinutes: 0,
-          billableMinutes: 0,
-          revenue: 0,
-          jobs: new Map(),
-        };
-        map.set(e.customerId, item);
-      }
-
-      item.totalMinutes += e.durationMinutes;
-      const rate = userRateMap.get(e.userId) || 145.0;
-      const hours = e.durationMinutes / 60;
-
-      if (e.isBillable) {
-        item.billableMinutes += e.durationMinutes;
-        item.revenue += hours * rate;
-      }
-
-      const jobKey = e.jobId || "general";
-      const jobName = e.jobName || "General Services";
-      const existingJob = item.jobs.get(jobKey);
-      if (existingJob) {
-        existingJob.minutes += e.durationMinutes;
-      } else {
-        item.jobs.set(jobKey, { jobName, minutes: e.durationMinutes });
-      }
+    const map = new Map<string, { customerId: string; customerName: string; totalMinutes: number; billableMinutes: number; revenue: number; jobs: Map<string,{jobName:string;minutes:number}> }>();
+    filteredEntries.forEach(e => {
+      let it = map.get(e.customerId);
+      if (!it) { it = { customerId: e.customerId, customerName: e.customerName, totalMinutes: 0, billableMinutes: 0, revenue: 0, jobs: new Map() }; map.set(e.customerId, it); }
+      it.totalMinutes += e.durationMinutes;
+      if (e.isBillable) { it.billableMinutes += e.durationMinutes; it.revenue += (e.durationMinutes/60)*(userRateMap.get(e.userId)||145); }
+      const jk = e.jobId||"general"; const jn = e.jobName||"General"; const ej = it.jobs.get(jk); if (ej) ej.minutes += e.durationMinutes; else it.jobs.set(jk,{jobName:jn,minutes:e.durationMinutes});
     });
-
-    return Array.from(map.values()).sort((a, b) => b.totalMinutes - a.totalMinutes);
+    return Array.from(map.values()).sort((a,b) => b.totalMinutes - a.totalMinutes);
   }, [filteredEntries, userRateMap]);
 
-  const engineerBreakdown = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        userId: string;
-        userName: string;
-        totalMinutes: number;
-        billableMinutes: number;
-        revenue: number;
-        entriesCount: number;
-      }
-    >();
-
-    filteredEntries.forEach((e) => {
-      let item = map.get(e.userId);
-      if (!item) {
-        item = {
-          userId: e.userId,
-          userName: e.userName,
-          totalMinutes: 0,
-          billableMinutes: 0,
-          revenue: 0,
-          entriesCount: 0,
-        };
-        map.set(e.userId, item);
-      }
-
-      item.totalMinutes += e.durationMinutes;
-      item.entriesCount += 1;
-      const rate = userRateMap.get(e.userId) || 145.0;
-      const hours = e.durationMinutes / 60;
-
-      if (e.isBillable) {
-        item.billableMinutes += e.durationMinutes;
-        item.revenue += hours * rate;
-      }
+  const staffBreakdown = useMemo(() => {
+    const map = new Map<string,{userId:string;userName:string;totalMinutes:number;billableMinutes:number;revenue:number;entriesCount:number}>();
+    filteredEntries.forEach(e => {
+      let it = map.get(e.userId);
+      if (!it) { it = {userId:e.userId, userName:e.userName, totalMinutes:0, billableMinutes:0, revenue:0, entriesCount:0}; map.set(e.userId,it); }
+      it.totalMinutes += e.durationMinutes; it.entriesCount++;
+      if (e.isBillable) { it.billableMinutes += e.durationMinutes; it.revenue += (e.durationMinutes/60)*(userRateMap.get(e.userId)||145); }
     });
-
-    return Array.from(map.values()).sort((a, b) => b.totalMinutes - a.totalMinutes);
+    return Array.from(map.values()).sort((a,b) => b.totalMinutes - a.totalMinutes);
   }, [filteredEntries, userRateMap]);
 
   const allSelected = filteredEntries.length > 0 && selectedEntryIds.size === filteredEntries.length;
+  const toggleSelectAll = () => setSelectedEntryIds(allSelected ? new Set() : new Set(filteredEntries.map(e => e.id)));
+  const toggleSelectEntry = (id: string) => { const n = new Set(selectedEntryIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedEntryIds(n); };
 
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelectedEntryIds(new Set());
-    } else {
-      setSelectedEntryIds(new Set(filteredEntries.map((e) => e.id)));
-    }
+  const handleUpdateStatus = async (status: "draft"|"submitted"|"approved"|"exported", targetIds?: string[]) => {
+    const ids = targetIds || Array.from(selectedEntryIds);
+    if (!ids.length) return;
+    await Promise.all(ids.map(id => fetch(`/api/time-entries/${id}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({status}) })));
+    setEntries(prev => prev.map(e => ids.includes(e.id) ? {...e, status} : e));
+    if (!targetIds) setSelectedEntryIds(new Set());
+    setSuccessMsg(`Updated ${ids.length} record${ids.length>1?"s":""} → ${status}`);
+    setTimeout(() => setSuccessMsg(null), 3000);
   };
 
-  const toggleSelectEntry = (id: string) => {
-    const next = new Set(selectedEntryIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedEntryIds(next);
+  const buildParams = () => {
+    const p = new URLSearchParams();
+    if (dateRangeBounds.start) p.set("startDate", dateRangeBounds.start);
+    if (dateRangeBounds.end)   p.set("endDate",   dateRangeBounds.end);
+    if (filterCustomer !== "all") p.set("customerId", filterCustomer);
+    if (filterUser     !== "all") p.set("userId",     filterUser);
+    if (filterStatus   !== "all") p.set("status",     filterStatus);
+    return p.toString();
   };
 
-  const handleUpdateStatus = async (
-    status: "draft" | "submitted" | "approved" | "exported",
-    targetIds?: string[]
-  ) => {
-    const idsToUpdate = targetIds || Array.from(selectedEntryIds);
-    if (idsToUpdate.length === 0) return;
-
-    try {
-      await Promise.all(
-        idsToUpdate.map((id) =>
-          fetch(`/api/time-entries/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status }),
-          })
-        )
-      );
-
-      setEntries((prev) =>
-        prev.map((e) => (idsToUpdate.includes(e.id) ? { ...e, status } : e))
-      );
-
-      if (!targetIds) {
-        setSelectedEntryIds(new Set());
-      }
-
-      setActionSuccessMsg(`Updated ${idsToUpdate.length} record(s) to "${status}"`);
-      setTimeout(() => setActionSuccessMsg(null), 3500);
-    } catch (err) {
-      console.error("Failed to update status", err);
-    }
-  };
-
-  const handleDownloadIIF = () => {
-    const params = new URLSearchParams();
-    if (dateRangeBounds.start) params.set("startDate", dateRangeBounds.start);
-    if (dateRangeBounds.end) params.set("endDate", dateRangeBounds.end);
-    if (selectedCustomerId !== "all") params.set("customerId", selectedCustomerId);
-    if (selectedUserId !== "all") params.set("userId", selectedUserId);
-    if (selectedStatus !== "all") params.set("status", selectedStatus);
-
-    window.location.href = `/api/export/iif?${params.toString()}`;
-  };
-
-  const handleDownloadCSV = () => {
-    const params = new URLSearchParams();
-    if (dateRangeBounds.start) params.set("startDate", dateRangeBounds.start);
-    if (dateRangeBounds.end) params.set("endDate", dateRangeBounds.end);
-    if (selectedCustomerId !== "all") params.set("customerId", selectedCustomerId);
-    if (selectedUserId !== "all") params.set("userId", selectedUserId);
-    if (selectedStatus !== "all") params.set("status", selectedStatus);
-
-    window.location.href = `/api/export/csv?${params.toString()}`;
-  };
-
-  const toggleSort = (field: "date" | "durationMinutes" | "userName" | "customerName") => {
-    if (sortField === field) {
-      setSortAsc(!sortAsc);
-    } else {
-      setSortField(field);
-      setSortAsc(true);
-    }
-  };
+  const toggleSort = (f: typeof sortField) => { if (sortField===f) setSortAsc(!sortAsc); else { setSortField(f); setSortAsc(true); } };
+  const hasFilters = filterCustomer !== "all" || filterUser !== "all" || filterBillable !== "all" || filterStatus !== "all" || !!searchQuery;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-      <div className="mb-6 flex flex-col justify-between gap-4 border-b border-border/60 pb-6 md:flex-row md:items-center">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+
+      {/* ── Header ── */}
+      <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <div className="m3-eyebrow mb-3">
-            <span>Accounting &amp; QuickBooks control</span>
-          </div>
-          <h1 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground sm:text-[2rem]">
-            Timesheet Audits &amp; Financial Calculations
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Calculate period realisation, verify labour costs, and export to QuickBooks Desktop (.IIF)
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Timesheets</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{dateRangeBounds.label} · {filteredEntries.length} entries</p>
         </div>
-
         <div className="flex items-center gap-2.5">
-          <Button
-            onClick={handleDownloadIIF}
-            variant="default"
-            className="flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm shadow-sm"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Download .IIF</span>
-          </Button>
-
-          <Button
-            onClick={handleDownloadCSV}
-            variant="outline"
-            className="flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm shadow-xs"
-          >
-            <Download className="w-4 h-4" />
-            <span>CSV Audit</span>
-          </Button>
+          <button onClick={() => window.location.href=`/api/export/iif?${buildParams()}`}
+            className="m3-fab flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold">
+            <FileSpreadsheet className="h-4 w-4" />
+            QuickBooks IIF
+          </button>
+          <button onClick={() => window.location.href=`/api/export/csv?${buildParams()}`}
+            className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition">
+            <Download className="h-4 w-4" />
+            CSV
+          </button>
+          <button onClick={loadData}
+            className="flex items-center justify-center rounded-full border border-border bg-card p-2.5 text-muted-foreground hover:text-foreground transition">
+            <RefreshCw className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <span className="m3-label">Calculation period</span>
+      {/* ── KPI Cards ── */}
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: "Total Hours",  value: `${metrics.totalHours.toFixed(1)}h`,   icon: <Clock className="h-4 w-4" />,      sub: dateRangeBounds.label },
+          { label: "Billable",     value: `${metrics.billableHours.toFixed(1)}h`, icon: null,                               sub: `${metrics.realizationPct.toFixed(0)}% utilization`, bar: metrics.realizationPct },
+          { label: "Revenue",      value: `$${metrics.revenue.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}`, icon: <DollarSign className="h-4 w-4" />, sub: "est. billable" },
+          { label: "Clients",      value: String(metrics.customerCount),          icon: <Briefcase className="h-4 w-4" />, sub: `${metrics.jobCount} jobs` },
+        ].map(card => (
+          <div key={card.label} className="rounded-2xl border border-border bg-card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">{card.label}</span>
+              {card.icon && <span className="text-primary">{card.icon}</span>}
             </div>
-
-            <div className="flex flex-wrap items-center gap-1 rounded-full bg-surface-container p-1.5">
-              {[
-                { id: "today", label: "Today" },
-                { id: "yesterday", label: "Yesterday" },
-                { id: "this_week", label: "This Week" },
-                { id: "last_week", label: "Last Week" },
-                { id: "this_month", label: "This Month" },
-                { id: "last_month", label: "Last Month" },
-                { id: "this_quarter", label: "This Quarter" },
-                { id: "ytd", label: "YTD" },
-                { id: "all", label: "All Time" },
-                { id: "custom", label: "Custom Range" },
-              ].map((p) => {
-                const active = period === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => setPeriod(p.id as PeriodPreset)}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
-                      active
-                        ? "bg-card text-primary shadow-xs"
-                        : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-                    )}
-                  >
-                    {p.label}
-                  </button>
-                );
-              })}
-            </div>
+            <div className="text-2xl font-bold text-foreground sm:text-3xl">{card.value}</div>
+            {"bar" in card && card.bar !== undefined && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, card.bar)}%` }} />
+              </div>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
           </div>
-
-          {period === "custom" && (
-            <div className="mt-4 pt-4 border-t border-border/40 flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">From:</span>
-                <Input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">To:</span>
-                <Input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium"
-                />
-              </div>
-              <span className="text-xs text-muted-foreground italic">
-                Active Range: {customStartDate} &rarr; {customEndDate}
-              </span>
-            </div>
-          )}
-        </CardHeader>
-      </Card>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Total Period Hours
-              </span>
-              <Clock className="w-4 h-4 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="m3-metric text-[1.75rem] text-foreground sm:text-[2rem]">
-              {metrics.totalHours.toFixed(2)}h
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 font-medium">
-              {formatQuickBooksDuration(metrics.totalMinutes)} in {dateRangeBounds.label}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Billable Realization
-              </span>
-              <Badge className="bg-tertiary-container/60 text-tertiary-on-container">
-                {metrics.realizationRate.toFixed(1)}%
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="m3-metric text-[1.75rem] text-tertiary sm:text-[2rem]">
-              {metrics.billableHours.toFixed(2)}h
-            </div>
-            <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden mt-2">
-              <div
-                className="bg-primary h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, metrics.realizationRate)}%` }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Est. Billable Revenue
-              </span>
-              <DollarSign className="w-4 h-4 text-primary" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="m3-metric text-[1.75rem] text-foreground sm:text-[2rem]">
-              ${metrics.totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 font-medium">
-              Calculated via engineer billing rates
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Active Coverage
-              </span>
-              <Briefcase className="w-4 h-4 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="m3-metric text-[1.75rem] text-foreground sm:text-[2rem]">
-              {metrics.activeCustomerCount} <span className="text-sm text-muted-foreground font-normal">Clients</span>
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 font-medium">
-              Across {metrics.activeJobCount} projects / job sites
-            </div>
-          </CardContent>
-        </Card>
+        ))}
       </div>
 
-      {actionSuccessMsg && (
-        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-tertiary-container/50 px-5 py-4 text-sm font-medium text-tertiary-on-container">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-tertiary" />
-            <span>{actionSuccessMsg}</span>
-          </div>
-          <button
-            onClick={() => setActionSuccessMsg(null)}
-            className="text-xs text-emerald-700 hover:text-emerald-900 underline"
-          >
-            Dismiss
+      {/* ── Period Selector ── */}
+      <div className="mb-4 flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1">
+        {PERIODS.map(p => (
+          <button key={p.id} onClick={() => setPeriod(p.id)}
+            className={cn("rounded-full px-3.5 py-1.5 text-xs font-medium transition-all",
+              period === p.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}>
+            {p.label}
           </button>
+        ))}
+      </div>
+
+      {period === "custom" && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3">
+          <span className="text-xs text-muted-foreground">From</span>
+          <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)}
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          <span className="text-xs text-muted-foreground">to</span>
+          <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)}
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
         </div>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">                <div className="flex flex-wrap items-center gap-1 rounded-full bg-surface-container p-1.5">
-              <button
-                onClick={() => setViewMode("table")}                  className={cn(
-                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
-                    viewMode === "table"
-                      ? "bg-card text-primary shadow-xs"
-                      : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-                  )}
-              >
-                <CheckSquare className="w-3.5 h-3.5" />
-                <span>Detailed Audit Table</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground font-mono">
-                  {filteredEntries.length}
-                </span>
-              </button>
+      {/* ── Filters + View Mode ── */}
+      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center">
+        {/* View mode */}
+        <div className="flex gap-1 rounded-full bg-muted p-1">
+          {([
+            { id: "table",            label: "Table", icon: <CheckSquare className="h-3.5 w-3.5" /> },
+            { id: "customer_summary", label: "By Client", icon: <Layers className="h-3.5 w-3.5" /> },
+            { id: "staff_summary",    label: "By Staff", icon: <Users className="h-3.5 w-3.5" /> },
+          ] as { id: ViewMode; label: string; icon: React.ReactNode }[]).map(v => (
+            <button key={v.id} onClick={() => setViewMode(v.id)}
+              className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all",
+                viewMode === v.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>
+              {v.icon} {v.label}
+              {v.id === "table" && <span className="ml-1 rounded-full bg-muted px-1.5 text-[10px] font-mono">{filteredEntries.length}</span>}
+            </button>
+          ))}
+        </div>
 
-              <button
-                onClick={() => setViewMode("customer_summary")}                  className={cn(
-                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
-                    viewMode === "customer_summary"
-                      ? "bg-card text-primary shadow-xs"
-                      : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-                  )}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>By Customer ({customerBreakdown.length})</span>
-              </button>
-
-              <button
-                onClick={() => setViewMode("engineer_summary")}                  className={cn(
-                    "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all duration-200 ease-expressive",
-                    viewMode === "engineer_summary"
-                      ? "bg-card text-primary shadow-xs"
-                      : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-                  )}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>By Engineer ({engineerBreakdown.length})</span>
-              </button>
-            </div>
-
-            <div className="relative flex-1 max-w-md">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="accountant-search-input"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notes, engineers, jobs, sites... (Press / to focus)"
-                className="w-full rounded-full border-0 bg-surface-low pl-10 pr-9 text-xs font-normal"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          {/* Search */}
+          <div className="relative min-w-[180px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input id="accountant-search-input" type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search…" className="w-full rounded-full border border-border bg-background pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20" />
           </div>
 
-          <div className="mt-4 pt-4 border-t border-border/40 flex flex-wrap items-center gap-3">
-            <Select
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-auto min-w-[180px]"
-            >
-              <option value="all">All Customers</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </Select>
+          {/* Dropdowns */}
+          {[
+            { value: filterCustomer, onChange: setFilterCustomer, options: [["all","All clients"], ...customers.map(c => [c.id, c.name])] as [string,string][] },
+            { value: filterUser,     onChange: setFilterUser,     options: [["all","All staff"],   ...users.map(u => [u.id, u.name])] as [string,string][] },
+            { value: filterBillable, onChange: setFilterBillable, options: [["all","Billable & non"], ["billable","Billable only"], ["non_billable","Non-billable"]] as [string,string][] },
+            { value: filterStatus,   onChange: setFilterStatus,   options: [["all","All statuses"], ["draft","Draft"], ["submitted","Submitted"], ["approved","Approved"], ["exported","Exported"]] as [string,string][] },
+          ].map((f, i) => (
+            <select key={i} value={f.value} onChange={e => f.onChange(e.target.value)}
+              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer">
+              {f.options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          ))}
 
-            <Select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-auto min-w-[180px]"
-            >
-              <option value="all">All Engineers</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </Select>
+          {hasFilters && (
+            <button onClick={() => { setFilterCustomer("all"); setFilterUser("all"); setFilterBillable("all"); setFilterStatus("all"); setSearchQuery(""); }}
+              className="rounded-full text-xs font-semibold text-primary hover:underline px-2">
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
 
-            <Select
-              value={selectedBillable}
-              onChange={(e) => setSelectedBillable(e.target.value)}
-              className="w-auto min-w-[160px]"
-            >
-              <option value="all">Billable & Non-Billable</option>
-              <option value="billable">Billable Only</option>
-              <option value="non_billable">Non-Billable Only</option>
-            </Select>
+      {/* ── Success Banner ── */}
+      {successMsg && (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {successMsg}
+        </div>
+      )}
 
-            <Select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-auto min-w-[160px]"
-            >
-              <option value="all">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="submitted">Submitted</option>
-              <option value="approved">Approved</option>
-              <option value="exported">Exported to QB</option>
-            </Select>
-
-            {(selectedCustomerId !== "all" ||
-              selectedUserId !== "all" ||
-              selectedBillable !== "all" ||
-              selectedStatus !== "all" ||
-              searchQuery) && (
-              <button
-                onClick={() => {
-                  setSelectedCustomerId("all");
-                  setSelectedUserId("all");
-                  setSelectedBillable("all");
-                  setSelectedStatus("all");
-                  setSearchQuery("");
-                }}
-                className="text-xs font-semibold text-primary hover:text-primary/90 ml-auto"
-              >
-                Reset Filters
-              </button>
-            )}
-          </div>
-        </CardHeader>
-      </Card>
-
+      {/* ── Batch Action Bar ── */}
       {selectedEntryIds.size > 0 && viewMode === "table" && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] bg-primary px-4 py-3 text-primary-foreground shadow-m3-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white/20">
-              {selectedEntryIds.size} Selected
-            </span>
-            <span className="text-xs text-primary-foreground/80 hidden sm:inline">
-              Choose batch action for QuickBooks approval workflow:
-            </span>
-          </div>
-
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-lg">
+          <span className="text-xs font-bold">{selectedEntryIds.size} selected</span>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => handleUpdateStatus("approved")}
-              variant="secondary"
-              className="flex items-center gap-1.5 text-xs shadow-xs"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>Approve (A)</span>
-            </Button>
-
-            <Button
-              onClick={() => handleUpdateStatus("exported")}
-              variant="secondary"
-              className="flex items-center gap-1.5 text-xs shadow-xs"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Mark Exported (X)</span>
-            </Button>
-
-            <button
-              onClick={() => setSelectedEntryIds(new Set())}
-              className="px-2.5 py-1.5 text-xs text-primary-foreground/70 hover:text-white"
-            >
+            <button onClick={() => handleUpdateStatus("approved")}
+              className="flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-semibold hover:bg-white/30 transition">
+              <Check className="h-3.5 w-3.5" /> Approve
+            </button>
+            <button onClick={() => handleUpdateStatus("exported")}
+              className="flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-semibold hover:bg-white/30 transition">
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Mark Exported
+            </button>
+            <button onClick={() => setSelectedEntryIds(new Set())}
+              className="rounded-full px-2.5 py-1.5 text-xs text-primary-foreground/60 hover:text-white transition">
               Clear
             </button>
           </div>
         </div>
       )}
 
+      {/* ── TABLE VIEW ── */}
       {viewMode === "table" && (
-        <Card className="overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="select-none border-b border-border/60 bg-surface-container text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+              <thead className="select-none border-b border-border/60 bg-muted/50 text-[11px] font-medium text-muted-foreground">
                 <tr>
-                  <th className="py-3.5 px-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAll}
-                      className="rounded text-primary border-input focus:ring-ring/50"
-                    />
+                  <th className="py-3 px-4 w-10">
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="rounded text-primary border-input" />
                   </th>
-                  <th
-                    onClick={() => toggleSort("date")}
-                    className="py-3.5 px-3 cursor-pointer hover:text-foreground"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Date</span>
-                      <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-                    </div>
+                  {[
+                    { label: "Date",     field: "date" as const },
+                    { label: "Staff",    field: "userName" as const },
+                    { label: "Client / Job", field: "customerName" as const },
+                  ].map(col => (
+                    <th key={col.field} onClick={() => toggleSort(col.field)} className="cursor-pointer py-3 px-3 hover:text-foreground">
+                      <div className="flex items-center gap-1">{col.label} <ArrowUpDown className="h-3 w-3" /></div>
+                    </th>
+                  ))}
+                  <th className="py-3 px-3">Service</th>
+                  <th className="py-3 px-3">Location</th>
+                  <th onClick={() => toggleSort("durationMinutes")} className="cursor-pointer py-3 px-3 text-right hover:text-foreground">
+                    <div className="flex items-center justify-end gap-1">Duration <ArrowUpDown className="h-3 w-3" /></div>
                   </th>
-                  <th
-                    onClick={() => toggleSort("userName")}
-                    className="py-3.5 px-3 cursor-pointer hover:text-foreground"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Engineer</span>
-                      <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-                    </div>
-                  </th>
-                  <th
-                    onClick={() => toggleSort("customerName")}
-                    className="py-3.5 px-3 cursor-pointer hover:text-foreground"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>QuickBooks Job</span>
-                      <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-                    </div>
-                  </th>
-                  <th className="py-3.5 px-3">Service Item</th>
-                  <th className="py-3.5 px-3">Location</th>
-                  <th
-                    onClick={() => toggleSort("durationMinutes")}
-                    className="py-3.5 px-3 text-right cursor-pointer hover:text-foreground"
-                  >
-                    <div className="flex items-center justify-end gap-1">
-                      <span>Duration</span>
-                      <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-                    </div>
-                  </th>
-                  <th className="py-3.5 px-3 text-center">Billable</th>
-                  <th className="py-3.5 px-3">Status</th>
-                  <th className="py-3.5 px-4">Notes</th>
+                  <th className="py-3 px-3 text-center">Bill</th>
+                  <th className="py-3 px-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border font-medium text-muted-foreground">
+              <tbody className="divide-y divide-border/60">
                 {loading ? (
-                  <tr>
-                    <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                      Loading timesheet records...
-                    </td>
-                  </tr>
+                  <tr><td colSpan={9} className="py-16 text-center text-sm text-muted-foreground">Loading…</td></tr>
                 ) : filteredEntries.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                      No timesheet entries found for the selected period and filters.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredEntries.map((e) => {
-                    const isChecked = selectedEntryIds.has(e.id);
-
-                    return (
-                      <tr
-                        key={e.id}
-                        className={cn(
-                          "transition-colors duration-150",
-                          isChecked ? "bg-primary/[0.06]" : "hover:bg-surface-low"
-                        )}
-                      >
-                        <td className="py-3 px-4">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleSelectEntry(e.id)}
-                            className="rounded text-primary border-input focus:ring-ring/50"
-                          />
-                        </td>
-
-                        <td className="py-3 px-3 font-mono text-foreground whitespace-nowrap">
-                          {e.date}
-                        </td>
-
-                        <td className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">
-                          {e.userName}
-                        </td>
-
-                        <td className="py-3 px-3">
-                          <div className="font-semibold text-foreground">{e.customerName}</div>
-                          {e.jobName && (
-                            <div className="text-[11px] text-muted-foreground font-mono">
-                              :{e.jobName}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">
-                          {e.serviceItemName}
-                        </td>
-
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <span className={cn(
-                            "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium",
-                            e.locationType === "on_site"
-                              ? "bg-tertiary-container/60 text-tertiary-on-container"
-                              : e.locationType === "office"
-                              ? "bg-primary-container text-primary-on-container"
-                              : e.locationType === "remote"
-                              ? "bg-secondary-container text-secondary-on-container"
-                              : "bg-surface-high text-foreground"
+                  <tr><td colSpan={9} className="py-16 text-center text-sm text-muted-foreground">No entries for this period</td></tr>
+                ) : filteredEntries.map(e => {
+                  const checked = selectedEntryIds.has(e.id);
+                  const locIcon = e.locationType === "on_site" ? <MapPin className="h-3 w-3" />
+                    : e.locationType === "office" ? <Building className="h-3 w-3" />
+                    : e.locationType === "remote" ? <Laptop className="h-3 w-3" />
+                    : <Car className="h-3 w-3" />;
+                  const locCls = e.locationType === "on_site"  ? "bg-tertiary-container/60 text-tertiary-on-container"
+                    : e.locationType === "office" ? "bg-primary-container text-primary-on-container"
+                    : e.locationType === "remote" ? "bg-secondary-container text-secondary-on-container"
+                    : "bg-muted text-muted-foreground";
+                  return (
+                    <tr key={e.id} className={cn("transition-colors", checked ? "bg-primary/[0.06]" : "hover:bg-muted/30")}>
+                      <td className="py-3 px-4">
+                        <input type="checkbox" checked={checked} onChange={() => toggleSelectEntry(e.id)} className="rounded text-primary border-input" />
+                      </td>
+                      <td className="py-3 px-3 font-mono text-foreground whitespace-nowrap">{e.date}</td>
+                      <td className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">{e.userName}</td>
+                      <td className="py-3 px-3">
+                        <div className="font-semibold text-foreground">{e.customerName}</div>
+                        {e.jobName && <div className="text-[11px] text-muted-foreground">· {e.jobName}</div>}
+                      </td>
+                      <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">{e.serviceItemName}</td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", locCls)}>
+                          {locIcon} <span className="capitalize">{e.locationType.replace("_"," ")}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
+                        {formatQuickBooksDuration(e.durationMinutes)}
+                        <span className="ml-1 text-[10px] text-muted-foreground">({(e.durationMinutes/60).toFixed(2)}h)</span>
+                      </td>
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        {e.isBillable
+                          ? <span className="rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-300">Yes</span>
+                          : <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">No</span>}
+                      </td>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <select value={e.status}
+                          onChange={ev => handleUpdateStatus(ev.target.value as "draft"|"submitted"|"approved"|"exported", [e.id])}
+                          className={cn("cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/25 transition-colors",
+                            e.status === "approved" ? "border-transparent bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                            : e.status === "exported" ? "border-transparent bg-primary/10 text-primary"
+                            : "border-transparent bg-muted text-foreground"
                           )}>
-                            {e.locationType === "on_site" && <MapPin className="h-3 w-3" />}
-                            {e.locationType === "office" && <Building className="h-3 w-3" />}
-                            {e.locationType === "remote" && <Laptop className="h-3 w-3" />}
-                            {e.locationType === "travel" && <Car className="h-3 w-3" />}
-                            <span className="capitalize">{e.locationType.replace("_", " ")}</span>
-                          </span>
-                        </td>
-
-                        <td className="whitespace-nowrap py-3 px-3 text-right font-mono font-semibold tabular-nums text-foreground">
-                          {formatQuickBooksDuration(e.durationMinutes)}
-                          <span className="text-[10px] text-muted-foreground font-normal ml-1">
-                            ({(e.durationMinutes / 60).toFixed(2)}h)
-                          </span>
-                        </td>
-
-                        <td className="py-3 px-3 text-center whitespace-nowrap">
-                          {e.isBillable ? (
-                            <span className="rounded-full bg-tertiary-container/60 px-2.5 py-1 text-[10px] font-medium text-tertiary-on-container">
-                              Yes
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-surface-high px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
-                              No
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <select
-                            value={e.status}
-                            onChange={(evt) =>
-                              handleUpdateStatus(
-                                evt.target.value as "draft" | "submitted" | "approved" | "exported",
-                                [e.id]
-                              )
-                            }
-                            className={cn(
-                              "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors duration-200 ease-expressive focus:outline-none focus:ring-2 focus:ring-primary/25",
-                              e.status === "approved"
-                                ? "border-transparent bg-tertiary-container/60 text-tertiary-on-container"
-                                : e.status === "exported"
-                                ? "border-transparent bg-primary-container text-primary-on-container"
-                                : "border-transparent bg-surface-high text-foreground"
-                            )}
-                          >
-                            <option value="draft">Draft</option>
-                            <option value="submitted">Submitted</option>
-                            <option value="approved">Approved</option>
-                            <option value="exported">Exported</option>
-                          </select>
-                        </td>
-
-                        <td className="py-3 px-4 text-muted-foreground max-w-xs truncate" title={e.notes || ""}>
-                          {e.notes || <span className="text-muted-foreground/50 italic">No notes</span>}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                          <option value="draft">Draft</option>
+                          <option value="submitted">Submitted</option>
+                          <option value="approved">Approved</option>
+                          <option value="exported">Exported</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </Card>
-      )}
-
-      {viewMode === "customer_summary" && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {customerBreakdown.map((cust) => {
-            const hours = cust.totalMinutes / 60;
-            const billablePct = cust.totalMinutes > 0 ? (cust.billableMinutes / cust.totalMinutes) * 100 : 0;
-            const jobsList = Array.from(cust.jobs.values());
-
-            return (
-              <Card
-                key={cust.customerId}
-                className="flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-base font-bold text-foreground">{cust.customerName}</h3>
-                    <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
-                      ${cust.revenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
-                    <span>{hours.toFixed(2)} Total Hours</span>
-                    <span>•</span>
-                    <span>{billablePct.toFixed(0)}% Billable</span>
-                    <span>•</span>
-                    <span>{jobsList.length} Job(s)</span>
-                  </div>
-
-                  <div className="space-y-2 pt-3 border-t border-border/40">
-                    {jobsList.map((j, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground font-medium truncate max-w-xs">{j.jobName}</span>
-                        <span className="font-mono text-foreground font-semibold">
-                          {(j.minutes / 60).toFixed(2)}h
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
         </div>
       )}
 
-      {viewMode === "engineer_summary" && (
-        <div className="grid md:grid-cols-3 gap-4">
-          {engineerBreakdown.map((eng) => {
-            const hours = eng.totalMinutes / 60;
-            const billableHours = eng.billableMinutes / 60;
-            const utilPct = eng.totalMinutes > 0 ? (eng.billableMinutes / eng.totalMinutes) * 100 : 0;
-            const rate = userRateMap.get(eng.userId) || 145.0;
-
+      {/* ── CUSTOMER SUMMARY ── */}
+      {viewMode === "customer_summary" && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {customerBreakdown.map(cust => {
+            const hours = cust.totalMinutes / 60;
+            const billPct = cust.totalMinutes > 0 ? (cust.billableMinutes / cust.totalMinutes) * 100 : 0;
+            const jobs = Array.from(cust.jobs.values());
             return (
-              <Card
-                key={eng.userId}
-                className="flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-base font-bold text-foreground">{eng.userName}</h3>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      ${rate}/hr
-                    </span>
-                  </div>
-
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Period Hours:</span>
-                      <span className="font-mono font-bold text-foreground">{hours.toFixed(2)}h</span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Billable Hours:</span>
-                      <span className="font-mono font-bold text-emerald-700">{billableHours.toFixed(2)}h</span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Utilization Rate:</span>
-                      <span className="font-bold text-primary">{utilPct.toFixed(1)}%</span>
-                    </div>
-
-                    <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden my-2">
-                      <div
-                        className="bg-primary h-full rounded-full"
-                        style={{ width: `${Math.min(100, utilPct)}%` }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs pt-2 border-t border-border/40">
-                      <span className="text-muted-foreground">Revenue Generated:</span>
-                      <span className="font-mono font-bold text-foreground">
-                        ${eng.revenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
+              <div key={cust.customerId} className="rounded-2xl border border-border bg-card p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="font-bold text-foreground">{cust.customerName}</h3>
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-mono font-bold text-primary">
+                    ${cust.revenue.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}
+                  </span>
                 </div>
-              </Card>
+                <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{hours.toFixed(1)}h</span>
+                  <span>·</span>
+                  <span>{billPct.toFixed(0)}% billable</span>
+                </div>
+                <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100,billPct)}%` }} />
+                </div>
+                <div className="space-y-1.5 border-t border-border/40 pt-3">
+                  {jobs.map((j,i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground truncate max-w-[200px]">{j.jobName}</span>
+                      <span className="font-mono font-semibold text-foreground">{(j.minutes/60).toFixed(1)}h</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             );
           })}
+          {customerBreakdown.length === 0 && (
+            <div className="col-span-2 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">No data</div>
+          )}
+        </div>
+      )}
+
+      {/* ── STAFF SUMMARY ── */}
+      {viewMode === "staff_summary" && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {staffBreakdown.map(s => {
+            const hours = s.totalMinutes / 60;
+            const billH = s.billableMinutes / 60;
+            const utilPct = s.totalMinutes > 0 ? (s.billableMinutes / s.totalMinutes) * 100 : 0;
+            const rate = userRateMap.get(s.userId) || 145;
+            return (
+              <div key={s.userId} className="rounded-2xl border border-border bg-card p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="font-bold text-foreground">{s.userName}</h3>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">${rate}/hr</span>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-mono font-bold">{hours.toFixed(1)}h</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Billable</span>
+                    <span className="font-mono font-bold text-green-700 dark:text-green-400">{billH.toFixed(1)}h</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100,utilPct)}%` }} />
+                  </div>
+                  <div className="flex justify-between pt-1 border-t border-border/40">
+                    <span className="text-muted-foreground">Revenue</span>
+                    <span className="font-mono font-bold">${s.revenue.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {staffBreakdown.length === 0 && (
+            <div className="col-span-3 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">No data</div>
+          )}
         </div>
       )}
     </div>

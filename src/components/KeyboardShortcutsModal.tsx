@@ -14,16 +14,16 @@ export function KeyboardShortcutsModal() {
       title: "Global navigation",
       items: [
         { keys: ["⌘", "K"], desc: "Open the command palette" },
-        { keys: ["1"], desc: "Go to the Engineer tracker" },
-        { keys: ["2"], desc: "Go to Accountant audits & exports" },
-        { keys: ["3"], desc: "Go to the customer & service directory" },
-        { keys: ["0"], desc: "Return to the home overview" },
+        { keys: ["1"], desc: "Go to Time Tracker" },
+        { keys: ["2"], desc: "Go to Timesheets & exports" },
+        { keys: ["3"], desc: "Go to Directory" },
+        { keys: ["0"], desc: "Return to home overview" },
         { keys: ["?"], desc: "Toggle this shortcut sheet" },
         { keys: ["Esc"], desc: "Close an active dialog or palette" },
       ],
     },
     {
-      title: "Engineer mode",
+      title: "Timer mode",
       items: [
         { keys: ["Space"], desc: "Start, pause, or resume the stopwatch" },
         { keys: ["S"], desc: "Stop the timer and log the entry" },
@@ -32,7 +32,7 @@ export function KeyboardShortcutsModal() {
       ],
     },
     {
-      title: "Accountant portal",
+      title: "Timesheets",
       items: [
         { keys: ["P"], desc: "Cycle the calculation period" },
         { keys: ["/"], desc: "Focus the search filter" },

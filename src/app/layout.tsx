@@ -1,86 +1,79 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
-import { Clock } from "lucide-react";
-import { KeyboardShortcutsProvider } from "@/components/KeyboardShortcutsProvider";
-import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
-import { CommandPalette } from "@/components/CommandPalette";
-import { AuthGate } from "@/components/AuthGate";
-import { NavHeaderActions } from "@/components/NavHeaderActions";
-import { NavLinks } from "@/components/NavLinks";
+import { Clock, BarChart3, Settings } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Field & Office Time Tracker | QuickBooks Ready",
-  description:
-    "Professional engineering time tracking with accountant auditing and QuickBooks Desktop export.",
+  title: "TimeTrack",
+  description: "Accurate time tracking with QuickBooks Desktop IIF export.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body className="flex min-h-screen flex-col bg-background text-foreground">
-        <KeyboardShortcutsProvider>
-          <AuthGate>
-            <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-              <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-                <Link href="/" className="group flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-primary text-primary-foreground shadow-m3-1 transition-transform duration-300 ease-expressive group-hover:scale-105">
-                    <Clock className="h-5 w-5" strokeWidth={2.2} />
-                  </div>
-                  <div className="flex flex-col leading-tight">
-                    <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
-                      TimeTrack
-                    </span>
-                    <span className="hidden text-[11px] font-medium text-muted-foreground sm:block">
-                      Field &amp; Office · QuickBooks ready
-                    </span>
-                  </div>
-                </Link>
-
-                <NavLinks />
-
-                <NavHeaderActions />
+        {/* Header */}
+        <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            {/* Brand */}
+            <Link href="/" className="group flex items-center gap-3 shrink-0">
+              <div className="relative flex h-9 w-9 items-center justify-center rounded-2xl overflow-hidden">
+                <div
+                  className="absolute inset-0"
+                  style={{ background: "var(--fab-gradient)" }}
+                />
+                <Clock className="relative h-4 w-4 text-white" strokeWidth={2.5} />
               </div>
-            </header>
+              <span className="text-base font-semibold tracking-tight text-foreground">
+                TimeTrack
+              </span>
+            </Link>
 
-            <main className="flex-1">{children}</main>
+            {/* Navigation */}
+            <nav className="flex items-center gap-1">
+              <NavPill href="/engineer" icon={Clock} label="Track" />
+              <NavPill href="/accountant" icon={BarChart3} label="Timesheets" />
+              <NavPill href="/settings" icon={Settings} label="Directory" />
+            </nav>
+          </div>
+        </header>
 
-            <CommandPalette />
-            <KeyboardShortcutsModal />
+        <main className="flex-1">{children}</main>
 
-            <footer className="mt-auto border-t border-border/60 bg-surface-low/70 py-6 text-xs text-muted-foreground">
-              <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 sm:flex-row sm:px-6 lg:px-8">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-                    QB
-                  </span>
-                  <span className="font-medium">
-                    QuickBooks Desktop IIF (TIMEACT) &amp; CSV engine active
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="flex items-center gap-1.5 rounded-full bg-surface-container px-2.5 py-1">
-                    <kbd className="font-mono text-[10px] font-semibold text-foreground">
-                      ⌘K
-                    </kbd>
-                    commands
-                  </span>
-                  <span className="flex items-center gap-1.5 rounded-full bg-surface-container px-2.5 py-1">
-                    <kbd className="font-mono text-[10px] font-semibold text-foreground">
-                      ?
-                    </kbd>
-                    shortcuts
-                  </span>
-                </div>
-              </div>
-            </footer>
-          </AuthGate>
-        </KeyboardShortcutsProvider>
+        {/* Footer */}
+        <footer className="mt-auto border-t border-border/60 bg-surface-low/60 py-4 text-xs text-muted-foreground">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+            <span className="font-medium">TimeTrack</span>
+            <span>QuickBooks Desktop IIF &amp; CSV</span>
+          </div>
+        </footer>
       </body>
     </html>
+  );
+}
+
+function NavPill({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </Link>
   );
 }

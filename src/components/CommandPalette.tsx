@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useKeyboardShortcuts } from "./KeyboardShortcutsProvider";
 import {
   Search,
-  HardHat,
+  Clock,
   BarChart3,
   Settings,
   FileSpreadsheet,
@@ -37,15 +37,15 @@ export function CommandPalette() {
   const actions = [
     {
       id: "nav-engineer",
-      title: "Go to Engineer view",
+      title: "Track Time",
       subtitle: "Stopwatch timer, GPS site tagging & manual logs",
-      icon: <HardHat className="h-4 w-4 text-primary" />,
+      icon: <Clock className="h-4 w-4 text-primary" />,
       shortcut: "1",
       perform: () => router.push("/engineer"),
     },
     {
       id: "nav-accountant",
-      title: "Go to Accountant view",
+      title: "Review Timesheets",
       subtitle: "Audits, period calculations & QuickBooks exports",
       icon: <BarChart3 className="h-4 w-4 text-primary" />,
       shortcut: "2",

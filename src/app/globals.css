@@ -2,101 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ───────── Google Fonts ───────── */
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap");
+
 @layer base {
   :root {
     color-scheme: light;
 
-    /* Surfaces */
-    --background: 231 100% 99%;
-    --foreground: 240 7% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 7% 11%;
-    --surface-container-low: 228 60% 98%;
-    --surface-container: 222 43% 96%;
-    --surface-container-high: 224 36% 93%;
-    --surface-container-highest: 222 27% 91%;
+    /* ── M3 Expressive color tokens (Blue primary + Lime tertiary) ── */
+    --background:        240 100% 99%;
+    --foreground:        230 15% 10%;
 
-    /* Primary — Google blue tonal roles */
-    --primary: 217 90% 43%;
-    --primary-foreground: 0 0% 100%;
-    --primary-container: 217 91% 91%;
-    --on-primary-container: 217 90% 15%;
+    --card:              0 0% 100%;
+    --card-foreground:   230 15% 10%;
 
-    /* Secondary — neutral-blue tonal roles */
-    --secondary: 222 14% 39%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-container: 224 72% 92%;
-    --on-secondary-container: 222 29% 20%;
+    /* Surface tones */
+    --surface-container-low:     228 60% 97%;
+    --surface-container:         224 46% 94%;
+    --surface-container-high:    224 38% 90%;
+    --surface-container-highest: 222 28% 86%;
 
-    /* Tertiary — teal accent */
-    --tertiary: 183 75% 21%;
-    --tertiary-foreground: 0 0% 100%;
-    --tertiary-container: 183 82% 79%;
-    --on-tertiary-container: 184 100% 13%;
+    /* Primary – vivid Google Blue */
+    --primary:             217 90% 46%;
+    --primary-foreground:  0 0% 100%;
+    --primary-container:   214 100% 93%;
+    --on-primary-container:217 90% 18%;
+
+    /* Secondary – desaturated blue-grey */
+    --secondary:             222 14% 42%;
+    --secondary-foreground:  0 0% 100%;
+    --secondary-container:   222 60% 92%;
+    --on-secondary-container:222 30% 22%;
+
+    /* Tertiary – vivid Lime-Green for positive/billable accents */
+    --tertiary:              100 56% 36%;
+    --tertiary-foreground:   0 0% 100%;
+    --tertiary-container:    97 90% 86%;
+    --on-tertiary-container: 100 60% 12%;
 
     /* Error */
-    --destructive: 0 75% 42%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive:          0 72% 46%;
+    --destructive-foreground:0 0% 100%;
+    --destructive-container: 0 100% 94%;
+
+    /* Warning */
+    --warning:              38 100% 48%;
+    --warning-container:    42 100% 90%;
 
     /* Neutrals */
-    --muted: 222 43% 96%;
-    --muted-foreground: 222 9% 29%;
-    --accent: 224 72% 92%;
-    --accent-foreground: 222 29% 20%;
-    --border: 231 11% 85%;
-    --input: 231 11% 82%;
-    --outline: 224 5% 48%;
-    --outline-variant: 231 11% 79%;
-    --ring: 217 90% 43%;
-    --radius: 1.75rem;
+    --muted:                220 30% 94%;
+    --muted-foreground:     222 10% 42%;
+    --accent:               214 100% 93%;
+    --accent-foreground:    217 90% 25%;
+    --border:               228 20% 85%;
+    --input:                228 20% 80%;
+    --outline:              224 6% 50%;
+    --outline-variant:      228 14% 80%;
+    --ring:                 217 90% 46%;
+    --radius:               1rem;
+
+    /* Expressive FAB gradient */
+    --fab-gradient: linear-gradient(135deg, hsl(217 90% 46%) 0%, hsl(238 80% 60%) 100%);
+    --fab-gradient-green: linear-gradient(135deg, hsl(100 56% 36%) 0%, hsl(160 60% 36%) 100%);
   }
 
   .dark {
     color-scheme: dark;
-
-    --background: 222 14% 8%;
-    --foreground: 220 14% 93%;
-    --card: 222 12% 11%;
-    --card-foreground: 220 14% 93%;
-    --surface-container-low: 222 14% 11%;
-    --surface-container: 222 13% 14%;
-    --surface-container-high: 222 12% 18%;
-    --surface-container-highest: 222 11% 21%;
-
-    --primary: 217 100% 80%;
-    --primary-foreground: 217 90% 18%;
-    --primary-container: 217 65% 33%;
-    --on-primary-container: 217 100% 92%;
-
-    --secondary: 222 10% 76%;
-    --secondary-foreground: 222 14% 15%;
-    --secondary-container: 222 20% 25%;
-    --on-secondary-container: 224 72% 92%;
-
-    --tertiary: 183 60% 70%;
-    --tertiary-foreground: 184 100% 13%;
-    --tertiary-container: 183 70% 25%;
-    --on-tertiary-container: 183 82% 85%;
-
-    --destructive: 6 100% 84%;
-    --destructive-foreground: 0 100% 21%;
-
-    --muted: 222 14% 15%;
-    --muted-foreground: 222 10% 74%;
-    --accent: 222 20% 22%;
-    --accent-foreground: 220 14% 93%;
-    --border: 222 12% 26%;
-    --input: 222 12% 26%;
-    --outline: 222 8% 54%;
-    --outline-variant: 222 12% 30%;
-    --ring: 217 100% 80%;
+    --background:        230 15% 7%;
+    --foreground:        220 15% 93%;
+    --card:              228 14% 11%;
+    --card-foreground:   220 15% 93%;
+    --surface-container-low:     228 14% 11%;
+    --surface-container:         228 13% 15%;
+    --surface-container-high:    228 12% 19%;
+    --surface-container-highest: 228 11% 23%;
+    --primary:              217 100% 78%;
+    --primary-foreground:   217 90% 15%;
+    --primary-container:    217 65% 30%;
+    --on-primary-container: 217 100% 90%;
+    --secondary:            222 10% 74%;
+    --secondary-foreground: 222 14% 12%;
+    --secondary-container:  222 20% 24%;
+    --on-secondary-container:224 72% 92%;
+    --tertiary:             100 55% 68%;
+    --tertiary-foreground:  100 60% 12%;
+    --tertiary-container:   100 42% 22%;
+    --on-tertiary-container:97 90% 86%;
+    --destructive:          0 100% 82%;
+    --destructive-foreground:0 100% 18%;
+    --destructive-container: 0 60% 24%;
+    --warning:              42 100% 72%;
+    --warning-container:    38 70% 24%;
+    --muted:                228 14% 16%;
+    --muted-foreground:     222 10% 72%;
+    --accent:               217 65% 28%;
+    --accent-foreground:    217 100% 90%;
+    --border:               228 12% 24%;
+    --input:                228 12% 24%;
+    --outline:              222 8% 54%;
+    --outline-variant:      228 12% 30%;
+    --ring:                 217 100% 78%;
+    --fab-gradient: linear-gradient(135deg, hsl(217 100% 60%) 0%, hsl(238 80% 72%) 100%);
+    --fab-gradient-green: linear-gradient(135deg, hsl(100 55% 55%) 0%, hsl(160 60% 48%) 100%);
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
 
   html {
     -webkit-tap-highlight-color: transparent;
@@ -105,86 +117,112 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    font-family: "Google Sans", "Roboto", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
     text-rendering: optimizeLegibility;
   }
 
-  h1,
-  h2,
-  h3,
-  h4 {
+  h1, h2, h3, h4 {
+    font-family: "Google Sans Display", "Google Sans", sans-serif;
     @apply font-semibold;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 
   ::selection {
     @apply bg-primary/20 text-foreground;
   }
 
-  input,
-  textarea,
-  select,
-  button {
+  input, textarea, select, button {
     font-family: inherit;
   }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  /* Material tonal label ("label-large" role) */
-  .m3-label {
-    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
-  }
-
-  /* Material chip used as a section eyebrow */
-  .m3-eyebrow {
-    @apply inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-primary;
-  }
-
-  /* Material numeric emphasis for KPI values */
-  .m3-metric {
-    @apply font-mono font-semibold tabular-nums tracking-[-0.02em];
-  }
-
-  /* Material state layer for quiet interactive surfaces */
-  .m3-state {
-    @apply transition-colors duration-200 ease-expressive hover:bg-foreground/[0.06] active:bg-foreground/[0.1];
-  }
-
+  /* ── Scrollbar ── */
   .m3-scroll {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--outline-variant)) transparent;
   }
-
-  .m3-scroll::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-
+  .m3-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
   .m3-scroll::-webkit-scrollbar-thumb {
     background-color: hsl(var(--outline-variant));
     border-radius: 9999px;
-    border: 3px solid transparent;
+    border: 2px solid transparent;
     background-clip: content-box;
   }
+  .m3-scroll::-webkit-scrollbar-track { background: transparent; }
 
-  .m3-scroll::-webkit-scrollbar-track {
-    background: transparent;
+  /* ── Typography roles ── */
+  .m3-label { @apply text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground; }
+  .m3-eyebrow {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-primary;
   }
 
-  /* Subtle expressive hairline used on app shells */
-  .m3-divider {
-    @apply border-border/60;
+  /* ── State layer ── */
+  .m3-state {
+    @apply transition-all duration-200 ease-out hover:bg-foreground/[0.06] active:bg-foreground/[0.12];
   }
 
-  /* Native-appearance chevron for Material dropdowns */
-  .m3-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23565E71' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.85rem center;
-    background-size: 16px 16px;
+  /* ── Expressive FAB ── */
+  .m3-fab {
+    background: var(--fab-gradient);
+    @apply text-white shadow-lg shadow-primary/30 transition-all duration-300;
+  }
+  .m3-fab:hover {
+    @apply shadow-xl shadow-primary/40;
+    transform: translateY(-2px) scale(1.03);
+  }
+  .m3-fab:active {
+    transform: scale(0.97);
+  }
+
+  .m3-fab-green {
+    background: var(--fab-gradient-green);
+    @apply text-white shadow-lg shadow-green-600/30 transition-all duration-300;
+  }
+  .m3-fab-green:hover {
+    @apply shadow-xl shadow-green-600/40;
+    transform: translateY(-2px) scale(1.03);
+  }
+
+  /* ── Tonal chip ── */
+  .m3-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors duration-150;
+  }
+  .m3-chip-primary { @apply m3-chip bg-primary-container text-primary-on-container; }
+  .m3-chip-secondary { @apply m3-chip bg-secondary-container text-secondary-on-container; }
+  .m3-chip-tertiary { @apply m3-chip bg-tertiary-container text-tertiary-on-container; }
+
+  /* ── Location badge colors ── */
+  .loc-on-site { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300; }
+  .loc-office   { @apply bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300; }
+  .loc-remote   { @apply bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300; }
+  .loc-travel   { @apply bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300; }
+
+  /* ── Status ── */
+  .status-submitted { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300; }
+  .status-approved  { @apply bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300; }
+  .status-exported  { @apply bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300; }
+
+  /* ── Gradient text ── */
+  .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(238 80% 60%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Glass card ── */
+  .glass-card {
+    @apply bg-white/70 dark:bg-card/70 backdrop-blur-md border border-white/50 dark:border-border/50;
+  }
+
+  /* ── Pulse ring (active timer) ── */
+  .pulse-ring {
+    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes pulse-ring {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.08); }
   }
 }

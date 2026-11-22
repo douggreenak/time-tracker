@@ -62,11 +62,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           </div>
 
           <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">
-            Field &amp; Office TimeTrack
+            TimeTrack
           </h1>
           <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
-            Enter your authorized PIN to access engineering timesheets and
-            QuickBooks records.
+            Enter your authorized PIN to access timesheets and QuickBooks records.
           </p>
 
           <form onSubmit={handleUnlock} className="mt-8 space-y-3">

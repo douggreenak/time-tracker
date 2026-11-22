@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, HardHat, Settings } from "lucide-react";
+import { BarChart3, Clock, Settings } from "lucide-react";
 import { cn } from "@/components/ui";
 
 const NAV_ITEMS = [
-  { href: "/engineer", label: "Engineer", icon: HardHat },
-  { href: "/accountant", label: "Accountant", icon: BarChart3 },
+  { href: "/engineer", label: "Track", icon: Clock },
+  { href: "/accountant", label: "Timesheets", icon: BarChart3 },
   { href: "/settings", label: "Directory", icon: Settings },
 ];
 

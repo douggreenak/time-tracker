@@ -2,59 +2,41 @@
 
 import { useState, useEffect } from "react";
 import {
-  Play,
-  Pause,
-  Square,
-  Clock,
-  MapPin,
-  Building,
-  Car,
-  Laptop,
-  PlusCircle,
-  Calendar,
-  Briefcase,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  Trash2,
-  Navigation,
-  Check,
+  Play, Pause, Square, Clock, MapPin, Building, Car, Laptop,
+  PlusCircle, Calendar, Trash2, Navigation, Check, RefreshCw,
+  CheckCircle, AlertCircle,
 } from "lucide-react";
 import { CustomerItem, ServiceItem, TimeEntryItem, UserItem } from "@/db/mock-data";
-import { formatQuickBooksDuration } from "@/lib/quickbooks";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/components/ui";
 
 type LocationType = "office" | "on_site" | "remote" | "travel";
 
-const LOCATION_OPTS: { id: LocationType; label: string; icon: React.ReactNode }[] = [
-  { id: "on_site", label: "On-site client", icon: <MapPin className="h-3.5 w-3.5" /> },
-  { id: "office", label: "Office", icon: <Building className="h-3.5 w-3.5" /> },
-  { id: "remote", label: "Remote", icon: <Laptop className="h-3.5 w-3.5" /> },
-  { id: "travel", label: "Travel", icon: <Car className="h-3.5 w-3.5" /> },
+const LOCATION_OPTS: { id: LocationType; label: string; icon: React.ReactNode; badge: string }[] = [
+  { id: "on_site",  label: "On-Site",  icon: <MapPin   className="h-3.5 w-3.5" />, badge: "loc-on-site" },
+  { id: "office",   label: "Office",   icon: <Building className="h-3.5 w-3.5" />, badge: "loc-office" },
+  { id: "remote",   label: "Remote",   icon: <Laptop   className="h-3.5 w-3.5" />, badge: "loc-remote" },
+  { id: "travel",   label: "Travel",   icon: <Car      className="h-3.5 w-3.5" />, badge: "loc-travel" },
 ];
+
+function formatTime(totalSeconds: number) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
 
 export default function EngineerPage() {
   const [activeTab, setActiveTab] = useState<"timer" | "manual">("timer");
-
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [recentEntries, setRecentEntries] = useState<TimeEntryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState("usr_eng_1");
 
-  const [currentUserId, setCurrentUserId] = useState<string>("usr_eng_1");
-
+  // Timer
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerPaused, setTimerPaused] = useState(false);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-
   const [timerCustomerId, setTimerCustomerId] = useState("");
   const [timerJobId, setTimerJobId] = useState("");
   const [timerServiceItemId, setTimerServiceItemId] = useState("");
@@ -64,6 +46,7 @@ export default function EngineerPage() {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Manual form
   const [manualDate, setManualDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [manualHours, setManualHours] = useState<number | "">("");
   const [manualMinutes, setManualMinutes] = useState<number | "">("");
@@ -81,751 +64,476 @@ export default function EngineerPage() {
     try {
       setLoading(true);
       const [custRes, srvRes, userRes, entriesRes] = await Promise.all([
-        fetch("/api/customers").then((r) => r.json()),
-        fetch("/api/service-items").then((r) => r.json()),
-        fetch("/api/users").then((r) => r.json()),
-        fetch(`/api/time-entries?userId=${currentUserId}`).then((r) => r.json()),
+        fetch("/api/customers").then(r => r.json()),
+        fetch("/api/service-items").then(r => r.json()),
+        fetch("/api/users").then(r => r.json()),
+        fetch(`/api/time-entries?userId=${currentUserId}`).then(r => r.json()),
       ]);
-
-      if (custRes.success) {
-        setCustomers(custRes.data);
-        if (custRes.data.length > 0 && !timerCustomerId) {
-          setTimerCustomerId(custRes.data[0].id);
-          setManualCustomerId(custRes.data[0].id);
-        }
-      }
-      if (srvRes.success) {
-        setServiceItems(srvRes.data);
-        if (srvRes.data.length > 0 && !timerServiceItemId) {
-          setTimerServiceItemId(srvRes.data[0].id);
-          setManualServiceItemId(srvRes.data[0].id);
-        }
-      }
+      if (custRes.success) { setCustomers(custRes.data); if (custRes.data[0] && !timerCustomerId) { setTimerCustomerId(custRes.data[0].id); setManualCustomerId(custRes.data[0].id); } }
+      if (srvRes.success) { setServiceItems(srvRes.data); if (srvRes.data[0] && !timerServiceItemId) { setTimerServiceItemId(srvRes.data[0].id); setManualServiceItemId(srvRes.data[0].id); } }
       if (userRes.success) setUsers(userRes.data);
       if (entriesRes.success) setRecentEntries(entriesRes.data);
-    } catch (err) {
-      console.error("Failed to load initial data", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [currentUserId]);
+  useEffect(() => { fetchData(); }, [currentUserId]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (timerRunning && !timerPaused) {
-      interval = setInterval(() => {
-        setSecondsElapsed((prev) => prev + 1);
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    if (!timerRunning || timerPaused) return;
+    const id = setInterval(() => setSecondsElapsed(s => s + 1), 1000);
+    return () => clearInterval(id);
   }, [timerRunning, timerPaused]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable);
-
-      if (isInput) return;
-
-      if (e.code === "Space") {
-        e.preventDefault();
-        if (!timerRunning) {
-          handleStartTimer();
-        } else if (timerPaused) {
-          handleResumeTimer();
-        } else {
-          handlePauseTimer();
-        }
-        return;
-      }
-
-      if (e.key.toLowerCase() === "s" && timerRunning) {
-        e.preventDefault();
-        handleStopAndSaveTimer();
-        return;
-      }
-
-      if (e.key.toLowerCase() === "t") {
-        e.preventDefault();
-        setActiveTab("timer");
-        return;
-      }
-
-      if (e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        setActiveTab("manual");
-        return;
-      }
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement;
+      if (["INPUT","TEXTAREA","SELECT"].includes(tgt.tagName) || tgt.isContentEditable) return;
+      if (e.code === "Space") { e.preventDefault(); if (!timerRunning) handleStartTimer(); else if (timerPaused) handleResumeTimer(); else handlePauseTimer(); }
+      if (e.key.toLowerCase() === "s" && timerRunning) { e.preventDefault(); handleStopAndSaveTimer(); }
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [timerRunning, timerPaused]);
 
-  const formatTime = (totalSeconds: number) => {
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-    return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  };
-
-  const handleStartTimer = () => {
-    setTimerRunning(true);
-    setTimerPaused(false);
-  };
-
-  const handlePauseTimer = () => {
-    setTimerPaused(true);
-  };
-
-  const handleResumeTimer = () => {
-    setTimerPaused(false);
-  };
+  const handleStartTimer = () => { setTimerRunning(true); setTimerPaused(false); };
+  const handlePauseTimer = () => setTimerPaused(true);
+  const handleResumeTimer = () => setTimerPaused(false);
+  const handleResetTimer = () => { if (confirm("Reset stopwatch?")) { setTimerRunning(false); setTimerPaused(false); setSecondsElapsed(0); } };
 
   const handleStopAndSaveTimer = async () => {
-    if (secondsElapsed < 10) {
-      if (!confirm("This timer has run for less than 10 seconds. Save anyway?")) return;
-    }
-
+    if (secondsElapsed < 10 && !confirm("Timer ran for less than 10 seconds. Save anyway?")) return;
     const durationMinutes = Math.max(1, Math.round(secondsElapsed / 60));
     setIsSubmitting(true);
-
     try {
-      const selectedCust = customers.find((c) => c.id === timerCustomerId);
-      const selectedSrv = serviceItems.find((s) => s.id === timerServiceItemId);
-
+      const selectedCust = customers.find(c => c.id === timerCustomerId);
+      const selectedSrv = serviceItems.find(s => s.id === timerServiceItemId);
       const res = await fetch("/api/time-entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: currentUserId,
-          customerId: timerCustomerId,
-          jobId: timerJobId || null,
-          serviceItemId: timerServiceItemId,
-          date: new Date().toISOString().split("T")[0],
-          durationMinutes,
-          locationType: timerLocationType,
-          locationName: timerLocationName || null,
-          latitude: gpsCoordinates?.lat || null,
-          longitude: gpsCoordinates?.lng || null,
-          notes: timerNotes || "Logged via Live Stopwatch",
-          isBillable: selectedSrv?.defaultBillable ?? true,
+          userId: currentUserId, customerId: timerCustomerId, jobId: timerJobId || null,
+          serviceItemId: timerServiceItemId, date: new Date().toISOString().split("T")[0],
+          durationMinutes, locationType: timerLocationType, locationName: timerLocationName || null,
+          latitude: gpsCoordinates?.lat ?? null, longitude: gpsCoordinates?.lng ?? null,
+          notes: timerNotes || "Recorded via stopwatch", isBillable: selectedSrv?.defaultBillable ?? true,
           status: "submitted",
         }),
       });
-
       const json = await res.json();
       if (json.success) {
-        setFeedbackMsg({
-          type: "success",
-          text: `Logged ${durationMinutes} minutes (${(durationMinutes / 60).toFixed(2)}h) for ${selectedCust?.name}!`,
-        });
-        setTimerRunning(false);
-        setTimerPaused(false);
-        setSecondsElapsed(0);
-        setTimerNotes("");
-        setGpsCoordinates(null);
-        fetchData();
+        setFeedbackMsg({ type: "success", text: `Logged ${Math.floor(durationMinutes/60)}h ${durationMinutes%60}m · ${selectedCust?.name}` });
+        setTimerRunning(false); setTimerPaused(false); setSecondsElapsed(0);
+        setTimerNotes(""); setGpsCoordinates(null); fetchData();
       } else {
-        setFeedbackMsg({ type: "error", text: json.error || "Failed to save timer" });
+        setFeedbackMsg({ type: "error", text: json.error || "Failed to save" });
       }
-    } catch {
-      setFeedbackMsg({ type: "error", text: "Network error saving timer" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResetTimer = () => {
-    if (confirm("Reset stopwatch back to 00:00:00?")) {
-      setTimerRunning(false);
-      setTimerPaused(false);
-      setSecondsElapsed(0);
-    }
+    } catch { setFeedbackMsg({ type: "error", text: "Network error" }); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleCaptureGPS = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
-      return;
-    }
+    if (!navigator.geolocation) { alert("Geolocation not supported"); return; }
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGpsCoordinates({
-          lat: Number(pos.coords.latitude.toFixed(6)),
-          lng: Number(pos.coords.longitude.toFixed(6)),
-        });
+      pos => {
+        setGpsCoordinates({ lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6) });
         setTimerLocationType("on_site");
-        if (!timerLocationName) {
-          setTimerLocationName(`Site GPS (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`);
-        }
+        if (!timerLocationName) setTimerLocationName(`GPS (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`);
         setGpsLoading(false);
       },
-      (err) => {
-        alert(`Location access unavailable: ${err.message}`);
-        setGpsLoading(false);
-      },
+      err => { alert(`GPS unavailable: ${err.message}`); setGpsLoading(false); },
       { timeout: 10000, enableHighAccuracy: true }
     );
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const hrs = Number(manualHours) || 0;
-    const mins = Number(manualMinutes) || 0;
-    const totalMinutes = hrs * 60 + mins;
-
-    if (totalMinutes <= 0) {
-      setFeedbackMsg({ type: "error", text: "Please enter a duration greater than 0 minutes." });
-      return;
-    }
-
-    if (!manualCustomerId || !manualServiceItemId) {
-      setFeedbackMsg({ type: "error", text: "Please select a Customer and Service Item." });
-      return;
-    }
-
+    const totalMinutes = (Number(manualHours) || 0) * 60 + (Number(manualMinutes) || 0);
+    if (totalMinutes <= 0) { setFeedbackMsg({ type: "error", text: "Duration must be greater than 0." }); return; }
+    if (!manualCustomerId || !manualServiceItemId) { setFeedbackMsg({ type: "error", text: "Select a customer and service item." }); return; }
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/time-entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: currentUserId,
-          customerId: manualCustomerId,
-          jobId: manualJobId || null,
-          serviceItemId: manualServiceItemId,
-          date: manualDate,
-          durationMinutes: totalMinutes,
-          locationType: manualLocationType,
-          locationName: manualLocationName || null,
-          notes: manualNotes,
-          isBillable: manualBillable,
-          status: "submitted",
+          userId: currentUserId, customerId: manualCustomerId, jobId: manualJobId || null,
+          serviceItemId: manualServiceItemId, date: manualDate, durationMinutes: totalMinutes,
+          locationType: manualLocationType, locationName: manualLocationName || null,
+          notes: manualNotes, isBillable: manualBillable, status: "submitted",
         }),
       });
-
       const json = await res.json();
       if (json.success) {
-        setFeedbackMsg({ type: "success", text: `Successfully logged ${hrs}h ${mins}m to timesheet!` });
-        setManualHours("");
-        setManualMinutes("");
-        setManualNotes("");
-        setManualLocationName("");
-        fetchData();
+        setFeedbackMsg({ type: "success", text: `Logged ${Math.floor(totalMinutes/60)}h ${totalMinutes%60}m` });
+        setManualHours(""); setManualMinutes(""); setManualNotes(""); setManualLocationName(""); fetchData();
       } else {
-        setFeedbackMsg({ type: "error", text: json.error || "Failed to log entry" });
+        setFeedbackMsg({ type: "error", text: json.error || "Failed to log" });
       }
-    } catch {
-      setFeedbackMsg({ type: "error", text: "Error submitting time entry" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch { setFeedbackMsg({ type: "error", text: "Network error" }); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleDeleteEntry = async (id: string) => {
-    if (!confirm("Delete this timesheet entry?")) return;
-    try {
-      const res = await fetch(`/api/time-entries/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setRecentEntries((prev) => prev.filter((e) => e.id !== id));
-      }
-    } catch (err) {
-      console.error("Delete failed", err);
-    }
+    if (!confirm("Delete this entry?")) return;
+    const res = await fetch(`/api/time-entries/${id}`, { method: "DELETE" });
+    if (res.ok) setRecentEntries(prev => prev.filter(e => e.id !== id));
   };
 
-  const timerCustJobs = customers.find((c) => c.id === timerCustomerId)?.jobs || [];
-  const manualCustJobs = customers.find((c) => c.id === manualCustomerId)?.jobs || [];
+  const timerCustJobs = customers.find(c => c.id === timerCustomerId)?.jobs || [];
+  const manualCustJobs = customers.find(c => c.id === manualCustomerId)?.jobs || [];
+  const isActive = timerRunning && !timerPaused;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-10">
-      <div className="mb-6 flex flex-col justify-between gap-5 border-b border-border/60 pb-6 sm:flex-row sm:items-center">
-        <div>
-          <div className="m3-eyebrow mb-3">
-            <span>Field &amp; office mobility</span>
-          </div>
-          <h1 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-foreground sm:text-[2rem]">
-            Engineer Timesheet Tracker
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Record on-site stopwatch hours, GPS geo-tags, or enter retroactive logs
-          </p>
-        </div>
+    <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
 
-        <div className="flex items-center gap-2">
-          <label htmlFor="engineer-select" className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            Engineer
-          </label>
-          <select
-            id="engineer-select"
-            value={currentUserId}
-            onChange={(e) => setCurrentUserId(e.target.value)}
-            className="h-10 cursor-pointer rounded-full border border-outline-variant bg-surface-low px-4 text-xs font-semibold text-foreground transition-colors duration-200 ease-expressive hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-          >
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.defaultHourlyRate}/hr)
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="mb-6 flex items-center justify-center">
-        <div className="inline-flex gap-1 rounded-full bg-surface-container p-1.5">
-          <button
-            onClick={() => setActiveTab("timer")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive sm:text-sm ${
-              activeTab === "timer"
-                ? "bg-card text-primary shadow-xs"
-                : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-            }`}
-          >
-            <Clock className="h-4 w-4" />
-            <span>Live stopwatch</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("manual")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-medium tracking-tight transition-all duration-200 ease-expressive sm:text-sm ${
-              activeTab === "manual"
-                ? "bg-card text-primary shadow-xs"
-                : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
-            }`}
-          >
-            <PlusCircle className="h-4 w-4" />
-            <span>Manual entry</span>
-          </button>
-        </div>
-      </div>
-
+      {/* Feedback */}
       {feedbackMsg && (
-        <div
-          className={`mb-6 flex items-center justify-between gap-4 rounded-2xl px-5 py-4 text-sm font-medium ${
-            feedbackMsg.type === "success"
-              ? "bg-tertiary-container/50 text-tertiary-on-container"
-              : "bg-destructive/10 text-destructive"
-          }`}
-        >
+        <div className={`mb-5 flex items-center justify-between gap-4 rounded-2xl px-4 py-3 text-sm font-medium ${
+          feedbackMsg.type === "success"
+            ? "bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800"
+            : "bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+        }`}>
           <div className="flex items-center gap-2">
-            {feedbackMsg.type === "success" ? (
-              <CheckCircle className="h-5 w-5 text-tertiary" />
-            ) : (
-              <AlertCircle className="h-5 w-5 text-destructive" />
-            )}
-            <span>{feedbackMsg.text}</span>
+            {feedbackMsg.type === "success"
+              ? <CheckCircle className="h-4 w-4 shrink-0" />
+              : <AlertCircle className="h-4 w-4 shrink-0" />}
+            {feedbackMsg.text}
           </div>
-          <button
-            onClick={() => setFeedbackMsg(null)}
-            className="text-xs underline hover:opacity-80"
-          >
-            Dismiss
-          </button>
+          <button onClick={() => setFeedbackMsg(null)} className="shrink-0 opacity-50 hover:opacity-100">✕</button>
         </div>
       )}
 
-      {activeTab === "timer" && (
-        <div className="space-y-6">
-          <div className="relative overflow-hidden rounded-[32px] border border-border/60 bg-surface-low p-6 text-center shadow-sm sm:p-10">
-            <div className="m3-label mb-2">
-              {timerRunning && !timerPaused
-                ? "Active Field Session Recording"
-                : timerPaused
-                ? "Stopwatch Paused"
-                : "Ready to Track"}
-            </div>
+      {/* Who is tracking */}
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
+          <div className="h-2 w-2 rounded-full bg-primary" />
+          <select
+            value={currentUserId}
+            onChange={e => setCurrentUserId(e.target.value)}
+            className="bg-transparent text-sm font-semibold text-foreground focus:outline-none"
+          >
+            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
 
-            <div className="select-none py-3 font-mono text-[3.25rem] font-semibold leading-none tracking-[-0.04em] tabular-nums text-foreground sm:text-[5rem]">
+        {/* Tab switcher */}
+        <div className="flex gap-1 rounded-full border border-border bg-card p-1">
+          <button
+            onClick={() => setActiveTab("timer")}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "timer" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            Timer
+            {isActive && <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />}
+          </button>
+          <button
+            onClick={() => setActiveTab("manual")}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
+              activeTab === "manual" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <PlusCircle className="h-3.5 w-3.5" />
+            Manual
+          </button>
+        </div>
+      </div>
+
+      {/* ══ TIMER TAB ══ */}
+      {activeTab === "timer" && (
+        <div className="space-y-4">
+          {/* Clock display */}
+          <div className={`relative overflow-hidden rounded-[32px] transition-all duration-500 p-8 text-center shadow-xl sm:p-12 ${
+            isActive ? "bg-gradient-to-b from-primary to-indigo-700"
+            : timerPaused ? "bg-gradient-to-b from-amber-500 to-orange-600"
+            : "bg-surface-container"
+          }`}>
+            {isActive && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="h-72 w-72 rounded-full border-2 border-white/10 pulse-ring" />
+                <div className="absolute h-56 w-56 rounded-full border border-white/10 pulse-ring" style={{ animationDelay: "0.5s" }} />
+              </div>
+            )}
+
+            <p className={`relative mb-1 text-xs font-medium ${timerRunning ? "text-white/60" : "text-muted-foreground"}`}>
+              {isActive ? "● Recording" : timerPaused ? "⏸ Paused" : "Ready"}
+            </p>
+
+            <div className={`relative select-none font-mono text-[4rem] font-bold leading-none tracking-tighter tabular-nums sm:text-[6rem] ${
+              timerRunning ? "text-white" : "text-foreground"
+            }`}>
               {formatTime(secondsElapsed)}
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+            {secondsElapsed > 0 && (
+              <p className={`relative mt-1 text-sm font-medium ${timerRunning ? "text-white/50" : "text-muted-foreground"}`}>
+                {(secondsElapsed / 3600).toFixed(2)} hrs
+              </p>
+            )}
+
+            <div className="relative mt-8 flex flex-wrap items-center justify-center gap-2.5">
               {!timerRunning ? (
-                <Button
+                <button
                   onClick={handleStartTimer}
-                  className="px-6 py-3.5 text-sm shadow-sm shadow-primary/20 flex items-center gap-2"
+                  className="m3-fab flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-semibold"
                 >
-                  <Play className="w-5 h-5 fill-current" />
-                  <span>Start Stopwatch</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-primary/10 text-primary rounded border border-primary/20">
-                    Space
-                  </kbd>
-                </Button>
+                  <Play className="h-5 w-5 fill-current" />
+                  Start
+                </button>
               ) : timerPaused ? (
-                <Button
-                  onClick={handleResumeTimer}
-                  className="px-6 py-3.5 text-sm shadow-sm shadow-primary/20 flex items-center gap-2"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                  <span>Resume Timer</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-primary/10 text-primary rounded border border-primary/20">
-                    Space
-                  </kbd>
-                </Button>
+                <>
+                  <button onClick={handleResumeTimer} className="m3-fab flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold">
+                    <Play className="h-4 w-4 fill-current" /> Resume
+                  </button>
+                  <button onClick={handleStopAndSaveTimer} disabled={isSubmitting}
+                    className="m3-fab-green flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-50">
+                    <Square className="h-4 w-4 fill-current" />
+                    {isSubmitting ? "Saving…" : "Save"}
+                  </button>
+                  <button onClick={handleResetTimer} className="rounded-full border border-border bg-card/80 px-4 py-3 text-xs font-semibold text-muted-foreground hover:bg-card transition">
+                    Reset
+                  </button>
+                </>
               ) : (
-                <Button
-                  variant="secondary"
-                  onClick={handlePauseTimer}
-                  className="px-6 py-3.5 text-sm shadow-sm flex items-center gap-2"
-                >
-                  <Pause className="w-5 h-5 fill-current" />
-                  <span>Pause Timer</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-primary/10 text-primary rounded border border-primary/20">
-                    Space
-                  </kbd>
-                </Button>
-              )}
-
-              {timerRunning && (
-                <Button
-                  variant="destructive"
-                  onClick={handleStopAndSaveTimer}
-                  disabled={isSubmitting}
-                  className="px-6 py-3.5 text-sm shadow-sm flex items-center gap-2 disabled:opacity-50"
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                  <span>Stop & Save Log</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-destructive/10 text-destructive rounded border border-destructive/20">
-                    S
-                  </kbd>
-                </Button>
-              )}
-
-              {secondsElapsed > 0 && !timerRunning && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetTimer}
-                  className="px-4 py-2"
-                >
-                  Reset
-                </Button>
+                <>
+                  <button onClick={handlePauseTimer}
+                    className="flex items-center gap-2 rounded-full border-2 border-white/40 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur hover:bg-white/20 transition">
+                    <Pause className="h-4 w-4 fill-current" /> Pause
+                  </button>
+                  <button onClick={handleStopAndSaveTimer} disabled={isSubmitting}
+                    className="m3-fab-green flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
+                    <Square className="h-4 w-4 fill-current" />
+                    {isSubmitting ? "Saving…" : "Save"}
+                  </button>
+                </>
               )}
             </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="m3-label">
-                  Session activity &amp; site mapping
-                </h3>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5 pt-0">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Client / Customer Account</Label>
-                  <Select
-                    value={timerCustomerId}
-                    onChange={(e) => {
-                      setTimerCustomerId(e.target.value);
-                      setTimerJobId("");
-                    }}
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </Select>
-                </div>
+          {/* Session fields */}
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Customer">
+                <select value={timerCustomerId} onChange={e => { setTimerCustomerId(e.target.value); setTimerJobId(""); }} className={sel}>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Job">
+                <select value={timerJobId} onChange={e => setTimerJobId(e.target.value)} className={sel}>
+                  <option value="">— None —</option>
+                  {timerCustJobs.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
+                </select>
+              </Field>
+            </div>
 
-                <div>
-                  <Label>QuickBooks Sub-Job (Customer:Job)</Label>
-                  <Select
-                    value={timerJobId}
-                    onChange={(e) => setTimerJobId(e.target.value)}
-                  >
-                    <option value="">General Project Overhead (No Job)</option>
-                    {timerCustJobs.map((j) => (
-                      <option key={j.id} value={j.id}>{j.name}</option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
+            <Field label="Service">
+              <select value={timerServiceItemId} onChange={e => setTimerServiceItemId(e.target.value)} className={sel}>
+                {serviceItems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
 
-              <div className="mt-4">
-                <Label>QuickBooks Service Item</Label>
-                <Select
-                  value={timerServiceItemId}
-                  onChange={(e) => setTimerServiceItemId(e.target.value)}
-                >
-                  {serviceItems.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.defaultBillable ? "Billable" : "Non-Billable"})
-                    </option>
-                  ))}
-                </Select>
+            {/* Location */}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">Location</span>
+                <button onClick={handleCaptureGPS} disabled={gpsLoading}
+                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                  <Navigation className="h-3 w-3" />
+                  {gpsLoading ? "…" : "GPS"}
+                </button>
               </div>
-
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <Label>Work Location Type</Label>
-                  <button
-                    type="button"
-                    onClick={handleCaptureGPS}
-                    disabled={gpsLoading}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/90 transition"
-                  >
-                    <Navigation className="w-3.5 h-3.5" />
-                    <span>{gpsLoading ? "Acquiring GPS..." : "Stamp GPS Coordinates"}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {LOCATION_OPTS.map(loc => (
+                  <button key={loc.id} type="button" onClick={() => setTimerLocationType(loc.id)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                      timerLocationType === loc.id
+                        ? `${loc.badge} border-transparent shadow-sm`
+                        : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    }`}>
+                    {loc.icon} {loc.label}
+                    {timerLocationType === loc.id && <Check className="h-3 w-3 ml-0.5" />}
                   </button>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-                  {LOCATION_OPTS.map((loc) => {
-                    const active = timerLocationType === loc.id;
-                    return (
-                      <button
-                        key={loc.id}
-                        type="button"
-                        onClick={() => setTimerLocationType(loc.id)}
-                        className={cn(
-                          "flex items-center justify-center gap-2 rounded-full border px-3 py-2.5 text-xs font-medium transition-all duration-200 ease-expressive",
-                          active
-                            ? "border-transparent bg-secondary-container text-secondary-on-container shadow-xs"
-                            : "border-outline-variant bg-transparent text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
-                        )}
-                      >
-                        {loc.icon}
-                        <span>{loc.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {gpsCoordinates && (
-                  <div className="mt-2 text-[11px] text-emerald-700 font-mono font-medium flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" />
-                    <span>GPS Lat: {gpsCoordinates.lat}, Lng: {gpsCoordinates.lng} stamped</span>
-                  </div>
-                )}
+                ))}
               </div>
+              {gpsCoordinates && (
+                <p className="mt-1.5 text-[11px] font-mono text-green-700 dark:text-green-400">
+                  ✓ {gpsCoordinates.lat}, {gpsCoordinates.lng}
+                </p>
+              )}
+            </div>
 
-              <div className="mt-4">
-                <Label>Session Field Notes</Label>
-                <textarea
-                  rows={2}
-                  value={timerNotes}
-                  onChange={(e) => setTimerNotes(e.target.value)}
-                  placeholder="Observed site findings, calibrated bearings, walk notes..."
-                  className="w-full rounded-md border border-outline-variant bg-surface-low px-4 py-3 text-sm font-normal text-foreground transition-colors duration-200 ease-expressive placeholder:text-muted-foreground/80 hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-                />
-              </div>
-            </CardContent>
-          </Card>
+            <Field label="Notes">
+              <textarea rows={2} value={timerNotes} onChange={e => setTimerNotes(e.target.value)}
+                placeholder="Site notes…" className={area} />
+            </Field>
+          </div>
         </div>
       )}
 
+      {/* ══ MANUAL TAB ══ */}
       {activeTab === "manual" && (
-        <form
-          onSubmit={handleManualSubmit}
-          className="space-y-5 rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:p-8"
-        >
-          <div className="flex items-center justify-between border-b border-border/60 pb-4">
-            <div>
-              <h3 className="text-base font-semibold tracking-[-0.01em] text-foreground">Log completed hours</h3>
-              <p className="text-xs text-muted-foreground">Retroactively record engineering time</p>
-            </div>
-            <Calendar className="w-5 h-5 text-primary" />
+        <form onSubmit={handleManualSubmit} className="rounded-2xl border border-border bg-card p-5 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Date">
+              <input type="date" required value={manualDate} onChange={e => setManualDate(e.target.value)} className={inp} />
+            </Field>
+            <Field label="Hours">
+              <input type="number" min="0" max="24" placeholder="0" value={manualHours}
+                onChange={e => setManualHours(e.target.value === "" ? "" : Number(e.target.value))} className={inp} />
+            </Field>
+            <Field label="Minutes">
+              <input type="number" min="0" max="59" step="5" placeholder="0" value={manualMinutes}
+                onChange={e => setManualMinutes(e.target.value === "" ? "" : Number(e.target.value))} className={inp} />
+            </Field>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div>
-              <Label>Date</Label>
-              <Input
-                type="date"
-                required
-                value={manualDate}
-                onChange={(e) => setManualDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Hours</Label>
-              <Input
-                type="number"
-                min="0"
-                max="24"
-                placeholder="e.g. 3"
-                value={manualHours}
-                onChange={(e) => setManualHours(e.target.value === "" ? "" : Number(e.target.value))}
-              />
-            </div>
-            <div>
-              <Label>Minutes</Label>
-              <Input
-                type="number"
-                min="0"
-                max="59"
-                placeholder="e.g. 45"
-                value={manualMinutes}
-                onChange={(e) => setManualMinutes(e.target.value === "" ? "" : Number(e.target.value))}
-              />
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Customer">
+              <select value={manualCustomerId} onChange={e => { setManualCustomerId(e.target.value); setManualJobId(""); }} className={sel}>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Job">
+              <select value={manualJobId} onChange={e => setManualJobId(e.target.value)} className={sel}>
+                <option value="">— None —</option>
+                {manualCustJobs.map(j => <option key={j.id} value={j.id}>{j.name}</option>)}
+              </select>
+            </Field>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Client / Customer</Label>
-              <Select
-                value={manualCustomerId}
-                onChange={(e) => {
-                  setManualCustomerId(e.target.value);
-                  setManualJobId("");
-                }}
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>Sub-Job</Label>
-              <Select
-                value={manualJobId}
-                onChange={(e) => setManualJobId(e.target.value)}
-              >
-                <option value="">General Project Overhead (No Job)</option>
-                {manualCustJobs.map((j) => (
-                  <option key={j.id} value={j.id}>{j.name}</option>
-                ))}
-              </Select>
-            </div>
-          </div>
+          <Field label="Service">
+            <select value={manualServiceItemId}
+              onChange={e => { setManualServiceItemId(e.target.value); const s = serviceItems.find(x => x.id === e.target.value); if (s) setManualBillable(s.defaultBillable); }}
+              className={sel}>
+              {serviceItems.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
 
-          <div className="grid sm:grid-cols-2 gap-4 items-center">
-            <div>
-              <Label>Service Item</Label>
-              <Select
-                value={manualServiceItemId}
-                onChange={(e) => setManualServiceItemId(e.target.value)}
-              >
-                {serviceItems.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="pt-6 flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="manual-billable"
-                checked={manualBillable}
-                onChange={(e) => setManualBillable(e.target.checked)}
-                className="rounded text-primary border-input"
-              />
-              <Label htmlFor="manual-billable" className="text-xs font-semibold text-foreground cursor-pointer">
-                Billable to Client
-              </Label>
-            </div>
-          </div>
-
+          {/* Location */}
           <div>
-            <Label>Location Type</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-              {LOCATION_OPTS.map((loc) => {
-                const active = manualLocationType === loc.id;
-                return (
-                  <button
-                    key={loc.id}
-                    type="button"
-                    onClick={() => setManualLocationType(loc.id)}
-                    className={cn(
-                      "flex items-center justify-center gap-2 p-2.5 rounded-lg text-xs font-semibold border transition",
-                      active
-                        ? "border-transparent bg-secondary-container text-secondary-on-container shadow-xs"
-                        : "border-outline-variant bg-transparent text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
-                    )}
-                  >
-                    {loc.icon}
-                    <span>{loc.label}</span>
-                  </button>
-                );
-              })}
+            <span className="mb-2 block text-xs font-medium text-muted-foreground">Location</span>
+            <div className="flex flex-wrap gap-1.5">
+              {LOCATION_OPTS.map(loc => (
+                <button key={loc.id} type="button" onClick={() => setManualLocationType(loc.id)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                    manualLocationType === loc.id
+                      ? `${loc.badge} border-transparent shadow-sm`
+                      : "border-border bg-card text-muted-foreground hover:bg-muted"
+                  }`}>
+                  {loc.icon} {loc.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div>
-            <Label>Description / Notes</Label>
-            <textarea
-              rows={2}
-              value={manualNotes}
-              onChange={(e) => setManualNotes(e.target.value)}
-              placeholder="Performed structural load calculations, reviewed blueprints..."
-              className="w-full rounded-md border border-outline-variant bg-surface-low px-4 py-3 text-sm font-normal text-foreground transition-colors duration-200 ease-expressive placeholder:text-muted-foreground/80 hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-            />
-          </div>
+          {/* Billable toggle */}
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-2.5">
+            <input type="checkbox" checked={manualBillable} onChange={e => setManualBillable(e.target.checked)}
+              className="h-4 w-4 rounded border-input text-primary focus:ring-primary" />
+            <span className="text-sm font-medium text-foreground">Billable</span>
+            {manualBillable && (
+              <span className="ml-auto rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:text-green-300">
+                ✓
+              </span>
+            )}
+          </label>
 
-          <Separator className="my-4" />
+          <Field label="Notes">
+            <textarea rows={2} value={manualNotes} onChange={e => setManualNotes(e.target.value)}
+              placeholder="Description…" className={area} />
+          </Field>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-full bg-primary py-3.5 text-sm font-medium text-primary-foreground shadow-m3-1 transition-all duration-200 ease-expressive hover:brightness-110 active:scale-[0.98] disabled:opacity-40"
-          >
-            {isSubmitting ? "Logging Timesheet..." : "Add to Timesheet"}
+          <button type="submit" disabled={isSubmitting}
+            className="m3-fab-green w-full rounded-2xl py-3.5 text-sm font-bold disabled:opacity-50">
+            {isSubmitting ? "Saving…" : "Add to Timesheet"}
           </button>
         </form>
       )}
 
-      <div className="mt-8 rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/40">
-          <div>
-            <h3 className="text-sm font-bold text-foreground">Your Recent Timesheet Records</h3>
-            <p className="text-xs text-muted-foreground">Recently logged hours</p>
-          </div>
-          <span className="text-xs font-mono font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
-            {recentEntries.length} entries
-          </span>
+      {/* ══ RECENT ENTRIES ══ */}
+      <div className="mt-8">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-sm font-semibold text-foreground">Recent</span>
+          <button onClick={fetchData} className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition">
+            <RefreshCw className="h-3 w-3" />
+          </button>
         </div>
 
-        {recentEntries.length === 0 ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">No time entries logged yet.</div>
+        {loading ? (
+          <div className="rounded-2xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : recentEntries.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-12 text-center">
+            <Clock className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">No entries yet</p>
+          </div>
         ) : (
-          <div className="divide-y divide-border">
-            {recentEntries.slice(0, 6).map((entry) => (
-              <div key={entry.id} className="py-3 flex items-center justify-between gap-4 text-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                  <span className="font-mono font-semibold text-foreground">{entry.date}</span>
-                  <div className="font-semibold text-foreground">
-                    {entry.customerName}
-                    {entry.jobName && <span className="text-muted-foreground font-normal">:{entry.jobName}</span>}
+          <div className="space-y-2">
+            {recentEntries.slice(0, 8).map(entry => {
+              const h = Math.floor(entry.durationMinutes / 60);
+              const m = entry.durationMinutes % 60;
+              const locOpt = LOCATION_OPTS.find(l => l.id === entry.locationType);
+              return (
+                <div key={entry.id}
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm transition-shadow hover:shadow-md">
+                  {/* Duration bubble */}
+                  <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/8 text-primary">
+                    <span className="font-mono text-xs font-bold leading-none">{String(h).padStart(2,"0")}:{String(m).padStart(2,"0")}</span>
+                    <span className="text-[8px] font-semibold uppercase tracking-wide opacity-60">hrs</span>
                   </div>
-                  <span className="text-muted-foreground hidden sm:inline">•</span>
-                  <span className="text-muted-foreground">{entry.serviceItemName}</span>
-                </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="font-mono font-bold text-foreground text-sm">
-                    {formatQuickBooksDuration(entry.durationMinutes)}
-                  </span>
-                  <Badge variant="outline" className="text-[10px] px-2 py-0.5 capitalize">
-                    {entry.status}
-                  </Badge>
-                  <button
-                    onClick={() => handleDeleteEntry(entry.id)}
-                    className="text-muted-foreground hover:text-rose-600 p-1.5 rounded transition"
-                    title="Delete entry"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="font-semibold text-sm text-foreground truncate">{entry.customerName}</span>
+                      {entry.jobName && <span className="text-xs text-muted-foreground">· {entry.jobName}</span>}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span className="font-mono">{entry.date}</span>
+                      <span>·</span>
+                      <span>{entry.serviceItemName}</span>
+                      {locOpt && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${locOpt.badge}`}>
+                          {locOpt.label}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${
+                      entry.status === "approved" ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                      : entry.status === "exported" ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground"
+                    }`}>
+                      {entry.status}
+                    </span>
+                    <button onClick={() => handleDeleteEntry(entry.id)}
+                      className="rounded-full p-1.5 text-muted-foreground transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Shared style strings ──
+const inp = "mt-1 block w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
+const sel = "mt-1 block w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm font-medium text-foreground hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-colors";
+const area = "mt-1 block w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none transition-colors";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
     </div>
   );
 }
