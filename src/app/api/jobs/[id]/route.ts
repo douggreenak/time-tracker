@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  const g = await requireUser({ manager: true });
+  if (!g.ok) return g.res;
   try {
     const body = await request.json();
     const updates: Record<string, unknown> = {};
@@ -21,6 +24,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+  const g = await requireUser({ manager: true });
+  if (!g.ok) return g.res;
   try {
     const result = await dataStore.deleteJob(params.id);
     if (result === "not_found") return NextResponse.json({ success: false, error: "Project not found" }, { status: 404 });

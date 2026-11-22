@@ -6,6 +6,7 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   role: varchar("role", { length: 50 }).notNull().default("engineer"), // 'engineer', 'accountant', 'admin'
   qbEmployeeName: varchar("qb_employee_name", { length: 255 }),
+  passwordHash: text("password_hash"), // scrypt "salt:hash"; null = cannot sign in yet
   defaultHourlyRate: numeric("default_hourly_rate", { precision: 10, scale: 2 }).default("125.00"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -50,6 +51,8 @@ export const timeEntries = pgTable("time_entries", {
   notes: text("notes"),
   isBillable: boolean("is_billable").default(true).notNull(),
   status: varchar("status", { length: 50 }).default("submitted").notNull(), // 'draft', 'submitted', 'approved', 'exported'
+  flagged: boolean("flagged").default(false).notNull(), // edited after approval/export — needs accountant attention
+  flagReason: text("flag_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -66,4 +69,10 @@ export const activeTimers = pgTable("active_timers", {
   isRunning: boolean("is_running").default(true).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Small key/value table for app state (e.g. whether demo data was loaded).
+export const appMeta = pgTable("app_meta", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: text("value"),
 });

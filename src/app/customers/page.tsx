@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Archive, ArchiveRestore, Building2, FolderKanban, Plus, Search, Trash2, AlertCircle, X } from "lucide-react";
 import type { CustomerItem, TimeEntryItem } from "@/db/mock-data";
 import { TextCell, cellBase } from "@/components/ui/cell";
+import { RequireManager } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
 
 const hours = (min: number) => (min / 60).toFixed(2);
 
-export default function CustomersPage() {
+function CustomersPage() {
   const dir = useDirectory();
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -97,7 +98,7 @@ export default function CustomersPage() {
 
       <div className="grid min-h-[calc(100dvh-13rem)] gap-4 lg:grid-cols-[22rem_1fr]">
         {/* Customers list */}
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-2xl lg:max-h-none border border-border/70 bg-card shadow-sm">
           <div className="space-y-2 border-b border-border/70 p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -205,8 +206,8 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div className="m3-scroll min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-separate border-spacing-0 text-left">
+              <div className="stack-table-wrap m3-scroll min-h-0 flex-1 overflow-auto">
+                <table className="stack-table w-full border-separate border-spacing-0 text-left">
                   <thead className="sticky top-0 z-10">
                     <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-r [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-2 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground [&_th:last-child]:border-r-0">
                       <th className="w-full"><span className="inline-flex items-center gap-1.5"><FolderKanban className="h-3.5 w-3.5" />Project</span></th>
@@ -218,7 +219,7 @@ export default function CustomersPage() {
                   </thead>
                   <tbody className="[&_td]:border-b [&_td]:border-r [&_td]:border-border/70 [&_td:last-child]:border-r-0">
                     <tr className="bg-primary-container/40">
-                      <td>
+                      <td data-label="Project" className="span-2">
                         <input
                           id="new-project"
                           value={newProject}
@@ -229,7 +230,7 @@ export default function CustomersPage() {
                           className={cellBase}
                         />
                       </td>
-                      <td className="px-2 font-mono text-[11px] text-muted-foreground">{newProject.trim() ? `${selected.qbName}:${newProject.trim()}` : ""}</td>
+                      <td data-label="QuickBooks job" className="px-2 font-mono text-[11px] text-muted-foreground span-2">{newProject.trim() ? `${selected.qbName}:${newProject.trim()}` : ""}</td>
                       <td />
                       <td className="px-2 text-[11px] font-medium text-primary">New row</td>
                       <td className="text-center">
@@ -240,10 +241,10 @@ export default function CustomersPage() {
                     </tr>
                     {selected.jobs.map((j) => (
                       <tr key={j.id} className={cn("group bg-card hover:bg-surface-low", !j.isActive && "opacity-60")}>
-                        <td><TextCell aria-label="Project name" value={j.name} onCommit={(v) => v.trim() && run(dir.updateJob(j.id, { name: v.trim() }))} /></td>
-                        <td className="px-2 font-mono text-[11px] text-muted-foreground">{j.fullQbJobName}</td>
-                        <td className="px-2 text-right font-mono text-[13px] tabular-nums">{hours(minutesBy.byJob.get(j.id) ?? 0)}</td>
-                        <td className="px-2">
+                        <td data-label="Project" className="span-2"><TextCell aria-label="Project name" value={j.name} onCommit={(v) => v.trim() && run(dir.updateJob(j.id, { name: v.trim() }))} /></td>
+                        <td data-label="QuickBooks job" className="px-2 font-mono text-[11px] text-muted-foreground span-2 text-xs">{j.fullQbJobName}</td>
+                        <td data-label="Hours" className="px-2 text-right font-mono text-[13px] tabular-nums">{hours(minutesBy.byJob.get(j.id) ?? 0)}</td>
+                        <td data-label="Status" className="px-2">
                           <button
                             onClick={() => run(dir.updateJob(j.id, { isActive: !j.isActive }))}
                             className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium", j.isActive ? "bg-tertiary-container text-tertiary-on-container" : "bg-surface-high text-muted-foreground")}
@@ -251,11 +252,11 @@ export default function CustomersPage() {
                             {j.isActive ? "Active" : "Archived"}
                           </button>
                         </td>
-                        <td className="text-center">
+                        <td className="text-center actions-cell">
                           <button
                             onClick={() => confirmDelete(`“${j.name}”`, () => run(dir.deleteJob(j.id)))}
                             aria-label={`Delete ${j.name}`}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -263,7 +264,7 @@ export default function CustomersPage() {
                       </tr>
                     ))}
                     {selected.jobs.length === 0 && (
-                      <tr><td colSpan={5} className="py-10 text-center text-xs text-muted-foreground">No projects yet — jobs for this customer are created by typing above.</td></tr>
+                      <tr className="group-row"><td colSpan={5} className="py-10 text-center text-xs text-muted-foreground">No projects yet — jobs for this customer are created by typing above.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -276,5 +277,13 @@ export default function CustomersPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequireManager>
+      <CustomersPage />
+    </RequireManager>
   );
 }

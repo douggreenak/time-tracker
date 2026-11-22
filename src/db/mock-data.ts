@@ -49,6 +49,9 @@ export interface TimeEntryItem {
   notes?: string | null;
   isBillable: boolean;
   status: "draft" | "submitted" | "approved" | "exported";
+  /** Edited after approval/export — the accountant should look again. */
+  flagged?: boolean;
+  flagReason?: string | null;
   createdAt: string;
 }
 

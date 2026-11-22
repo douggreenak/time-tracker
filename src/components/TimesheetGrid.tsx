@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Lock, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, Flag, Lock, Plus, Search, Trash2, Undo2 } from "lucide-react";
 import type { CustomerItem, ServiceItem, TimeEntryItem } from "@/db/mock-data";
 import { cn } from "@/components/ui";
 import { Combobox, type ComboOption } from "@/components/ui/combobox";
@@ -28,13 +28,13 @@ const COLUMNS = [
   { key: "date", label: "Date", width: "w-[9.5rem]" },
   { key: "customer", label: "Customer", width: "w-[13rem]" },
   { key: "job", label: "Job", width: "w-[11rem]" },
-  { key: "service", label: "Service item", width: "w-[12rem]" },
+  { key: "service", label: "Task", width: "w-[12rem]" },
   { key: "location", label: "Location", width: "w-[7.5rem]" },
   { key: "hours", label: "Hours", width: "w-[6.5rem]", numeric: true },
   { key: "billable", label: "Bill", width: "w-[3.5rem]", center: true },
   { key: "notes", label: "Notes", width: "min-w-[16rem]" },
   { key: "status", label: "Status", width: "w-[6.5rem]" },
-  { key: "actions", label: "", width: "w-[2.5rem]" },
+  { key: "actions", label: "", width: "w-[5.75rem]" },
 ] as const;
 
 /** Accepts "1.5", "1:30", "90m", "2h", "2h 15m". Returns minutes, or null if unreadable. */
@@ -103,15 +103,60 @@ export function TimesheetGrid({
     notes: "",
   });
 
+  // Latest values for async handlers, plus any create-on-type still in flight.
+  const latest = useRef({ draft, customers, serviceItems });
+  latest.current = { draft, customers, serviceItems };
+  const creating = useRef<Promise<unknown>>(Promise.resolve());
+  const track = <T,>(p: Promise<T>) => {
+    creating.current = p.catch(() => {});
+    return p;
+  };
+
+  const draftKey = `tt-draft-v1:${userId}`;
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [undo, setUndo] = useState<{ entry: TimeEntryItem } | null>(null);
+
+  // The entry row autosaves locally, so a half-typed row survives a refresh or a stray navigation.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(draftKey) ?? "null");
+      if (saved) setDraft((d) => ({ ...d, ...saved, date: today() }));
+    } catch {}
+    setDraftLoaded(true);
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftLoaded) return;
+    try {
+      const { date: _date, ...rest } = draft;
+      localStorage.setItem(draftKey, JSON.stringify(rest));
+    } catch {}
+  }, [draft, draftKey, draftLoaded]);
+
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 8000);
+    return () => clearTimeout(t);
+  }, [undo]);
+
   // Seed the entry row once reference data arrives (and if the chosen ones disappear).
   useEffect(() => {
+    if (!draftLoaded) return;
     setDraft((d) => {
-      const cust = d.customerId || customers.find((c) => c.isActive)?.id || "";
-      const srv = serviceItems.find((s) => s.id === d.serviceItemId) ?? (d.serviceItemId ? undefined : serviceItems[0]);
-      if (cust === d.customerId && (srv?.id ?? d.serviceItemId) === d.serviceItemId) return d;
-      return { ...d, customerId: cust, serviceItemId: srv?.id ?? d.serviceItemId, isBillable: srv?.defaultBillable ?? d.isBillable };
+      const custOk = customers.some((c) => c.id === d.customerId);
+      const cust = custOk ? d.customerId : customers.find((c) => c.isActive)?.id ?? "";
+      const jobOk = !d.jobId || customers.find((c) => c.id === cust)?.jobs.some((j) => j.id === d.jobId);
+      const srvCurrent = serviceItems.find((x) => x.id === d.serviceItemId);
+      const srv = srvCurrent ?? serviceItems[0];
+      if (cust === d.customerId && jobOk && srv?.id === d.serviceItemId) return d;
+      return {
+        ...d,
+        customerId: cust,
+        jobId: jobOk ? d.jobId : "",
+        serviceItemId: srv?.id ?? "",
+        isBillable: srvCurrent ? d.isBillable : srv?.defaultBillable ?? true,
+      };
     });
-  }, [customers, serviceItems]);
+  }, [customers, serviceItems, draftLoaded]);
 
   const sorted = useMemo(
     () => [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)),
@@ -172,6 +217,11 @@ export function TimesheetGrid({
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Update failed");
+      // The server is the source of truth: editing an approved/exported row re-flags it for the accountant.
+      setEntries((prev) => prev.map((e) => (e.id === entry.id ? json.data : e)));
+      if ((entry.status === "approved" || entry.status === "exported") && json.data.flagged) {
+        onMessage({ type: "success", text: "Saved. Your accountant has been flagged to re-check this entry." });
+      }
     } catch (err) {
       onMessage({ type: "error", text: err instanceof Error ? err.message : "Could not save change" });
       onChanged(); // roll back to server state
@@ -206,19 +256,56 @@ export function TimesheetGrid({
   };
 
   const deleteEntry = async (entry: TimeEntryItem) => {
-    if (!confirm(`Delete ${fmtHours(entry.durationMinutes)}h for ${entry.customerName} on ${entry.date}?`)) return;
     setEntries((prev) => prev.filter((e) => e.id !== entry.id));
     try {
       const res = await fetch(`/api/time-entries/${entry.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Delete failed");
+      setUndo({ entry });
     } catch {
       onMessage({ type: "error", text: "Could not delete entry" });
       onChanged();
     }
   };
 
+  const undoDelete = async () => {
+    if (!undo) return;
+    const e = undo.entry;
+    setUndo(null);
+    const res = await fetch("/api/time-entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: e.userId, customerId: e.customerId, jobId: e.jobId ?? null, serviceItemId: e.serviceItemId,
+        date: e.date, durationMinutes: e.durationMinutes, locationType: e.locationType, locationName: e.locationName,
+        latitude: e.latitude, longitude: e.longitude, notes: e.notes ?? "", isBillable: e.isBillable, status: e.status,
+      }),
+    });
+    const json = await res.json().catch(() => null);
+    if (json?.success) onChanged();
+    else onMessage({ type: "error", text: "Couldn't restore that row." });
+  };
+
+  /** Copy a row's details into the entry row so a similar entry is one number away. */
+  const copyToNewRow = (e: TimeEntryItem) => {
+    setDraft({
+      date: e.date,
+      customerId: e.customerId,
+      jobId: e.jobId ?? "",
+      serviceItemId: e.serviceItemId,
+      locationType: e.locationType,
+      hours: "",
+      isBillable: e.isBillable,
+      notes: e.notes ?? "",
+    });
+    setTimeout(() => focusCell("new", "hours"), 0);
+  };
+
   // ---- the entry row ---------------------------------------------------------
   const addEntry = async () => {
+    // If a customer/project/task was just created, let it finish and render before validating.
+    await creating.current;
+    await new Promise((r) => setTimeout(r, 0));
+    const { draft, customers, serviceItems } = latest.current;
     const min = parseDuration(draft.hours);
     if (min === null || min <= 0) {
       onMessage({ type: "error", text: "Enter a duration first (e.g. 1.5, 1:30 or 2h 15m)." });
@@ -226,7 +313,7 @@ export function TimesheetGrid({
       return;
     }
     if (!customers.some((c) => c.id === draft.customerId) || !serviceItems.some((x) => x.id === draft.serviceItemId)) {
-      onMessage({ type: "error", text: "Choose a customer and a service item." });
+      onMessage({ type: "error", text: "Choose a customer and a task." });
       return;
     }
     setSaving(true);
@@ -312,7 +399,7 @@ export function TimesheetGrid({
     new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+    <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
       {/* Summary + search */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border/70 px-4 py-3">
         <Stat label="Today" value={stats.day} />
@@ -332,8 +419,8 @@ export function TimesheetGrid({
         </div>
       </div>
 
-      <div ref={gridRef} onKeyDown={onGridKeyDown} className="m3-scroll h-[calc(100dvh-21.5rem)] min-h-[16rem] overflow-auto">
-        <table className="w-full min-w-[70rem] border-separate border-spacing-0 text-left">
+      <div ref={gridRef} onKeyDown={onGridKeyDown} className="stack-table-wrap m3-scroll h-[calc(100dvh-21.5rem)] min-h-[16rem] overflow-auto">
+        <table className="stack-table w-full min-w-[70rem] border-separate border-spacing-0 text-left">
           <thead className="sticky top-0 z-20">
             <tr>
               {COLUMNS.map((c) => (
@@ -356,7 +443,7 @@ export function TimesheetGrid({
           <tbody className="[&_td]:border-b [&_td]:border-r [&_td]:border-border/70 [&_td:last-child]:border-r-0">
             {/* New-entry row */}
             <tr className="sticky top-9 z-10 bg-primary-container/40 backdrop-blur" data-new-row>
-              <td>
+              <td data-label="Date" className="max-md:order-1">
                 <input
                   type="date"
                   aria-label="New entry date"
@@ -367,7 +454,7 @@ export function TimesheetGrid({
                   className={cellBase}
                 />
               </td>
-              <td>
+              <td data-label="Customer" className="span-2 max-md:order-3">
                 <Combobox
                   aria-label="New entry customer"
                   data-r="new"
@@ -377,12 +464,12 @@ export function TimesheetGrid({
                   options={customerOptions()}
                   onSelect={(id) => setDraft({ ...draft, customerId: id, jobId: "" })}
                   onCreate={async (name) => {
-                    const id = await onCreateCustomer(name);
+                    const id = await track(onCreateCustomer(name));
                     if (id) setDraft((d) => ({ ...d, customerId: id, jobId: "" }));
                   }}
                 />
               </td>
-              <td>
+              <td data-label="Project" className="max-md:order-4">
                 <Combobox
                   aria-label="New entry job"
                   data-r="new"
@@ -395,19 +482,19 @@ export function TimesheetGrid({
                   onCreate={
                     draft.customerId
                       ? async (name) => {
-                          const id = await onCreateJob(draft.customerId, name);
+                          const id = await track(onCreateJob(draft.customerId, name));
                           if (id) setDraft((d) => ({ ...d, jobId: id }));
                         }
                       : undefined
                   }
                 />
               </td>
-              <td>
+              <td data-label="Task" className="max-md:order-5">
                 <Combobox
-                  aria-label="New entry service item"
+                  aria-label="New entry task"
                   data-r="new"
                   data-c="service"
-                  placeholder="Service item…"
+                  placeholder="Task…"
                   value={draft.serviceItemId}
                   options={serviceOptions}
                   onSelect={(id) => {
@@ -415,12 +502,12 @@ export function TimesheetGrid({
                     setDraft({ ...draft, serviceItemId: id, isBillable: x?.defaultBillable ?? draft.isBillable });
                   }}
                   onCreate={async (name) => {
-                    const id = await onCreateService(name);
+                    const id = await track(onCreateService(name));
                     if (id) setDraft((d) => ({ ...d, serviceItemId: id, isBillable: true }));
                   }}
                 />
               </td>
-              <td>
+              <td data-label="Location" className="max-md:order-6">
                 <Combobox
                   aria-label="New entry location"
                   data-r="new"
@@ -430,7 +517,7 @@ export function TimesheetGrid({
                   onSelect={(id) => setDraft({ ...draft, locationType: id as LocationType })}
                 />
               </td>
-              <td>
+              <td data-label="Hours" className="max-md:order-2">
                 <input
                   type="text"
                   inputMode="decimal"
@@ -443,7 +530,7 @@ export function TimesheetGrid({
                   className={cn(cellBase, "text-right font-mono tabular-nums")}
                 />
               </td>
-              <td className="text-center">
+              <td data-label="Billable" className="text-center max-md:text-left max-md:order-7">
                 <input
                   type="checkbox"
                   aria-label="New entry billable"
@@ -454,7 +541,7 @@ export function TimesheetGrid({
                   className="h-4 w-4 cursor-pointer accent-[hsl(var(--primary))]"
                 />
               </td>
-              <td>
+              <td data-label="Notes" className="span-2 max-md:order-8">
                 <input
                   type="text"
                   aria-label="New entry notes"
@@ -466,28 +553,28 @@ export function TimesheetGrid({
                   className={cellBase}
                 />
               </td>
-              <td className="px-2 text-[11px] font-medium text-primary">New row</td>
-              <td className="text-center">
+              <td data-label="Status" className="cell-hide-mobile px-2 text-[11px] font-medium text-primary max-md:order-9">New entry</td>
+              <td className="text-center actions-cell max-md:order-10">
                 <button
                   type="button"
                   onClick={addEntry}
                   disabled={saving}
                   title="Add entry (Enter)"
                   aria-label="Add entry"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:brightness-110 disabled:opacity-40"
+                  className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-40"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />Add
                 </button>
               </td>
             </tr>
 
             {visible.map((e, i) => {
-              const locked = e.status === "approved" || e.status === "exported";
+              const locked = e.status === "approved" || e.status === "exported"; // can edit (flags accountant) but not delete
               const firstOfDay = i === 0 || visible[i - 1].date !== e.date;
               return (
                 <RowGroup key={e.id}>
                   {firstOfDay && (
-                    <tr>
+                    <tr className="group-row">
                       <td
                         colSpan={COLUMNS.length}
                         className="bg-surface-low px-2 py-1 text-[11px] font-semibold text-muted-foreground"
@@ -499,135 +586,149 @@ export function TimesheetGrid({
                       </td>
                     </tr>
                   )}
-                  <tr className={cn("group bg-card hover:bg-surface-low", locked && "bg-surface-low/60")}>
-                    <td>
+                  <tr className={cn("group bg-card hover:bg-surface-low", e.flagged && "bg-destructive/[0.04]")}>
+                    <td data-label="Date" className="max-md:order-1">
                       <TextCell
                         type="date"
                         aria-label="Date"
                         data-r={e.id}
                         data-c="date"
-                        disabled={locked}
-                        value={e.date}
+                                                value={e.date}
                         onCommit={(v) => v && patchEntry(e, { date: v })}
                       />
                     </td>
-                    <td>
+                    <td data-label="Customer" className="span-2 max-md:order-3">
                       <Combobox
                         aria-label="Customer"
                         data-r={e.id}
                         data-c="customer"
-                        disabled={locked}
-                        value={e.customerId}
+                                                value={e.customerId}
                         options={customerOptions(e.customerId)}
                         onSelect={(id) => changeCustomer(e, id)}
                         onCreate={async (name) => {
-                          const id = await onCreateCustomer(name);
+                          const id = await track(onCreateCustomer(name));
                           if (id) changeCustomer(e, id);
                         }}
                       />
                     </td>
-                    <td>
+                    <td data-label="Project" className="max-md:order-4">
                       <Combobox
                         aria-label="Job"
                         data-r={e.id}
                         data-c="job"
-                        disabled={locked}
-                        placeholder="— no project —"
+                                                placeholder="— no project —"
                         emptyLabel="— no project —"
                         value={e.jobId ?? ""}
                         options={jobOptions(e.customerId, e.jobId)}
                         onSelect={(id) => changeJob(e, id)}
                         onCreate={async (name) => {
-                          const id = await onCreateJob(e.customerId, name);
+                          const id = await track(onCreateJob(e.customerId, name));
                           if (id) changeJob(e, id);
                         }}
                       />
                     </td>
-                    <td>
+                    <td data-label="Task" className="max-md:order-5">
                       <Combobox
-                        aria-label="Service item"
+                        aria-label="Task"
                         data-r={e.id}
                         data-c="service"
-                        disabled={locked}
-                        value={e.serviceItemId}
+                                                value={e.serviceItemId}
                         options={serviceOptions}
                         onSelect={(id) => changeService(e, id)}
                         onCreate={async (name) => {
-                          const id = await onCreateService(name);
+                          const id = await track(onCreateService(name));
                           if (id) changeService(e, id);
                         }}
                       />
                     </td>
-                    <td>
+                    <td data-label="Location" className="max-md:order-6">
                       <Combobox
                         aria-label="Location"
                         data-r={e.id}
                         data-c="location"
-                        disabled={locked}
-                        value={e.locationType}
+                                                value={e.locationType}
                         options={locationOptions}
                         onSelect={(id) => patchEntry(e, { locationType: id as LocationType })}
                       />
                     </td>
-                    <td>
+                    <td data-label="Hours" className="max-md:order-2">
                       <TextCell
                         type="text"
                         inputMode="decimal"
                         aria-label="Hours"
                         data-r={e.id}
                         data-c="hours"
-                        disabled={locked}
-                        value={fmtHours(e.durationMinutes)}
+                                                value={fmtHours(e.durationMinutes)}
                         onCommit={(v) => commitHours(e, v)}
                         className="text-right font-mono tabular-nums"
                       />
                     </td>
-                    <td className="text-center">
+                    <td data-label="Billable" className="text-center max-md:text-left max-md:order-7">
                       <input
                         type="checkbox"
                         aria-label="Billable"
                         data-r={e.id}
                         data-c="billable"
-                        disabled={locked}
-                        checked={e.isBillable}
+                                                checked={e.isBillable}
                         onChange={(ev) => patchEntry(e, { isBillable: ev.target.checked })}
                         className="h-4 w-4 cursor-pointer accent-[hsl(var(--primary))] disabled:cursor-not-allowed"
                       />
                     </td>
-                    <td>
+                    <td data-label="Notes" className="span-2 max-md:order-8">
                       <TextCell
                         type="text"
                         aria-label="Notes"
                         data-r={e.id}
                         data-c="notes"
-                        disabled={locked}
-                        value={e.notes ?? ""}
+                                                value={e.notes ?? ""}
                         onCommit={(v) => patchEntry(e, { notes: v })}
                       />
                     </td>
-                    <td className="px-2">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
-                          STATUS_STYLE[e.status]
-                        )}
-                      >
-                        {locked && <Lock className="h-3 w-3" />}
-                        {e.status}
-                      </span>
+                    <td data-label="Status" className="px-2  max-md:order-9">
+                      {e.flagged ? (
+                        <span
+                          title={e.flagReason ?? "Edited after approval — waiting for your accountant"}
+                          className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive"
+                        >
+                          <Flag className="h-3 w-3" />Flagged
+                        </span>
+                      ) : (
+                        <span
+                          title={locked ? "You can still edit this — your accountant will be flagged to re-check it." : undefined}
+                          className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}
+                        >
+                          {locked && <Lock className="h-3 w-3" />}
+                          {e.status}
+                        </span>
+                      )}
                     </td>
-                    <td className="text-center">
-                      {!locked && (
+                    <td className="px-1 actions-cell max-md:order-10">
+                      <div className="flex items-center justify-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => deleteEntry(e)}
-                          title="Delete row"
-                          aria-label="Delete row"
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+                          onClick={() => copyToNewRow(e)}
+                          title="Copy details to the new-entry row"
+                          aria-label="Copy row"
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Copy className="h-3.5 w-3.5" />
                         </button>
-                      )}
+                        {locked ? (
+                          <span title="Approved or exported rows can be edited but not deleted" className="inline-flex h-7 w-7 items-center justify-center text-muted-foreground/40">
+                            <Lock className="h-3.5 w-3.5" />
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => deleteEntry(e)}
+                            title="Delete row"
+                            aria-label="Delete row"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 </RowGroup>
@@ -635,7 +736,7 @@ export function TimesheetGrid({
             })}
 
             {visible.length === 0 && (
-              <tr>
+              <tr className="group-row">
                 <td colSpan={COLUMNS.length} className="py-10 text-center text-xs text-muted-foreground">
                   {entries.length === 0
                     ? "No time logged yet — fill in the blue row above and press Enter."
@@ -645,13 +746,13 @@ export function TimesheetGrid({
             )}
           </tbody>
 
-          <tfoot className="sticky bottom-0 z-10">
+          <tfoot className="sticky bottom-0 z-10 max-md:static">
             <tr className="[&_td]:border-t [&_td]:border-border [&_td]:bg-surface-container">
-              <td colSpan={5} className="h-9 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <td colSpan={5} className="span-2 h-9 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                 {query ? `${visible.length} of ${entries.length} rows` : `${entries.length} rows`} · {userName}
               </td>
               <td className="px-2 text-right font-mono text-[13px] font-semibold tabular-nums">{fmtHours(shownMinutes)}</td>
-              <td colSpan={4} className="px-2 text-[11px] text-muted-foreground">
+              <td colSpan={4} className="span-2 px-2 text-[11px] text-muted-foreground">
                 {fmtHours(shownBillable)}h billable
               </td>
             </tr>
@@ -659,12 +760,20 @@ export function TimesheetGrid({
         </table>
       </div>
 
+      {undo && (
+        <div role="status" className="absolute bottom-12 left-1/2 z-30 flex -translate-x-1/2 animate-m3-rise items-center gap-3 rounded-full bg-foreground py-2 pl-4 pr-2 text-xs font-medium text-background shadow-xl">
+          <span>Deleted {fmtHours(undo.entry.durationMinutes)}h for {undo.entry.customerName}</span>
+          <button onClick={undoDelete} className="inline-flex items-center gap-1 rounded-full bg-background/15 px-3 py-1 font-semibold transition hover:bg-background/25">
+            <Undo2 className="h-3.5 w-3.5" />Undo
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">
         <span><kbd className="font-mono font-semibold text-foreground">Tab</kbd> next cell</span>
         <span><kbd className="font-mono font-semibold text-foreground">Enter</kbd> / <kbd className="font-mono font-semibold text-foreground">↓</kbd> cell below</span>
         <span><kbd className="font-mono font-semibold text-foreground">Esc</kbd> undo edit</span>
         <span>Hours accept <span className="font-mono">1.5</span>, <span className="font-mono">1:30</span>, <span className="font-mono">2h 15m</span></span>
-        <span>Edits save as you go · approved / exported rows are locked</span>
+        <span>Everything autosaves · you can edit past entries — changing an approved one flags your accountant</span>
       </div>
     </section>
   );

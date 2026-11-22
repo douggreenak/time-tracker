@@ -69,6 +69,11 @@ export function useDirectory() {
       mutate(call<ServiceItem>("/api/service-items", "POST", { name, defaultBillable, qbItemName })),
     updateService: (id: string, patch: { name?: string; qbItemName?: string; defaultBillable?: boolean }) =>
       mutate(call(`/api/service-items/${id}`, "PUT", patch)),
+    createUser: (u: { name: string; email: string; role?: string; qbEmployeeName?: string; defaultHourlyRate?: number; password: string }) =>
+      mutate(call<UserItem>("/api/users", "POST", u)),
+    updateUser: (id: string, patch: Partial<Pick<UserItem, "name" | "email" | "role" | "qbEmployeeName" | "defaultHourlyRate">> & { password?: string }) =>
+      mutate(call(`/api/users/${id}`, "PUT", patch)),
+    deleteUser: (id: string) => mutate(call(`/api/users/${id}`, "DELETE")),
     deleteService: (id: string) => mutate(call(`/api/service-items/${id}`, "DELETE")),
   };
 }

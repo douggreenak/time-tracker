@@ -1,15 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Play, Pause, Square, Timer, ChevronUp, CheckCircle, AlertCircle, Navigation, Check, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Play, Pause, Square, Timer, ChevronUp, CheckCircle, AlertCircle, Navigation, Check, X, Users } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { TimesheetGrid } from "@/components/TimesheetGrid";
 import { useDirectory } from "@/lib/useDirectory";
+import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
 
 type LocationType = "office" | "on_site" | "remote" | "travel";
+
+interface ActiveTimer {
+  userId: string;
+  customerId?: string;
+  jobId?: string;
+  serviceItemId?: string;
+  locationType: LocationType;
+  startTime: number;
+  elapsedBeforePause: number;
+  isRunning: boolean;
+  notes?: string;
+  serverNow?: number;
+}
 
 const LOCATION_OPTS: { id: LocationType; label: string }[] = [
   { id: "on_site", label: "On-site" },
@@ -25,19 +40,22 @@ const formatTime = (totalSeconds: number) => {
   return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
 };
 
+const USER_KEY = "tt-user";
+
 export default function EngineerPage() {
   const dir = useDirectory();
+  const { user: me, isManager } = useAuth();
   const { customers, serviceItems, users } = dir;
 
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
-  const [currentUserId, setCurrentUserId] = useState("usr_eng_1");
+  const [currentUserId, setCurrentUserId] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Stopwatch (secondary to manual entry)
+  // Stopwatch — secondary to manual entry. Its state lives in the database (active_timers).
   const [dockOpen, setDockOpen] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [seconds, setSeconds] = useState(0);
+  const [timer, setTimer] = useState<ActiveTimer | null>(null);
+  const [skew, setSkew] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [tCustomerId, setTCustomerId] = useState("");
   const [tJobId, setTJobId] = useState("");
   const [tServiceId, setTServiceId] = useState("");
@@ -46,8 +64,31 @@ export default function EngineerPage() {
   const [gps, setGps] = useState<{ lat: number; lng: number } | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Who is logging? Engineers always log as themselves; accountants/admins can pick anyone
+  // (remembered per browser, defaulting to themselves).
+  useEffect(() => {
+    if (!dir.loaded || !me) return;
+    if (!isManager) return void (currentUserId !== me.id && setCurrentUserId(me.id));
+    if (users.some((u) => u.id === currentUserId)) return;
+    let saved = "";
+    try {
+      saved = localStorage.getItem(USER_KEY) ?? "";
+    } catch {}
+    const pick = users.find((u) => u.id === saved) ?? users.find((u) => u.id === me.id) ?? users.find((u) => u.role === "engineer") ?? users[0];
+    if (pick) setCurrentUserId(pick.id);
+  }, [dir.loaded, users, currentUserId, me, isManager]);
+
+  const chooseUser = (id: string) => {
+    setCurrentUserId(id);
+    try {
+      localStorage.setItem(USER_KEY, id);
+    } catch {}
+  };
 
   const loadEntries = useCallback(async () => {
+    if (!currentUserId) return;
     try {
       const res = await fetch(`/api/time-entries?userId=${currentUserId}`).then((r) => r.json());
       if (res.success) setEntries(res.data);
@@ -57,65 +98,126 @@ export default function EngineerPage() {
   }, [currentUserId]);
 
   useEffect(() => {
+    setEntries([]);
     loadEntries();
   }, [loadEntries]);
 
-  // Default the stopwatch's pickers once reference data is in.
+  const adopt = useCallback((t: ActiveTimer | null) => {
+    setTimer(t);
+    if (t?.serverNow) setSkew(t.serverNow - Date.now());
+  }, []);
+
+  // Pick up a timer that's already running (started earlier, in another tab, or before a refresh).
   useEffect(() => {
-    if (!tCustomerId) setTCustomerId(customers.find((c) => c.isActive)?.id ?? "");
-    if (!tServiceId) setTServiceId(serviceItems[0]?.id ?? "");
+    if (!currentUserId) return;
+    fetch(`/api/timer?userId=${currentUserId}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.success) return;
+        adopt(j.data);
+        if (j.data) {
+          setTCustomerId(j.data.customerId ?? "");
+          setTJobId(j.data.jobId ?? "");
+          setTServiceId(j.data.serviceItemId ?? "");
+          setTLocation(j.data.locationType);
+          setTNotes(j.data.notes ?? "");
+          setDockOpen(true);
+        }
+      })
+      .catch(() => {});
+  }, [currentUserId, adopt]);
+
+  // Default the pickers once reference data is in (and if the chosen ones disappear).
+  useEffect(() => {
+    if (!customers.some((c) => c.id === tCustomerId)) setTCustomerId(customers.find((c) => c.isActive)?.id ?? "");
+    if (!serviceItems.some((s) => s.id === tServiceId)) setTServiceId(serviceItems[0]?.id ?? "");
   }, [customers, serviceItems, tCustomerId, tServiceId]);
 
   useEffect(() => {
-    if (!running || paused) return;
-    const t = setInterval(() => setSeconds((p) => p + 1), 1000);
+    if (!timer?.isRunning) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    setNow(Date.now());
     return () => clearInterval(t);
-  }, [running, paused]);
+  }, [timer?.isRunning, timer?.startTime]);
 
-  const stopAndSave = async () => {
-    if (seconds < 10 && !confirm("This timer has run for less than 10 seconds. Save anyway?")) return;
-    const durationMinutes = Math.max(1, Math.round(seconds / 60));
-    const srv = serviceItems.find((s) => s.id === tServiceId);
-    const cust = customers.find((c) => c.id === tCustomerId);
-    if (!cust || !srv) {
-      setMessage({ type: "error", text: "Choose a customer and service item for the stopwatch first." });
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await fetch("/api/time-entries", {
+  const running = !!timer;
+  const paused = !!timer && !timer.isRunning;
+  const seconds = timer
+    ? timer.elapsedBeforePause + (timer.isRunning ? Math.max(0, Math.floor((now + skew - timer.startTime) / 1000)) : 0)
+    : 0;
+
+  const timerApi = useCallback(
+    async (action: string, extra: Record<string, unknown> = {}) => {
+      const res = await fetch("/api/timer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: currentUserId,
-          customerId: tCustomerId,
-          jobId: tJobId || null,
-          serviceItemId: tServiceId,
-          date: new Date().toLocaleDateString("en-CA"),
-          durationMinutes,
-          locationType: tLocation,
-          latitude: gps?.lat ?? null,
-          longitude: gps?.lng ?? null,
-          notes: tNotes || "Logged with stopwatch",
-          isBillable: srv.defaultBillable,
-          status: "submitted",
-        }),
+        body: JSON.stringify({ action, userId: currentUserId, ...extra }),
       }).then((r) => r.json());
-      if (res.success) {
-        setMessage({ type: "success", text: `Logged ${(durationMinutes / 60).toFixed(2)}h for ${cust.name}.` });
-        setRunning(false);
-        setPaused(false);
-        setSeconds(0);
+      if (!res.success) throw new Error(res.error || "Timer request failed");
+      return res.data;
+    },
+    [currentUserId]
+  );
+
+  const guard = async (fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Stopwatch error" });
+    }
+  };
+
+  // Autosave the stopwatch's pickers/notes while a timer exists.
+  const saveTimerFields = (patch: Record<string, unknown>) => {
+    if (!running) return;
+    guard(async () => adopt(await timerApi("update", patch)));
+  };
+
+  const start = () =>
+    guard(async () => {
+      if (!tCustomerId || !tServiceId) throw new Error("Choose a customer and task for the stopwatch first.");
+      adopt(
+        await timerApi("start", {
+          customerId: tCustomerId,
+          jobId: tJobId || undefined,
+          serviceItemId: tServiceId,
+          locationType: tLocation,
+          notes: tNotes,
+        })
+      );
+    });
+
+  const toggleRun = () => {
+    if (!running) return start();
+    guard(async () => adopt(await timerApi(paused ? "resume" : "pause")));
+  };
+
+  const stopAndSave = () =>
+    guard(async () => {
+      if (seconds < 10 && !confirm("This timer has run for less than 10 seconds. Save anyway?")) return;
+      setSaving(true);
+      try {
+        if (notesTimer.current) clearTimeout(notesTimer.current);
+        await timerApi("update", { notes: tNotes });
+        const entry = await timerApi("stop");
+        if (!entry) throw new Error("Couldn't save the timer — check the customer and task.");
+        setMessage({ type: "success", text: `Logged ${(entry.durationMinutes / 60).toFixed(2)}h for ${entry.customerName}.` });
+        setTimer(null);
         setTNotes("");
         setGps(null);
         loadEntries();
-      } else setMessage({ type: "error", text: res.error || "Failed to save timer" });
-    } catch {
-      setMessage({ type: "error", text: "Network error saving timer" });
-    } finally {
-      setSaving(false);
-    }
-  };
+      } finally {
+        setSaving(false);
+      }
+    });
+
+  const discard = () =>
+    guard(async () => {
+      if (!confirm("Discard this stopwatch without saving a row?")) return;
+      await timerApi("discard");
+      setTimer(null);
+      setTNotes("");
+    });
 
   const captureGps = () => {
     if (!navigator.geolocation) return setMessage({ type: "error", text: "Geolocation isn't supported by this browser." });
@@ -124,6 +226,7 @@ export default function EngineerPage() {
       (pos) => {
         setGps({ lat: Number(pos.coords.latitude.toFixed(6)), lng: Number(pos.coords.longitude.toFixed(6)) });
         setTLocation("on_site");
+        saveTimerFields({ locationType: "on_site" });
         setGpsLoading(false);
       },
       (err) => {
@@ -132,13 +235,6 @@ export default function EngineerPage() {
       },
       { timeout: 10000, enableHighAccuracy: true }
     );
-  };
-
-  const toggleRun = () => {
-    if (!running) {
-      setRunning(true);
-      setPaused(false);
-    } else setPaused((p) => !p);
   };
 
   // N → new row · W → stopwatch · Space / S drive the stopwatch only while its dock is open
@@ -168,7 +264,7 @@ export default function EngineerPage() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const userName = users.find((u) => u.id === currentUserId)?.name ?? "Engineer";
+  const current = users.find((u) => u.id === currentUserId);
   const showDock = dockOpen || running;
   const kbd = "rounded border border-current/25 px-1 py-px font-mono text-[10px] opacity-80";
 
@@ -177,14 +273,16 @@ export default function EngineerPage() {
     return null;
   };
 
+  const needsPerson = dir.loaded && users.length === 0;
+
   return (
     <div className="flex w-full flex-col gap-4 px-4 py-5 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">Timesheet</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Type in the highlighted row and press <kbd className="font-mono font-semibold text-foreground">Enter</kbd> — or edit any cell. New customers,
-            projects and service items are created as you type them.
+            Type in the highlighted row and press <kbd className="font-mono font-semibold text-foreground">Enter</kbd> — or edit any cell. Everything autosaves, and
+            new customers, projects and tasks are created as you type them.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -197,19 +295,21 @@ export default function EngineerPage() {
               {formatTime(seconds)}
             </button>
           )}
-          <label htmlFor="engineer-select" className="m3-label">Engineer</label>
-          <select
-            id="engineer-select"
-            value={currentUserId}
-            onChange={(e) => setCurrentUserId(e.target.value)}
-            className="m3-select h-10 cursor-pointer appearance-none rounded-full border border-outline-variant bg-surface-low pl-4 pr-9 text-xs font-semibold text-foreground transition-colors hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-          >
-            {users
-              .filter((u) => u.role === "engineer" || u.id === currentUserId)
-              .map((u) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-          </select>
+          {isManager && users.length > 0 && (
+            <>
+              <label htmlFor="engineer-select" className="m3-label">Showing</label>
+              <select
+                id="engineer-select"
+                value={currentUserId}
+                onChange={(e) => chooseUser(e.target.value)}
+                className="m3-select h-10 cursor-pointer appearance-none rounded-full border border-outline-variant bg-surface-low pl-4 pr-9 text-xs font-semibold text-foreground transition-colors hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
@@ -231,14 +331,25 @@ export default function EngineerPage() {
         </div>
       )}
 
-      {dir.loaded ? (
+      {needsPerson ? (
+        <div className="flex h-[calc(100dvh-14rem)] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-surface-low text-center">
+          <Users className="h-8 w-8 text-muted-foreground" />
+          <div>
+            <p className="font-semibold">Who’s logging time?</p>
+            <p className="mt-1 text-sm text-muted-foreground">Add people on the Team page first, then come back to start entering hours.</p>
+          </div>
+          <Link href="/team" className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:brightness-110">
+            Add a person
+          </Link>
+        </div>
+      ) : dir.loaded && current ? (
         <TimesheetGrid
           entries={entries}
           setEntries={setEntries}
           customers={customers}
           serviceItems={serviceItems}
           userId={currentUserId}
-          userName={userName}
+          userName={current.name}
           onChanged={loadEntries}
           onMessage={setMessage}
           onCreateCustomer={async (name) => {
@@ -256,7 +367,7 @@ export default function EngineerPage() {
           onCreateService={async (name) => {
             const r = await dir.createService(name);
             if (!r.ok) return fail(r.error);
-            setMessage({ type: "success", text: `Added service item “${name}”.` });
+            setMessage({ type: "success", text: `Added task “${name}”.` });
             return r.data.id;
           }}
         />
@@ -265,92 +376,97 @@ export default function EngineerPage() {
       )}
 
       {/* Stopwatch — secondary way to record time */}
-      <section className="rounded-2xl border border-border/70 bg-surface-low">
-        <button
-          type="button"
-          onClick={() => setDockOpen((o) => !o)}
-          aria-expanded={showDock}
-          className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors hover:bg-foreground/[0.04]"
-        >
-          <Timer className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Stopwatch</span>
-          <span className="text-xs text-muted-foreground">Prefer to time it live? Start a timer and it becomes a row when you stop.</span>
-          <kbd className="ml-auto rounded border border-border px-1.5 py-px font-mono text-[10px] text-muted-foreground">W</kbd>
-          <ChevronUp className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300", !showDock && "rotate-180")} />
-        </button>
+      {current && (
+        <section className="rounded-2xl border border-border/70 bg-surface-low">
+          <button
+            type="button"
+            onClick={() => setDockOpen((o) => !o)}
+            aria-expanded={showDock}
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors hover:bg-foreground/[0.04]"
+          >
+            <Timer className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Stopwatch</span>
+            <span className="text-xs text-muted-foreground">Prefer to time it live? Start a timer and it becomes a row when you stop.</span>
+            <kbd className="ml-auto rounded border border-border px-1.5 py-px font-mono text-[10px] text-muted-foreground">W</kbd>
+            <ChevronUp className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300", !showDock && "rotate-180")} />
+          </button>
 
-        {showDock && (
-          <div className="flex animate-m3-rise flex-wrap items-center gap-x-6 gap-y-3 border-t border-border/70 px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span className={cn("h-2.5 w-2.5 rounded-full", running && !paused ? "pulse-ring bg-destructive" : "bg-outline-variant")} />
-              <span className="select-none font-mono text-3xl font-semibold leading-none tracking-[-0.03em] tabular-nums">{formatTime(seconds)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={toggleRun} variant={running && !paused ? "secondary" : "default"} className="gap-2 px-4 py-2 text-sm">
-                {running && !paused ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
-                {!running ? "Start" : paused ? "Resume" : "Pause"}
-                <kbd className={kbd}>Space</kbd>
-              </Button>
-              {running && (
-                <Button variant="destructive" onClick={stopAndSave} disabled={saving} className="gap-2 px-4 py-2 text-sm">
-                  <Square className="h-3.5 w-3.5 fill-current" />
-                  Stop &amp; log row
-                  <kbd className={kbd}>S</kbd>
+          {showDock && (
+            <div className="flex animate-m3-rise flex-wrap items-center gap-x-6 gap-y-3 border-t border-border/70 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className={cn("h-2.5 w-2.5 rounded-full", running && !paused ? "pulse-ring bg-destructive" : "bg-outline-variant")} />
+                <span data-testid="stopwatch-time" className="select-none font-mono text-3xl font-semibold leading-none tracking-[-0.03em] tabular-nums">{formatTime(seconds)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={toggleRun} variant={running && !paused ? "secondary" : "default"} className="gap-2 px-4 py-2 text-sm">
+                  {running && !paused ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+                  {!running ? "Start" : paused ? "Resume" : "Pause"}
+                  <kbd className={kbd}>Space</kbd>
                 </Button>
-              )}
-              {seconds > 0 && !running && (
-                <Button variant="outline" size="sm" onClick={() => confirm("Reset stopwatch?") && setSeconds(0)}>
-                  Reset
-                </Button>
-              )}
-            </div>
-            <div className="ml-auto grid w-full grid-cols-2 gap-2 lg:w-auto lg:grid-cols-[13rem_11rem_13rem_8rem_auto]">
-              {[
-                <Combobox key="c" aria-label="Stopwatch customer" placeholder="Customer…" value={tCustomerId}
-                  options={customers.filter((c) => c.isActive).map((c) => ({ id: c.id, label: c.name }))}
-                  onSelect={(id) => { setTCustomerId(id); setTJobId(""); }}
-                  onCreate={async (name) => { const r = await dir.createCustomer(name); if (r.ok) { setTCustomerId(r.data.id); setTJobId(""); } else fail(r.error); }} />,
-                <Combobox key="j" aria-label="Stopwatch project" placeholder="Project…" emptyLabel="— no project —" value={tJobId}
-                  options={(customers.find((c) => c.id === tCustomerId)?.jobs ?? []).filter((j) => j.isActive).map((j) => ({ id: j.id, label: j.name }))}
-                  onSelect={setTJobId}
-                  onCreate={tCustomerId ? async (name) => { const r = await dir.createJob(tCustomerId, name); if (r.ok) setTJobId(r.data.id); else fail(r.error); } : undefined} />,
-                <Combobox key="s" aria-label="Stopwatch service item" placeholder="Service item…" value={tServiceId}
-                  options={serviceItems.map((s) => ({ id: s.id, label: s.name }))}
-                  onSelect={setTServiceId}
-                  onCreate={async (name) => { const r = await dir.createService(name); if (r.ok) setTServiceId(r.data.id); else fail(r.error); }} />,
-                <Combobox key="l" aria-label="Stopwatch location" value={tLocation} options={LOCATION_OPTS}
-                  onSelect={(id) => setTLocation(id as LocationType)} />,
-              ].map((el) => (
-                <div key={el.key} className="rounded-lg border border-outline-variant bg-card transition-colors focus-within:border-primary hover:border-outline">
-                  {el}
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={captureGps}
-                disabled={gpsLoading}
-                title={gps ? `Stamped ${gps.lat}, ${gps.lng}` : "Stamp GPS coordinates on this session"}
-                className={cn(
-                  "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
-                  gps ? "border-transparent bg-tertiary-container text-tertiary-on-container" : "border-outline-variant text-primary hover:bg-foreground/[0.05]"
+                {running && (
+                  <>
+                    <Button variant="destructive" onClick={stopAndSave} disabled={saving} className="gap-2 px-4 py-2 text-sm">
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                      Stop &amp; log row
+                      <kbd className={kbd}>S</kbd>
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={discard}>Discard</Button>
+                  </>
                 )}
-              >
-                {gps ? <Check className="h-3.5 w-3.5" /> : <Navigation className="h-3.5 w-3.5" />}
-                {gpsLoading ? "Locating…" : gps ? "GPS set" : "GPS"}
-              </button>
+              </div>
+              <div className="ml-auto grid w-full grid-cols-2 gap-2 lg:w-auto lg:grid-cols-[13rem_11rem_13rem_8rem_auto]">
+                {[
+                  <Combobox key="c" aria-label="Stopwatch customer" placeholder="Customer…" value={tCustomerId}
+                    options={customers.filter((c) => c.isActive).map((c) => ({ id: c.id, label: c.name }))}
+                    onSelect={(id) => { setTCustomerId(id); setTJobId(""); saveTimerFields({ customerId: id, jobId: null }); }}
+                    onCreate={async (name) => { const r = await dir.createCustomer(name); if (r.ok) { setTCustomerId(r.data.id); setTJobId(""); saveTimerFields({ customerId: r.data.id, jobId: null }); } else fail(r.error); }} />,
+                  <Combobox key="j" aria-label="Stopwatch project" placeholder="Project…" emptyLabel="— no project —" value={tJobId}
+                    options={(customers.find((c) => c.id === tCustomerId)?.jobs ?? []).filter((j) => j.isActive).map((j) => ({ id: j.id, label: j.name }))}
+                    onSelect={(id) => { setTJobId(id); saveTimerFields({ jobId: id || null }); }}
+                    onCreate={tCustomerId ? async (name) => { const r = await dir.createJob(tCustomerId, name); if (r.ok) { setTJobId(r.data.id); saveTimerFields({ jobId: r.data.id }); } else fail(r.error); } : undefined} />,
+                  <Combobox key="s" aria-label="Stopwatch task" placeholder="Task…" value={tServiceId}
+                    options={serviceItems.map((s) => ({ id: s.id, label: s.name }))}
+                    onSelect={(id) => { setTServiceId(id); saveTimerFields({ serviceItemId: id }); }}
+                    onCreate={async (name) => { const r = await dir.createService(name); if (r.ok) { setTServiceId(r.data.id); saveTimerFields({ serviceItemId: r.data.id }); } else fail(r.error); }} />,
+                  <Combobox key="l" aria-label="Stopwatch location" value={tLocation} options={LOCATION_OPTS}
+                    onSelect={(id) => { setTLocation(id as LocationType); saveTimerFields({ locationType: id }); }} />,
+                ].map((el) => (
+                  <div key={el.key} className="rounded-lg border border-outline-variant bg-card transition-colors focus-within:border-primary hover:border-outline">
+                    {el}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={captureGps}
+                  disabled={gpsLoading}
+                  title={gps ? `Stamped ${gps.lat}, ${gps.lng}` : "Stamp GPS coordinates on this session"}
+                  className={cn(
+                    "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
+                    gps ? "border-transparent bg-tertiary-container text-tertiary-on-container" : "border-outline-variant text-primary hover:bg-foreground/[0.05]"
+                  )}
+                >
+                  {gps ? <Check className="h-3.5 w-3.5" /> : <Navigation className="h-3.5 w-3.5" />}
+                  {gpsLoading ? "Locating…" : gps ? "GPS set" : "GPS"}
+                </button>
+              </div>
+              {running && (
+                <input
+                  value={tNotes}
+                  onChange={(e) => {
+                    setTNotes(e.target.value);
+                    if (notesTimer.current) clearTimeout(notesTimer.current);
+                    const v = e.target.value;
+                    notesTimer.current = setTimeout(() => saveTimerFields({ notes: v }), 600);
+                  }}
+                  placeholder="Session notes (autosaved, then saved with the row)…"
+                  aria-label="Stopwatch notes"
+                  className="h-9 w-full rounded-full border border-outline-variant bg-card px-4 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+                />
+              )}
             </div>
-            {running && (
-              <input
-                value={tNotes}
-                onChange={(e) => setTNotes(e.target.value)}
-                placeholder="Session notes (saved with the row)…"
-                aria-label="Stopwatch notes"
-                className="h-9 w-full rounded-full border border-outline-variant bg-card px-4 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
-              />
-            )}
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -4,6 +4,9 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  // One shared in-memory database, so tests run one at a time.
+  workers: 1,
+  fullyParallel: false,
   reporter: [["list"]],
   use: {
     baseURL: "http://localhost:3100",
@@ -14,7 +17,9 @@ export default defineConfig({
   webServer: {
     command: "npx next dev -p 3100",
     url: "http://localhost:3100/engineer",
-    reuseExistingServer: true,
+    reuseExistingServer: false,
+    // Throwaway in-memory database so tests never touch real data.
+    env: { PGLITE_DIR: "memory://", DATABASE_URL: "", ENABLE_DEMO_DATA: "true" },
     timeout: 120_000,
   },
 });

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
+import { requireUser } from "@/lib/auth";
 import { generateQuickBooksIIF, ExportableTimeEntry } from "@/lib/quickbooks";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const g = await requireUser({ manager: true });
+  if (!g.ok) return g.res;
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate") || undefined;

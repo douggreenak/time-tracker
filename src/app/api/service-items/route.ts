@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
+import { requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const g = await requireUser();
+  if (!g.ok) return g.res;
   try {
     const items = await dataStore.getServiceItems();
     return NextResponse.json({ success: true, data: items });
@@ -13,6 +16,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const g = await requireUser();
+  if (!g.ok) return g.res;
   try {
     const body = await request.json();
     const { name, qbItemName, defaultBillable } = body;

@@ -1,5 +1,14 @@
 # Setup & Deployment Guide
 
+> **Current behaviour (read this first)**
+> - **Data is stored in a real Postgres database.** Without `DATABASE_URL` the app uses an embedded Postgres saved in `./.data/pglite`
+>   (persists across restarts, no account needed); with `DATABASE_URL` it uses Neon. Tables are created automatically.
+> - **Sign-in:** each person has their own password. Accountants/admins manage people, passwords, customers and tasks; engineers only see their own time.
+>   Set `ENABLE_DEMO_DATA=false` for a blank start — the first visit creates the first admin. With demo data every sample password is `demo1234`.
+> - **Edits after approval** are allowed and automatically flag the entry for the accountant on the *Review & export* page.
+> - Run the browser tests with `npm run test:e2e` (uses a throwaway in-memory database).
+
+
 This guide covers local development, Neon database provisioning, and deployment to Vercel.
 
 ---

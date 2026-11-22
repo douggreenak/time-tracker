@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
+import { isManager, requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const g = await requireUser();
+  if (!g.ok) return g.res;
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const customerId = searchParams.get("customerId") || undefined;
-    const userId = searchParams.get("userId") || undefined;
+    // Engineers only ever see their own entries; accountants/admins can look at anyone.
+    const userId = isManager(g.user) ? searchParams.get("userId") || undefined : g.user.id;
     const status = searchParams.get("status") || undefined;
     const billableParam = searchParams.get("billable");
     const isBillable = billableParam !== null ? billableParam === "true" : undefined;
@@ -31,6 +35,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const g = await requireUser();
+  if (!g.ok) return g.res;
   try {
     const body = await request.json();
 
@@ -66,6 +72,19 @@ export async function POST(request: Request) {
 
     const users = await dataStore.getUsers();
     const user = users.find((u) => u.id === userId);
+
+    if (!isManager(g.user) && userId !== g.user.id) {
+      return NextResponse.json({ success: false, error: "You can only log time for yourself." }, { status: 403 });
+    }
+    if (!cust || !srv || !user) {
+      return NextResponse.json(
+        { success: false, error: "Unknown " + (!user ? "engineer" : !cust ? "customer" : "service item") },
+        { status: 400 }
+      );
+    }
+    if (!Number.isFinite(Number(durationMinutes)) || Number(durationMinutes) <= 0) {
+      return NextResponse.json({ success: false, error: "Duration must be greater than 0" }, { status: 400 });
+    }
 
     const newEntry = await dataStore.createTimeEntry({
       userId,

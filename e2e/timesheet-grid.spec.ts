@@ -1,8 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { ACCOUNTANT, ENGINEER, loginAs } from "./helpers";
 
-const open = async (page: Page, path = "/engineer") => {
-  await page.goto(path);
-};
+const open = (page: Page, path = "/engineer", who = ENGINEER) => loginAs(page, who, path);
 
 test.describe("timesheet grid", () => {
   test.beforeEach(async ({ page }) => {
@@ -76,7 +75,7 @@ test.describe("timesheet grid", () => {
     await job.press("Enter");
     await expect(job).toHaveValue(`Phase ${stamp}`);
 
-    const service = page.getByLabel("New entry service item");
+    const service = page.getByLabel("New entry task");
     await service.fill(`Survey ${stamp}`);
     await service.press("Enter");
     await expect(service).toHaveValue(`Survey ${stamp}`);
@@ -92,6 +91,7 @@ test.describe("timesheet grid", () => {
 
 test("stopwatch is secondary: collapsed by default, opens with W", async ({ page }) => {
   await open(page);
+  await expect(page.getByLabel("New entry hours")).toBeVisible();
   await expect(page.getByRole("button", { name: /^Start/ })).toHaveCount(0);
   await page.keyboard.press("w");
   await expect(page.getByRole("button", { name: /^Start/ })).toBeVisible();
@@ -110,7 +110,7 @@ test("dark mode toggles and persists", async ({ page }) => {
 
 test("customers page: add customer, add project, rename, archive", async ({ page }) => {
   const stamp = Date.now();
-  await open(page, "/customers");
+  await open(page, "/customers", ACCOUNTANT);
   await page.getByLabel("New customer name").fill(`Zeta ${stamp}`);
   await page.getByLabel("New customer name").press("Enter");
   await expect(page.getByLabel("Customer name", { exact: true })).toHaveValue(`Zeta ${stamp}`);
@@ -132,18 +132,18 @@ test("customers page: add customer, add project, rename, archive", async ({ page
 });
 
 test("customers with logged time cannot be deleted", async ({ page }) => {
-  await open(page, "/customers");
+  await open(page, "/customers", ACCOUNTANT);
   page.once("dialog", (d) => d.accept());
   await page.getByRole("option", { name: /Apex Energy Solutions/ }).click();
   await page.getByRole("button", { name: "Delete" }).first().click();
   await expect(page.getByText(/archive it instead/)).toBeVisible();
 });
 
-test("services page: add and edit a service item", async ({ page }) => {
+test("tasks page: add and edit a task", async ({ page }) => {
   const stamp = Date.now();
-  await open(page, "/services");
-  await page.getByLabel("New service name").fill(`Drone survey ${stamp}`);
-  await page.getByLabel("New service name").press("Enter");
+  await open(page, "/tasks", ACCOUNTANT);
+  await page.getByLabel("New task name").fill(`Drone survey ${stamp}`);
+  await page.getByLabel("New task name").press("Enter");
   const row = page.locator("tr", { has: page.locator(`input[value="Drone survey ${stamp}"]`) });
   await expect(row).toHaveCount(1);
   await row.getByLabel("Billable by default").click();

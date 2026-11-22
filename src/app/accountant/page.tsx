@@ -1,519 +1,504 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Download, FileSpreadsheet, Calendar, DollarSign, Clock,
-  Briefcase, Building, MapPin, RefreshCw, Search,
-  Layers, Users, ArrowUpDown, Car, Laptop, Check, CheckCircle2, CheckSquare,
+  AlertTriangle, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, X,
 } from "lucide-react";
-import { CustomerItem, ServiceItem, TimeEntryItem, UserItem } from "@/db/mock-data";
-import { formatQuickBooksDuration } from "@/lib/quickbooks";
+import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
+import { RequireManager } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
 
-type PeriodPreset =
-  | "today" | "yesterday" | "this_week" | "last_week"
-  | "this_month" | "last_month" | "this_quarter" | "ytd" | "all" | "custom";
+type Period = "today" | "this_week" | "last_week" | "this_month" | "last_month" | "quarter" | "ytd" | "all" | "custom";
+type StatusFilter = "all" | "review" | "approved" | "exported" | "flagged";
+type View = "entries" | "people" | "customers";
+type Issue = "edited" | "long_day" | "weekend" | "no_notes" | "duplicate" | "future";
 
-type ViewMode = "table" | "customer_summary" | "staff_summary";
-
-const PERIODS: { id: PeriodPreset; label: string }[] = [
-  { id: "today",        label: "Today" },
-  { id: "this_week",    label: "This week" },
-  { id: "last_week",    label: "Last week" },
-  { id: "this_month",   label: "This month" },
-  { id: "last_month",   label: "Last month" },
-  { id: "this_quarter", label: "Quarter" },
-  { id: "ytd",          label: "YTD" },
-  { id: "all",          label: "All" },
-  { id: "custom",       label: "Custom" },
+const PERIODS: { id: Period; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "this_week", label: "This week" },
+  { id: "last_week", label: "Last week" },
+  { id: "this_month", label: "This month" },
+  { id: "last_month", label: "Last month" },
+  { id: "quarter", label: "Quarter" },
+  { id: "ytd", label: "Year to date" },
+  { id: "all", label: "All time" },
+  { id: "custom", label: "Custom" },
 ];
 
-export default function AccountantPage() {
-  const [entries,      setEntries]      = useState<TimeEntryItem[]>([]);
-  const [customers,    setCustomers]    = useState<CustomerItem[]>([]);
-  const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
-  const [users,        setUsers]        = useState<UserItem[]>([]);
-  const [loading,      setLoading]      = useState(true);
+const ISSUES: Record<Issue, { label: string; short: string; help: string; tone: string }> = {
+  edited: { label: "Edited after approval", short: "Edited", help: "The engineer changed an entry you had already approved or exported — check it again (and re-export if it was already in QuickBooks).", tone: "bg-destructive/10 text-destructive" },
+  long_day: { label: "Over 12 hours in a day", short: ">12h day", help: "One person logged more than 12 hours on the same date — often a typo.", tone: "bg-warning-container text-foreground" },
+  weekend: { label: "Weekend work", short: "Weekend", help: "Time logged on a Saturday or Sunday — confirm it's real, and whether overtime applies.", tone: "bg-secondary-container text-secondary-on-container" },
+  no_notes: { label: "Billable, no description", short: "No notes", help: "Billable time with no description is hard to defend on an invoice.", tone: "bg-secondary-container text-secondary-on-container" },
+  duplicate: { label: "Possible duplicate", short: "Duplicate?", help: "Same person, date, customer, project, task and hours appear more than once.", tone: "bg-warning-container text-foreground" },
+  future: { label: "Future date", short: "Future", help: "Dated after today.", tone: "bg-warning-container text-foreground" },
+};
 
-  const [period,          setPeriod]          = useState<PeriodPreset>("this_week");
-  const [customStartDate, setCustomStartDate] = useState(() => { const d = new Date(); d.setDate(d.getDate()-30); return d.toISOString().split("T")[0]; });
-  const [customEndDate,   setCustomEndDate]   = useState(() => new Date().toISOString().split("T")[0]);
+const STATUS_STYLE: Record<string, string> = {
+  draft: "bg-surface-high text-muted-foreground",
+  submitted: "bg-primary-container text-primary-on-container",
+  approved: "bg-tertiary-container text-tertiary-on-container",
+  exported: "bg-secondary-container text-secondary-on-container",
+};
 
-  const [filterCustomer, setFilterCustomer] = useState("all");
-  const [filterUser,     setFilterUser]     = useState("all");
-  const [filterBillable, setFilterBillable] = useState("all");
-  const [filterStatus,   setFilterStatus]   = useState("all");
-  const [searchQuery,    setSearchQuery]    = useState("");
+const iso = (d: Date) => d.toLocaleDateString("en-CA");
+const hrs = (m: number) => (m / 60).toFixed(2);
+const money = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-  const [viewMode,         setViewMode]         = useState<ViewMode>("table");
-  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
-  const [successMsg,       setSuccessMsg]       = useState<string | null>(null);
-  const [sortField,        setSortField]        = useState<"date" | "durationMinutes" | "userName" | "customerName">("date");
-  const [sortAsc,          setSortAsc]          = useState(false);
+function range(p: Period, from: string, to: string): [string | null, string | null] {
+  const now = new Date();
+  const day = (now.getDay() + 6) % 7;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+  const add = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  switch (p) {
+    case "today": return [iso(now), iso(now)];
+    case "this_week": return [iso(monday), iso(add(monday, 6))];
+    case "last_week": return [iso(add(monday, -7)), iso(add(monday, -1))];
+    case "this_month": return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), iso(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+    case "last_month": return [iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)), iso(new Date(now.getFullYear(), now.getMonth(), 0))];
+    case "quarter": { const q = Math.floor(now.getMonth() / 3) * 3; return [iso(new Date(now.getFullYear(), q, 1)), iso(new Date(now.getFullYear(), q + 3, 0))]; }
+    case "ytd": return [iso(new Date(now.getFullYear(), 0, 1)), iso(now)];
+    case "custom": return [from || null, to || null];
+    default: return [null, null];
+  }
+}
 
-  const loadData = async () => {
+function AccountantPage() {
+  const [entries, setEntries] = useState<TimeEntryItem[]>([]);
+  const [customers, setCustomers] = useState<CustomerItem[]>([]);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ text: string; action?: { label: string; run: () => void } } | null>(null);
+
+  const [period, setPeriod] = useState<Period>("this_month");
+  const [from, setFrom] = useState(() => iso(new Date(Date.now() - 30 * 864e5)));
+  const [to, setTo] = useState(() => iso(new Date()));
+  const [person, setPerson] = useState("all");
+  const [customer, setCustomer] = useState("all");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [issueFilter, setIssueFilter] = useState<Issue | "any" | null>(null);
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<View>("entries");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
-      const [custRes, srvRes, userRes, entriesRes] = await Promise.all([
-        fetch("/api/customers").then(r => r.json()),
-        fetch("/api/service-items").then(r => r.json()),
-        fetch("/api/users").then(r => r.json()),
-        fetch("/api/time-entries").then(r => r.json()),
+      const [c, u, e] = await Promise.all([
+        fetch("/api/customers").then((r) => r.json()),
+        fetch("/api/users").then((r) => r.json()),
+        fetch("/api/time-entries").then((r) => r.json()),
       ]);
-      if (custRes.success)    setCustomers(custRes.data);
-      if (srvRes.success)     setServiceItems(srvRes.data);
-      if (userRes.success)    setUsers(userRes.data);
-      if (entriesRes.success) setEntries(entriesRes.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  const dateRangeBounds = useMemo(() => {
-    const now   = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const fmt   = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-
-    switch (period) {
-      case "today":        { const s = fmt(today); return { start: s, end: s, label: "Today" }; }
-      case "yesterday":    { const y = new Date(today); y.setDate(y.getDate()-1); const s = fmt(y); return { start: s, end: s, label: "Yesterday" }; }
-      case "this_week":    { const d = new Date(today); const diff = d.getDate()-d.getDay()+(d.getDay()===0?-6:1); const mon = new Date(d.setDate(diff)); const sun = new Date(mon); sun.setDate(mon.getDate()+6); return { start: fmt(mon), end: fmt(sun), label: "This week" }; }
-      case "last_week":    { const d = new Date(today); const diff = d.getDate()-d.getDay()+(d.getDay()===0?-6:1)-7; const mon = new Date(d.setDate(diff)); const sun = new Date(mon); sun.setDate(mon.getDate()+6); return { start: fmt(mon), end: fmt(sun), label: "Last week" }; }
-      case "this_month":   { const f = new Date(today.getFullYear(),today.getMonth(),1); const l = new Date(today.getFullYear(),today.getMonth()+1,0); return { start: fmt(f), end: fmt(l), label: "This month" }; }
-      case "last_month":   { const f = new Date(today.getFullYear(),today.getMonth()-1,1); const l = new Date(today.getFullYear(),today.getMonth(),0); return { start: fmt(f), end: fmt(l), label: "Last month" }; }
-      case "this_quarter": { const q = Math.floor(today.getMonth()/3); const f = new Date(today.getFullYear(),q*3,1); const l = new Date(today.getFullYear(),(q+1)*3,0); return { start: fmt(f), end: fmt(l), label: `Q${q+1}` }; }
-      case "ytd":          { const f = new Date(today.getFullYear(),0,1); return { start: fmt(f), end: fmt(today), label: "YTD" }; }
-      case "custom":       return { start: customStartDate, end: customEndDate, label: "Custom" };
-      default:             return { start: null, end: null, label: "All time" };
+      if (c.success) setCustomers(c.data);
+      if (u.success) setUsers(u.data);
+      if (e.success) setEntries(e.data);
+    } finally {
+      setLoading(false);
     }
-  }, [period, customStartDate, customEndDate]);
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const userRateMap = useMemo(() => {
-    const map = new Map<string, number>();
-    users.forEach(u => map.set(u.id, u.defaultHourlyRate || 145.0));
-    return map;
-  }, [users]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 9000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
-  const filteredEntries = useMemo(() => {
-    return entries
-      .filter(e => {
-        if (dateRangeBounds.start && e.date < dateRangeBounds.start) return false;
-        if (dateRangeBounds.end   && e.date > dateRangeBounds.end)   return false;
-        if (filterCustomer !== "all" && e.customerId !== filterCustomer) return false;
-        if (filterUser     !== "all" && e.userId     !== filterUser)     return false;
-        if (filterBillable === "billable"     && !e.isBillable) return false;
-        if (filterBillable === "non_billable" &&  e.isBillable) return false;
-        if (filterStatus   !== "all" && e.status !== filterStatus) return false;
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          if (![e.customerName, e.jobName||"", e.userName, e.serviceItemName, e.notes||"", e.locationName||""].some(x => x.toLowerCase().includes(q))) return false;
-        }
+  const rate = useMemo(() => new Map(users.map((u) => [u.id, u.defaultHourlyRate])), [users]);
+
+  // ── automatic exception checks (use ALL entries so a person's whole day is considered) ──
+  const issues = useMemo(() => {
+    const today = iso(new Date());
+    const dayTotals = new Map<string, number>();
+    const dupes = new Map<string, number>();
+    for (const e of entries) {
+      dayTotals.set(`${e.userId}|${e.date}`, (dayTotals.get(`${e.userId}|${e.date}`) ?? 0) + e.durationMinutes);
+      const k = [e.userId, e.date, e.customerId, e.jobId ?? "", e.serviceItemId, e.durationMinutes].join("|");
+      dupes.set(k, (dupes.get(k) ?? 0) + 1);
+    }
+    const out = new Map<string, Issue[]>();
+    for (const e of entries) {
+      const list: Issue[] = [];
+      if (e.flagged) list.push("edited");
+      if ((dayTotals.get(`${e.userId}|${e.date}`) ?? 0) > 12 * 60) list.push("long_day");
+      const dow = new Date(`${e.date}T00:00:00`).getDay();
+      if (dow === 0 || dow === 6) list.push("weekend");
+      if (e.isBillable && (e.notes ?? "").trim().length < 4) list.push("no_notes");
+      if ((dupes.get([e.userId, e.date, e.customerId, e.jobId ?? "", e.serviceItemId, e.durationMinutes].join("|")) ?? 0) > 1) list.push("duplicate");
+      if (e.date > today) list.push("future");
+      out.set(e.id, list);
+    }
+    return out;
+  }, [entries]);
+
+  const [start, end] = range(period, from, to);
+  const inPeriod = useMemo(
+    () =>
+      entries.filter(
+        (e) => (!start || e.date >= start) && (!end || e.date <= end) && (person === "all" || e.userId === person) && (customer === "all" || e.customerId === customer)
+      ),
+    [entries, start, end, person, customer]
+  );
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return inPeriod
+      .filter((e) => {
+        if (status === "review" && e.status !== "submitted" && e.status !== "draft") return false;
+        if (status === "approved" && e.status !== "approved") return false;
+        if (status === "exported" && e.status !== "exported") return false;
+        if (status === "flagged" && !e.flagged) return false;
+        const list = issues.get(e.id) ?? [];
+        if (issueFilter === "any" && list.length === 0) return false;
+        if (issueFilter && issueFilter !== "any" && !list.includes(issueFilter)) return false;
+        if (q && ![e.date, e.userName, e.customerName, e.jobName, e.serviceItemName, e.notes].filter(Boolean).join(" ").toLowerCase().includes(q)) return false;
         return true;
       })
-      .sort((a, b) => {
-        let cmp = 0;
-        if (sortField === "date")            cmp = a.date.localeCompare(b.date);
-        if (sortField === "durationMinutes") cmp = a.durationMinutes - b.durationMinutes;
-        if (sortField === "userName")        cmp = a.userName.localeCompare(b.userName);
-        if (sortField === "customerName")    cmp = a.customerName.localeCompare(b.customerName);
-        return sortAsc ? cmp : -cmp;
-      });
-  }, [entries, dateRangeBounds, filterCustomer, filterUser, filterBillable, filterStatus, searchQuery, sortField, sortAsc]);
+      .sort((a, b) => b.date.localeCompare(a.date) || a.userName.localeCompare(b.userName));
+  }, [inPeriod, status, issueFilter, query, issues]);
 
-  const metrics = useMemo(() => {
-    let totalMins = 0, billableMins = 0, revenue = 0;
-    const custSet = new Set<string>(), jobSet = new Set<string>();
-    filteredEntries.forEach(e => {
-      totalMins += e.durationMinutes;
-      const hours = e.durationMinutes / 60;
-      if (e.isBillable) { billableMins += e.durationMinutes; revenue += hours * (userRateMap.get(e.userId)||145); }
-      custSet.add(e.customerId);
-      if (e.jobId) jobSet.add(e.jobId);
-    });
-    return {
-      totalHours:    totalMins / 60,
-      billableHours: billableMins / 60,
-      realizationPct: totalMins > 0 ? (billableMins / totalMins) * 100 : 0,
-      revenue,
-      customerCount: custSet.size,
-      jobCount:      jobSet.size,
-    };
-  }, [filteredEntries, userRateMap]);
+  const stats = useMemo(() => {
+    const s = { review: { n: 0, m: 0 }, flagged: { n: 0, m: 0 }, approved: { n: 0, m: 0 }, exported: { n: 0, m: 0 }, total: 0, billable: 0, amount: 0 };
+    for (const e of inPeriod) {
+      s.total += e.durationMinutes;
+      if (e.isBillable) { s.billable += e.durationMinutes; s.amount += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0); }
+      if (e.status === "submitted" || e.status === "draft") { s.review.n++; s.review.m += e.durationMinutes; }
+      if (e.status === "approved") { s.approved.n++; s.approved.m += e.durationMinutes; }
+      if (e.status === "exported") { s.exported.n++; s.exported.m += e.durationMinutes; }
+      if (e.flagged) { s.flagged.n++; s.flagged.m += e.durationMinutes; }
+    }
+    return s;
+  }, [inPeriod, rate]);
 
-  const customerBreakdown = useMemo(() => {
-    const map = new Map<string, { customerId: string; customerName: string; totalMinutes: number; billableMinutes: number; revenue: number; jobs: Map<string,{jobName:string;minutes:number}> }>();
-    filteredEntries.forEach(e => {
-      let it = map.get(e.customerId);
-      if (!it) { it = { customerId: e.customerId, customerName: e.customerName, totalMinutes: 0, billableMinutes: 0, revenue: 0, jobs: new Map() }; map.set(e.customerId, it); }
-      it.totalMinutes += e.durationMinutes;
-      if (e.isBillable) { it.billableMinutes += e.durationMinutes; it.revenue += (e.durationMinutes/60)*(userRateMap.get(e.userId)||145); }
-      const jk = e.jobId||"general"; const jn = e.jobName||"General"; const ej = it.jobs.get(jk); if (ej) ej.minutes += e.durationMinutes; else it.jobs.set(jk,{jobName:jn,minutes:e.durationMinutes});
-    });
-    return Array.from(map.values()).sort((a,b) => b.totalMinutes - a.totalMinutes);
-  }, [filteredEntries, userRateMap]);
+  const issueCounts = useMemo(() => {
+    const c: Record<Issue, number> = { edited: 0, long_day: 0, weekend: 0, no_notes: 0, duplicate: 0, future: 0 };
+    let any = 0;
+    for (const e of inPeriod) {
+      if (e.status === "approved" || e.status === "exported") { if (!e.flagged) continue; }
+      const l = issues.get(e.id) ?? [];
+      if (l.length) any++;
+      l.forEach((i) => c[i]++);
+    }
+    return { c, any };
+  }, [inPeriod, issues]);
 
-  const staffBreakdown = useMemo(() => {
-    const map = new Map<string,{userId:string;userName:string;totalMinutes:number;billableMinutes:number;revenue:number;entriesCount:number}>();
-    filteredEntries.forEach(e => {
-      let it = map.get(e.userId);
-      if (!it) { it = {userId:e.userId, userName:e.userName, totalMinutes:0, billableMinutes:0, revenue:0, entriesCount:0}; map.set(e.userId,it); }
-      it.totalMinutes += e.durationMinutes; it.entriesCount++;
-      if (e.isBillable) { it.billableMinutes += e.durationMinutes; it.revenue += (e.durationMinutes/60)*(userRateMap.get(e.userId)||145); }
-    });
-    return Array.from(map.values()).sort((a,b) => b.totalMinutes - a.totalMinutes);
-  }, [filteredEntries, userRateMap]);
+  const cleanReady = useMemo(
+    () => inPeriod.filter((e) => (e.status === "submitted" || e.status === "draft") && !(issues.get(e.id) ?? []).some((i) => i !== "weekend")),
+    [inPeriod, issues]
+  );
 
-  const allSelected = filteredEntries.length > 0 && selectedEntryIds.size === filteredEntries.length;
-  const toggleSelectAll = () => setSelectedEntryIds(allSelected ? new Set() : new Set(filteredEntries.map(e => e.id)));
-  const toggleSelectEntry = (id: string) => { const n = new Set(selectedEntryIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedEntryIds(n); };
-
-  const handleUpdateStatus = async (status: "draft"|"submitted"|"approved"|"exported", targetIds?: string[]) => {
-    const ids = targetIds || Array.from(selectedEntryIds);
+  const setStatusFor = async (ids: string[], next: TimeEntryItem["status"], text?: string) => {
     if (!ids.length) return;
-    await Promise.all(ids.map(id => fetch(`/api/time-entries/${id}`, { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({status}) })));
-    setEntries(prev => prev.map(e => ids.includes(e.id) ? {...e, status} : e));
-    if (!targetIds) setSelectedEntryIds(new Set());
-    setSuccessMsg(`Updated ${ids.length} record${ids.length>1?"s":""} → ${status}`);
-    setTimeout(() => setSuccessMsg(null), 3000);
+    const results = await Promise.all(
+      ids.map((id) => fetch(`/api/time-entries/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) }).then((r) => r.ok))
+    );
+    const failed = results.filter((ok) => !ok).length;
+    setPicked(new Set());
+    await load();
+    setToast({ text: failed ? `${failed} of ${ids.length} couldn't be updated.` : text ?? `${ids.length} ${ids.length === 1 ? "entry" : "entries"} → ${next}.` });
   };
 
-  const buildParams = () => {
+  const params = (extra: Record<string, string> = {}) => {
     const p = new URLSearchParams();
-    if (dateRangeBounds.start) p.set("startDate", dateRangeBounds.start);
-    if (dateRangeBounds.end)   p.set("endDate",   dateRangeBounds.end);
-    if (filterCustomer !== "all") p.set("customerId", filterCustomer);
-    if (filterUser     !== "all") p.set("userId",     filterUser);
-    if (filterStatus   !== "all") p.set("status",     filterStatus);
+    if (start) p.set("startDate", start);
+    if (end) p.set("endDate", end);
+    if (person !== "all") p.set("userId", person);
+    if (customer !== "all") p.set("customerId", customer);
+    Object.entries(extra).forEach(([k, v]) => p.set(k, v));
     return p.toString();
   };
 
-  const toggleSort = (f: typeof sortField) => { if (sortField===f) setSortAsc(!sortAsc); else { setSortField(f); setSortAsc(true); } };
-  const hasFilters = filterCustomer !== "all" || filterUser !== "all" || filterBillable !== "all" || filterStatus !== "all" || !!searchQuery;
+  const exportApproved = (kind: "iif" | "csv") => {
+    const ids = inPeriod.filter((e) => e.status === "approved").map((e) => e.id);
+    if (!ids.length) return setToast({ text: "Nothing approved to export in this view yet — approve entries first." });
+    window.location.href = `/api/export/${kind}?${params({ status: "approved" })}`;
+    setToast({
+      text: `Downloading ${ids.length} approved ${ids.length === 1 ? "entry" : "entries"}. Once it’s imported into QuickBooks, mark them exported so they aren’t sent twice.`,
+      action: { label: "Mark as exported", run: () => setStatusFor(ids, "exported", `${ids.length} marked exported.`) },
+    });
+  };
+
+  const allPicked = visible.length > 0 && visible.every((e) => picked.has(e.id));
+  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const nameOfUser = (id: string) => users.find((u) => u.id === id)?.name ?? "";
+
+  const byPerson = useMemo(() => {
+    const m = new Map<string, { name: string; total: number; billable: number; amount: number; n: number; flagged: number }>();
+    for (const e of inPeriod) {
+      const r = m.get(e.userId) ?? { name: e.userName, total: 0, billable: 0, amount: 0, n: 0, flagged: 0 };
+      r.total += e.durationMinutes; r.n++; if (e.flagged) r.flagged++;
+      if (e.isBillable) { r.billable += e.durationMinutes; r.amount += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0); }
+      m.set(e.userId, r);
+    }
+    return Array.from(m.values()).sort((a, b) => b.total - a.total);
+  }, [inPeriod, rate]);
+
+  const byCustomer = useMemo(() => {
+    const m = new Map<string, { name: string; total: number; billable: number; amount: number; jobs: Map<string, number> }>();
+    for (const e of inPeriod) {
+      const r = m.get(e.customerId) ?? { name: e.customerName, total: 0, billable: 0, amount: 0, jobs: new Map() };
+      r.total += e.durationMinutes;
+      r.jobs.set(e.jobName ?? "No project", (r.jobs.get(e.jobName ?? "No project") ?? 0) + e.durationMinutes);
+      if (e.isBillable) { r.billable += e.durationMinutes; r.amount += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0); }
+      m.set(e.customerId, r);
+    }
+    return Array.from(m.values()).sort((a, b) => b.total - a.total);
+  }, [inPeriod, rate]);
+
+  const card = (key: StatusFilter, label: string, n: number, m: number, tone: string, icon: React.ReactNode) => (
+    <button
+      key={key}
+      onClick={() => setStatus(status === key ? "all" : key)}
+      aria-pressed={status === key}
+      data-testid={`card-${key}`}
+      className={cn(
+        "flex flex-col gap-1 rounded-2xl border p-3 text-left transition-all sm:p-4",
+        status === key ? "border-primary bg-primary/5 shadow-sm" : "border-border/70 bg-card hover:border-outline"
+      )}
+    >
+      <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em]", tone)}>{icon}{label}</span>
+      <span className="m3-metric text-2xl leading-none">{n}</span>
+      <span className="text-xs text-muted-foreground">{hrs(m)} h</span>
+    </button>
+  );
+
+  const chip = (active: boolean) =>
+    cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors", active ? "border-transparent bg-primary text-primary-foreground" : "border-outline-variant text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground");
+  const select = "m3-select h-9 w-full cursor-pointer appearance-none rounded-full border border-outline-variant bg-surface-low pl-3 pr-8 text-xs font-medium outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25";
 
   return (
-    <div className="w-full px-4 py-5 sm:px-6">
-
-      {/* ── Header ── */}
-      <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="flex w-full flex-col gap-4 px-3 py-4 pb-24 sm:px-6 sm:py-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Timesheets</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{dateRangeBounds.label} · {filteredEntries.length} entries</p>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em]">Review &amp; export</h1>
+          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
+            Check what engineers submitted, approve it, then send approved time to QuickBooks. Anything an engineer changes after you approved it comes back here flagged.
+          </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <button onClick={() => window.location.href=`/api/export/iif?${buildParams()}`}
-            className="m3-fab flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold">
-            <FileSpreadsheet className="h-4 w-4" />
-            QuickBooks IIF
+        <div className="print-hide flex flex-wrap gap-2">
+          <button onClick={() => exportApproved("iif")} data-testid="export-iif" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110">
+            <Download className="h-4 w-4" />QuickBooks .IIF
           </button>
-          <button onClick={() => window.location.href=`/api/export/csv?${buildParams()}`}
-            className="flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition">
-            <Download className="h-4 w-4" />
-            CSV
+          <button onClick={() => exportApproved("csv")} className="inline-flex h-10 items-center gap-2 rounded-full border border-outline-variant px-4 text-sm font-semibold transition hover:bg-foreground/[0.05]">
+            <FileSpreadsheet className="h-4 w-4" />CSV
           </button>
-          <button onClick={loadData}
-            className="flex items-center justify-center rounded-full border border-border bg-card p-2.5 text-muted-foreground hover:text-foreground transition">
-            <RefreshCw className="h-4 w-4" />
+          <button onClick={() => window.print()} aria-label="Print" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant transition hover:bg-foreground/[0.05]">
+            <Printer className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Total Hours",  value: `${metrics.totalHours.toFixed(1)}h`,   icon: <Clock className="h-4 w-4" />,      sub: dateRangeBounds.label },
-          { label: "Billable",     value: `${metrics.billableHours.toFixed(1)}h`, icon: null,                               sub: `${metrics.realizationPct.toFixed(0)}% utilization`, bar: metrics.realizationPct },
-          { label: "Revenue",      value: `$${metrics.revenue.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}`, icon: <DollarSign className="h-4 w-4" />, sub: "est. billable" },
-          { label: "Clients",      value: String(metrics.customerCount),          icon: <Briefcase className="h-4 w-4" />, sub: `${metrics.jobCount} jobs` },
-        ].map(card => (
-          <div key={card.label} className="rounded-2xl border border-border bg-card p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">{card.label}</span>
-              {card.icon && <span className="text-primary">{card.icon}</span>}
-            </div>
-            <div className="text-2xl font-bold text-foreground sm:text-3xl">{card.value}</div>
-            {"bar" in card && card.bar !== undefined && (
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, card.bar)}%` }} />
-              </div>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">{card.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Period Selector ── */}
-      <div className="mb-4 flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1">
-        {PERIODS.map(p => (
-          <button key={p.id} onClick={() => setPeriod(p.id)}
-            className={cn("rounded-full px-3.5 py-1.5 text-xs font-medium transition-all",
-              period === p.id ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            )}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {period === "custom" && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3">
-          <span className="text-xs text-muted-foreground">From</span>
-          <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
-          <span className="text-xs text-muted-foreground">to</span>
-          <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
-        </div>
-      )}
-
-      {/* ── Filters + View Mode ── */}
-      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center">
-        {/* View mode */}
-        <div className="flex gap-1 rounded-full bg-muted p-1">
-          {([
-            { id: "table",            label: "Table", icon: <CheckSquare className="h-3.5 w-3.5" /> },
-            { id: "customer_summary", label: "By Client", icon: <Layers className="h-3.5 w-3.5" /> },
-            { id: "staff_summary",    label: "By Staff", icon: <Users className="h-3.5 w-3.5" /> },
-          ] as { id: ViewMode; label: string; icon: React.ReactNode }[]).map(v => (
-            <button key={v.id} onClick={() => setViewMode(v.id)}
-              className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all",
-                viewMode === v.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}>
-              {v.icon} {v.label}
-              {v.id === "table" && <span className="ml-1 rounded-full bg-muted px-1.5 text-[10px] font-mono">{filteredEntries.length}</span>}
-            </button>
+      {/* Filters */}
+      <div className="print-hide space-y-3 rounded-2xl border border-border/70 bg-card p-3 shadow-sm">
+        <div className="m3-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Period">
+          {PERIODS.map((p) => (
+            <button key={p.id} onClick={() => setPeriod(p.id)} aria-pressed={period === p.id} className={chip(period === p.id)}>{p.label}</button>
           ))}
         </div>
-
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          {/* Search */}
-          <div className="relative min-w-[180px] flex-1">
+        {period === "custom" && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <input type="date" aria-label="From date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-full border border-outline-variant bg-surface-low px-3 outline-none focus:border-primary" />
+            <span className="text-muted-foreground">to</span>
+            <input type="date" aria-label="To date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-full border border-outline-variant bg-surface-low px-3 outline-none focus:border-primary" />
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-[12rem_14rem_1fr]">
+          <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} className={select}>
+            <option value="all">Everyone</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          <select aria-label="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} className={select}>
+            <option value="all">All customers</option>
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <div className="relative col-span-2 lg:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input id="accountant-search-input" type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search…" className="w-full rounded-full border border-border bg-background pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, customers, notes…" aria-label="Search entries" className="h-9 w-full rounded-full border border-outline-variant bg-surface-low pl-8 pr-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
           </div>
-
-          {/* Dropdowns */}
-          {[
-            { value: filterCustomer, onChange: setFilterCustomer, options: [["all","All clients"], ...customers.map(c => [c.id, c.name])] as [string,string][] },
-            { value: filterUser,     onChange: setFilterUser,     options: [["all","All staff"],   ...users.map(u => [u.id, u.name])] as [string,string][] },
-            { value: filterBillable, onChange: setFilterBillable, options: [["all","Billable & non"], ["billable","Billable only"], ["non_billable","Non-billable"]] as [string,string][] },
-            { value: filterStatus,   onChange: setFilterStatus,   options: [["all","All statuses"], ["draft","Draft"], ["submitted","Submitted"], ["approved","Approved"], ["exported","Exported"]] as [string,string][] },
-          ].map((f, i) => (
-            <select key={i} value={f.value} onChange={e => f.onChange(e.target.value)}
-              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer">
-              {f.options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          ))}
-
-          {hasFilters && (
-            <button onClick={() => { setFilterCustomer("all"); setFilterUser("all"); setFilterBillable("all"); setFilterStatus("all"); setSearchQuery(""); }}
-              className="rounded-full text-xs font-semibold text-primary hover:underline px-2">
-              Clear
-            </button>
-          )}
         </div>
       </div>
 
-      {/* ── Success Banner ── */}
-      {successMsg && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/40 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          {successMsg}
+      {/* Pipeline */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
+        {card("review", "To review", stats.review.n, stats.review.m, "text-primary", <Send className="h-3.5 w-3.5" />)}
+        {card("flagged", "Edited / flagged", stats.flagged.n, stats.flagged.m, "text-destructive", <Flag className="h-3.5 w-3.5" />)}
+        {card("approved", "Approved", stats.approved.n, stats.approved.m, "text-tertiary", <BadgeCheck className="h-3.5 w-3.5" />)}
+        {card("exported", "Exported", stats.exported.n, stats.exported.m, "text-secondary", <CheckCircle2 className="h-3.5 w-3.5" />)}
+        <div className="col-span-2 flex flex-col gap-1 rounded-2xl border border-border/70 bg-card p-3 sm:p-4 lg:col-span-1">
+          <span className="m3-label">Billable value</span>
+          <span className="m3-metric text-2xl leading-none">{money(stats.amount)}</span>
+          <span className="text-xs text-muted-foreground">
+            {hrs(stats.billable)} of {hrs(stats.total)} h billable{stats.total ? ` · ${Math.round((stats.billable / stats.total) * 100)}%` : ""}
+          </span>
         </div>
-      )}
+      </div>
 
-      {/* ── Batch Action Bar ── */}
-      {selectedEntryIds.size > 0 && viewMode === "table" && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-primary-foreground shadow-lg">
-          <span className="text-xs font-bold">{selectedEntryIds.size} selected</span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => handleUpdateStatus("approved")}
-              className="flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-semibold hover:bg-white/30 transition">
-              <Check className="h-3.5 w-3.5" /> Approve
-            </button>
-            <button onClick={() => handleUpdateStatus("exported")}
-              className="flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-semibold hover:bg-white/30 transition">
-              <FileSpreadsheet className="h-3.5 w-3.5" /> Mark Exported
-            </button>
-            <button onClick={() => setSelectedEntryIds(new Set())}
-              className="rounded-full px-2.5 py-1.5 text-xs text-primary-foreground/60 hover:text-white transition">
-              Clear
-            </button>
+      {/* Needs attention */}
+      {issueCounts.any > 0 && (
+        <section className="rounded-2xl border border-warning/40 bg-warning-container/30 p-3 sm:p-4" aria-label="Needs attention">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <h2 className="text-sm font-semibold">Worth a second look</h2>
+            <span className="text-xs text-muted-foreground">Automatic checks on this period — click one to filter.</span>
+            {issueFilter && <button onClick={() => setIssueFilter(null)} className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-primary"><X className="h-3 w-3" />Clear</button>}
           </div>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(ISSUES) as Issue[]).filter((i) => issueCounts.c[i] > 0).map((i) => (
+              <button
+                key={i}
+                title={ISSUES[i].help}
+                onClick={() => setIssueFilter(issueFilter === i ? null : i)}
+                aria-pressed={issueFilter === i}
+                className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ring-border transition", ISSUES[i].tone, issueFilter === i && "ring-2 ring-primary")}
+              >
+                {ISSUES[i].label}<span className="rounded-full bg-background/60 px-1.5 font-mono text-[11px]">{issueCounts.c[i]}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Quick approve */}
+      {cleanReady.length > 0 && (
+        <div className="print-hide flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-tertiary/30 bg-tertiary-container/30 px-4 py-3">
+          <p className="text-sm"><span className="font-semibold">{cleanReady.length}</span> submitted {cleanReady.length === 1 ? "entry has" : "entries have"} no issues and {cleanReady.length === 1 ? "is" : "are"} ready to approve.</p>
+          <button onClick={() => setStatusFor(cleanReady.map((e) => e.id), "approved", `Approved ${cleanReady.length} clean ${cleanReady.length === 1 ? "entry" : "entries"}.`)} data-testid="approve-clean" className="inline-flex h-9 items-center gap-2 rounded-full bg-tertiary px-4 text-xs font-semibold text-tertiary-foreground transition hover:brightness-110">
+            <CheckCheck className="h-4 w-4" />Approve all clean
+          </button>
         </div>
       )}
 
-      {/* ── TABLE VIEW ── */}
-      {viewMode === "table" && (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="select-none border-b border-border/60 bg-muted/50 text-[11px] font-medium text-muted-foreground">
-                <tr>
-                  <th className="py-3 px-4 w-10">
-                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="rounded text-primary border-input" />
-                  </th>
-                  {[
-                    { label: "Date",     field: "date" as const },
-                    { label: "Staff",    field: "userName" as const },
-                    { label: "Client / Job", field: "customerName" as const },
-                  ].map(col => (
-                    <th key={col.field} onClick={() => toggleSort(col.field)} className="cursor-pointer py-3 px-3 hover:text-foreground">
-                      <div className="flex items-center gap-1">{col.label} <ArrowUpDown className="h-3 w-3" /></div>
-                    </th>
-                  ))}
-                  <th className="py-3 px-3">Service</th>
-                  <th className="py-3 px-3">Location</th>
-                  <th onClick={() => toggleSort("durationMinutes")} className="cursor-pointer py-3 px-3 text-right hover:text-foreground">
-                    <div className="flex items-center justify-end gap-1">Duration <ArrowUpDown className="h-3 w-3" /></div>
-                  </th>
-                  <th className="py-3 px-3 text-center">Bill</th>
-                  <th className="py-3 px-3">Status</th>
+      {/* View tabs */}
+      <div className="print-hide flex gap-1 self-start rounded-full bg-surface-container p-1" role="tablist">
+        {([["entries", `Entries (${visible.length})`], ["people", "By person"], ["customers", "By customer"]] as [View, string][]).map(([v, l]) => (
+          <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cn("rounded-full px-4 py-1.5 text-xs font-semibold transition", view === v ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>{l}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="h-64 animate-pulse rounded-2xl border border-border/70 bg-surface-low" />
+      ) : view === "entries" ? (
+        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+          <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-14rem)] min-h-[12rem] overflow-auto">
+            <table className="stack-table w-full min-w-[64rem] border-separate border-spacing-0 text-left text-[13px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-r [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-2 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground [&_th:last-child]:border-r-0">
+                  <th className="w-10 text-center"><input type="checkbox" aria-label="Select all" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(visible.map((e) => e.id)))} className="h-4 w-4 accent-[hsl(var(--primary))]" /></th>
+                  <th className="w-28">Date</th><th className="w-36">Person</th><th>Customer · project</th><th className="w-44">Task</th>
+                  <th className="w-20 text-right">Hours</th><th className="w-24 text-right">Value</th><th className="w-28">Status</th><th className="w-48">Issues</th><th className="w-28" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
-                {loading ? (
-                  <tr><td colSpan={9} className="py-16 text-center text-sm text-muted-foreground">Loading…</td></tr>
-                ) : filteredEntries.length === 0 ? (
-                  <tr><td colSpan={9} className="py-16 text-center text-sm text-muted-foreground">No entries for this period</td></tr>
-                ) : filteredEntries.map(e => {
-                  const checked = selectedEntryIds.has(e.id);
-                  const locIcon = e.locationType === "on_site" ? <MapPin className="h-3 w-3" />
-                    : e.locationType === "office" ? <Building className="h-3 w-3" />
-                    : e.locationType === "remote" ? <Laptop className="h-3 w-3" />
-                    : <Car className="h-3 w-3" />;
-                  const locCls = e.locationType === "on_site"  ? "bg-tertiary-container/60 text-tertiary-on-container"
-                    : e.locationType === "office" ? "bg-primary-container text-primary-on-container"
-                    : e.locationType === "remote" ? "bg-secondary-container text-secondary-on-container"
-                    : "bg-muted text-muted-foreground";
+              <tbody className="[&_td]:border-b [&_td]:border-border/70">
+                {visible.map((e) => {
+                  const list = issues.get(e.id) ?? [];
+                  const open = e.status === "submitted" || e.status === "draft";
                   return (
-                    <tr key={e.id} className={cn("transition-colors", checked ? "bg-primary/[0.06]" : "hover:bg-muted/30")}>
-                      <td className="py-3 px-4">
-                        <input type="checkbox" checked={checked} onChange={() => toggleSelectEntry(e.id)} className="rounded text-primary border-input" />
+                    <tr key={e.id} className={cn("hover:bg-surface-low", e.flagged && "bg-destructive/[0.04]", picked.has(e.id) && "bg-primary/5")}>
+                      <td className="text-center"><input type="checkbox" aria-label={`Select ${e.customerName} ${e.date}`} checked={picked.has(e.id)} onChange={() => toggle(e.id)} className="h-4 w-4 accent-[hsl(var(--primary))]" /></td>
+                      <td data-label="Date" className="whitespace-nowrap px-2 py-2 font-mono text-xs">{e.date}</td>
+                      <td data-label="Person" className="px-2 py-2">{e.userName}</td>
+                      <td data-label="Customer · project" className="span-2 px-2 py-2">
+                        <div className="font-medium">{e.customerName}{e.jobName && <span className="font-normal text-muted-foreground"> · {e.jobName}</span>}</div>
+                        {e.notes && <div className="max-w-md truncate text-xs text-muted-foreground">{e.notes}</div>}
                       </td>
-                      <td className="py-3 px-3 font-mono text-foreground whitespace-nowrap">{e.date}</td>
-                      <td className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">{e.userName}</td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-foreground">{e.customerName}</div>
-                        {e.jobName && <div className="text-[11px] text-muted-foreground">· {e.jobName}</div>}
+                      <td data-label="Task" className="px-2 py-2 text-muted-foreground">{e.serviceItemName}</td>
+                      <td data-label="Hours" className="px-2 py-2 text-right font-mono tabular-nums">{hrs(e.durationMinutes)}{!e.isBillable && <span className="ml-1 text-[10px] text-muted-foreground">non-bill</span>}</td>
+                      <td data-label="Value" className="px-2 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">{e.isBillable ? money((e.durationMinutes / 60) * (rate.get(e.userId) ?? 0)) : "—"}</td>
+                      <td data-label="Status" className="px-2 py-2"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}>{e.status}</span></td>
+                      <td data-label="Issues" className="span-2 px-2 py-2">
+                        {list.length === 0 ? <span className="text-xs text-muted-foreground/60">—</span> : (
+                          <div className="flex flex-wrap gap-1">
+                            {list.map((i) => <span key={i} title={i === "edited" ? e.flagReason ?? ISSUES[i].help : ISSUES[i].help} className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", ISSUES[i].tone)}>{ISSUES[i].short}</span>)}
+                          </div>
+                        )}
+                        {e.flagged && e.flagReason && <div className="mt-1 text-[11px] leading-snug text-destructive">{e.flagReason}</div>}
                       </td>
-                      <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">{e.serviceItemName}</td>
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", locCls)}>
-                          {locIcon} <span className="capitalize">{e.locationType.replace("_"," ")}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
-                        {formatQuickBooksDuration(e.durationMinutes)}
-                        <span className="ml-1 text-[10px] text-muted-foreground">({(e.durationMinutes/60).toFixed(2)}h)</span>
-                      </td>
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
-                        {e.isBillable
-                          ? <span className="rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:text-green-300">Yes</span>
-                          : <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">No</span>}
-                      </td>
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <select value={e.status}
-                          onChange={ev => handleUpdateStatus(ev.target.value as "draft"|"submitted"|"approved"|"exported", [e.id])}
-                          className={cn("cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-primary/25 transition-colors",
-                            e.status === "approved" ? "border-transparent bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
-                            : e.status === "exported" ? "border-transparent bg-primary/10 text-primary"
-                            : "border-transparent bg-muted text-foreground"
-                          )}>
-                          <option value="draft">Draft</option>
-                          <option value="submitted">Submitted</option>
-                          <option value="approved">Approved</option>
-                          <option value="exported">Exported</option>
-                        </select>
+                      <td className="actions-cell px-2 py-2">
+                        <div className="flex justify-end gap-1">
+                          {open ? (
+                            <button onClick={() => setStatusFor([e.id], "approved", "Approved.")} className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"><CheckCircle2 className="h-3.5 w-3.5" />Approve</button>
+                          ) : (
+                            <button onClick={() => setStatusFor([e.id], "submitted", "Sent back for review.")} title="Reopen — sends it back to submitted" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><RotateCcw className="h-3.5 w-3.5" />Reopen</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
+                {visible.length === 0 && (
+                  <tr className="group-row"><td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">Nothing matches these filters.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
+          <div className="border-t border-border/70 px-4 py-2 text-xs text-muted-foreground">
+            {visible.length} {visible.length === 1 ? "entry" : "entries"} · {hrs(visible.reduce((n, e) => n + e.durationMinutes, 0))} h
+          </div>
+        </section>
+      ) : (
+        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+          <div className="stack-table-wrap m3-scroll overflow-auto">
+            <table className="stack-table w-full min-w-[40rem] border-separate border-spacing-0 text-left text-[13px]">
+              <thead>
+                <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-3 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground">
+                  <th>{view === "people" ? "Person" : "Customer"}</th><th className="text-right">Hours</th><th className="text-right">Billable</th><th className="text-right">Value</th>
+                  <th>{view === "people" ? "Entries" : "Projects"}</th>
+                </tr>
+              </thead>
+              <tbody className="[&_td]:border-b [&_td]:border-border/70">
+                {view === "people"
+                  ? byPerson.map((r) => (
+                      <tr key={r.name}>
+                        <td data-label="Person" className="span-2 px-3 py-2.5 font-medium">{r.name}</td>
+                        <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.total)}</td>
+                        <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.billable)}</td>
+                        <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>
+                        <td data-label="Entries" className="px-3 py-2.5 text-xs text-muted-foreground">{r.n}{r.flagged > 0 && <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">{r.flagged} flagged</span>}</td>
+                      </tr>
+                    ))
+                  : byCustomer.map((r) => (
+                      <tr key={r.name}>
+                        <td data-label="Customer" className="span-2 px-3 py-2.5 font-medium">{r.name}</td>
+                        <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.total)}</td>
+                        <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.billable)}</td>
+                        <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>
+                        <td data-label="Projects" className="span-2 px-3 py-2.5 text-xs text-muted-foreground">{Array.from(r.jobs).map(([j, m]) => `${j} ${hrs(m)}h`).join(" · ")}</td>
+                      </tr>
+                    ))}
+                {(view === "people" ? byPerson : byCustomer).length === 0 && (
+                  <tr className="group-row"><td colSpan={5} className="py-12 text-center text-sm text-muted-foreground">No time in this period.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Bulk bar */}
+      {picked.size > 0 && (
+        <div role="region" aria-label="Selected entries" className="print-hide fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-2xl flex-wrap items-center gap-2 rounded-2xl bg-foreground px-4 py-3 text-background shadow-2xl">
+          <span className="mr-auto text-sm font-semibold">{picked.size} selected</span>
+          <button onClick={() => setStatusFor(Array.from(picked), "approved")} className="rounded-full bg-background/15 px-3 py-1.5 text-xs font-semibold hover:bg-background/25">Approve</button>
+          <button onClick={() => setStatusFor(Array.from(picked), "exported")} className="rounded-full bg-background/15 px-3 py-1.5 text-xs font-semibold hover:bg-background/25">Mark exported</button>
+          <button onClick={() => setStatusFor(Array.from(picked), "submitted")} className="rounded-full bg-background/15 px-3 py-1.5 text-xs font-semibold hover:bg-background/25">Reopen</button>
+          <button onClick={() => setPicked(new Set())} aria-label="Clear selection" className="rounded-full p-1.5 hover:bg-background/15"><X className="h-4 w-4" /></button>
         </div>
       )}
 
-      {/* ── CUSTOMER SUMMARY ── */}
-      {viewMode === "customer_summary" && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {customerBreakdown.map(cust => {
-            const hours = cust.totalMinutes / 60;
-            const billPct = cust.totalMinutes > 0 ? (cust.billableMinutes / cust.totalMinutes) * 100 : 0;
-            const jobs = Array.from(cust.jobs.values());
-            return (
-              <div key={cust.customerId} className="rounded-2xl border border-border bg-card p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="font-bold text-foreground">{cust.customerName}</h3>
-                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-mono font-bold text-primary">
-                    ${cust.revenue.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}
-                  </span>
-                </div>
-                <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>{hours.toFixed(1)}h</span>
-                  <span>·</span>
-                  <span>{billPct.toFixed(0)}% billable</span>
-                </div>
-                <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100,billPct)}%` }} />
-                </div>
-                <div className="space-y-1.5 border-t border-border/40 pt-3">
-                  {jobs.map((j,i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground truncate max-w-[200px]">{j.jobName}</span>
-                      <span className="font-mono font-semibold text-foreground">{(j.minutes/60).toFixed(1)}h</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          {customerBreakdown.length === 0 && (
-            <div className="col-span-2 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">No data</div>
-          )}
-        </div>
-      )}
-
-      {/* ── STAFF SUMMARY ── */}
-      {viewMode === "staff_summary" && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {staffBreakdown.map(s => {
-            const hours = s.totalMinutes / 60;
-            const billH = s.billableMinutes / 60;
-            const utilPct = s.totalMinutes > 0 ? (s.billableMinutes / s.totalMinutes) * 100 : 0;
-            const rate = userRateMap.get(s.userId) || 145;
-            return (
-              <div key={s.userId} className="rounded-2xl border border-border bg-card p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-bold text-foreground">{s.userName}</h3>
-                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">${rate}/hr</span>
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total</span>
-                    <span className="font-mono font-bold">{hours.toFixed(1)}h</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Billable</span>
-                    <span className="font-mono font-bold text-green-700 dark:text-green-400">{billH.toFixed(1)}h</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100,utilPct)}%` }} />
-                  </div>
-                  <div className="flex justify-between pt-1 border-t border-border/40">
-                    <span className="text-muted-foreground">Revenue</span>
-                    <span className="font-mono font-bold">${s.revenue.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {staffBreakdown.length === 0 && (
-            <div className="col-span-3 rounded-2xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">No data</div>
-          )}
+      {toast && (
+        <div role="status" className="print-hide fixed inset-x-3 bottom-20 z-50 mx-auto flex max-w-xl animate-m3-rise items-center gap-3 rounded-2xl bg-foreground px-4 py-3 text-sm text-background shadow-2xl">
+          <span className="flex-1">{toast.text}</span>
+          {toast.action && <button onClick={() => { toast.action!.run(); }} className="shrink-0 rounded-full bg-background/20 px-3 py-1 text-xs font-semibold hover:bg-background/30">{toast.action.label}</button>}
+          <button onClick={() => setToast(null)} aria-label="Dismiss" className="shrink-0 rounded-full p-1 hover:bg-background/15"><X className="h-4 w-4" /></button>
         </div>
       )}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <RequireManager>
+      <AccountantPage />
+    </RequireManager>
   );
 }

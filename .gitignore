@@ -37,3 +37,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# local embedded database
+/.data/
