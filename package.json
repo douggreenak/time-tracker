@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "node scripts/test-quickbooks-export.mjs && node scripts/verify-setup.mjs",
+    "test:build": "npm run test && npm run build",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

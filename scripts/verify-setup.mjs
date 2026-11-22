@@ -66,9 +66,21 @@ if (iifContent.startsWith("!TIMEACT\tDATE\tJOB\tEMP\tITEM\tPITEM\tDURATION\tNOTE
   allDocsPresent = false;
 }
 
-if (allDocsPresent && allPagesPresent) {
-  console.log("\n🎉 ALL ARCHITECTURE, ROUTES, DOCS & EXPORT ENGINES VERIFIED SUCCESSFULLY!");
+// 4. Validate TypeScript types & compilation
+console.log("\n--- Checking TypeScript types & build validity ---");
+let typeCheckPassed = true;
+try {
+  const { execSync } = await import("child_process");
+  execSync("npx tsc --noEmit", { stdio: "inherit" });
+  console.log("✅ TypeScript type checking passed with 0 errors!");
+} catch (err) {
+  console.error("❌ TypeScript compilation error detected!");
+  typeCheckPassed = false;
+}
+
+if (allDocsPresent && allPagesPresent && typeCheckPassed) {
+  console.log("\n🎉 ALL ARCHITECTURE, ROUTES, DOCS, TYPES & EXPORT ENGINES VERIFIED SUCCESSFULLY!");
 } else {
-  console.error("\n⚠️ Verification failed for some files.");
+  console.error("\n⚠️ Verification failed.");
   process.exit(1);
 }

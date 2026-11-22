@@ -655,10 +655,10 @@ export default function AccountantPage() {
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         <select
                           value={e.status}
-                          onChange={(e) =>
+                          onChange={(evt) =>
                             handleUpdateStatus(
-                              e.target.value as any,
-                              [e.target.value as any, e.id]
+                              evt.target.value as "submitted" | "approved" | "exported",
+                              [e.id]
                             )
                           }
                           className={`text-[11px] font-bold rounded-lg px-2 py-1 border transition focus:outline-none ${
