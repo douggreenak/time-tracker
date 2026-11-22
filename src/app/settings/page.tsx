@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Building, Briefcase, Users, CheckCircle, AlertCircle, RefreshCw, Layers } from "lucide-react";
+import { Building, Briefcase, Users, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { CustomerItem, ServiceItem, UserItem } from "@/db/mock-data";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/components/ui";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<"customers" | "services" | "employees">("customers");
@@ -12,15 +19,12 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // New Customer Form State
   const [newCustName, setNewCustName] = useState("");
   const [newCustQbName, setNewCustQbName] = useState("");
 
-  // New Job Form State
   const [selectedCustomerIdForJob, setSelectedCustomerIdForJob] = useState("");
   const [newJobName, setNewJobName] = useState("");
 
-  // New Service Item Form State
   const [newServiceName, setNewServiceName] = useState("");
   const [newServiceQbName, setNewServiceQbName] = useState("");
   const [newServiceBillable, setNewServiceBillable] = useState(true);
@@ -134,23 +138,22 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border/60 mb-6">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold mb-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-secondary text-primary-foreground text-xs font-semibold mb-2 border border-border/60">
             <span>QuickBooks Master Directory</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
             Directory & Service Item Mapping
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Manage Clients, Customer:Job hierarchies, QuickBooks Service Items, and Engineer Rates
           </p>
         </div>
       </div>
 
       {feedback && (
-        <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-2xs">
+        <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{feedback}</span>
@@ -161,177 +164,169 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Navigation tabs: Material Expressive Segmented Pills */}
-      <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/60 shadow-2xs mb-6 max-w-md">
+      <div className="flex items-center gap-1.5 bg-muted/60 p-1.5 rounded-xl border border-border/60 shadow-xs mb-6 max-w-md">
         <button
           onClick={() => setActiveTab("customers")}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-            activeTab === "customers" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+            activeTab === "customers" ? "bg-background text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Customers & Jobs
         </button>
         <button
           onClick={() => setActiveTab("services")}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-            activeTab === "services" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+            activeTab === "services" ? "bg-background text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Service Items
         </button>
         <button
           onClick={() => setActiveTab("employees")}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-            activeTab === "employees" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+            activeTab === "employees" ? "bg-background text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Engineers & Staff
         </button>
       </div>
 
-      {/* TAB 1: CUSTOMERS & JOBS */}
       {activeTab === "customers" && (
         <div className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Create Customer */}
-            <form onSubmit={handleCreateCustomer} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-              <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Building className="w-4 h-4 text-emerald-600" />
+            <form onSubmit={handleCreateCustomer} className="bg-background rounded-xl border border-border/60 shadow-sm p-6">
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+                <Building className="w-4 h-4 text-primary" />
                 <span>Add New Customer</span>
               </h3>
               <div className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Customer / Client Name *</label>
-                  <input
+                  <Label>Customer / Client Name</Label>
+                  <Input
                     type="text"
                     required
                     placeholder="e.g. Apex Energy Solutions"
                     value={newCustName}
                     onChange={(e) => setNewCustName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">QuickBooks Name (if different)</label>
-                  <input
+                  <Label>QuickBooks Name (if different)</Label>
+                  <Input
                     type="text"
                     placeholder="Exact name in QuickBooks Desktop"
                     value={newCustQbName}
                     onChange={(e) => setNewCustQbName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
                   />
                 </div>
-                <button
+                <Button
                   type="submit"
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  className="w-full py-3"
                 >
                   Create Customer
-                </button>
+                </Button>
               </div>
             </form>
 
-            {/* Create Sub-Job */}
-            <form onSubmit={handleCreateJob} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-              <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-indigo-600" />
+            <form onSubmit={handleCreateJob} className="bg-background rounded-xl border border-border/60 shadow-sm p-6">
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-primary" />
                 <span>Add Sub-Job / Phase</span>
               </h3>
               <div className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Parent Customer *</label>
-                  <select
+                  <Label>Parent Customer</Label>
+                  <Select
                     value={selectedCustomerIdForJob}
                     onChange={(e) => setSelectedCustomerIdForJob(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   >
                     {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
+                      <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Job / Phase Name *</label>
-                  <input
+                  <Label>Job / Phase Name</Label>
+                  <Input
                     type="text"
                     required
                     placeholder="e.g. Unit 4 Turbine Upgrade"
                     value={newJobName}
                     onChange={(e) => setNewJobName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Exports to QB Desktop as <code>Customer:Job</code></p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Exports to QB Desktop as <code>Customer:Job</code>
+                  </p>
                 </div>
-                <button
+                <Button
                   type="submit"
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  className="w-full py-3"
                 >
                   Create Sub-Job
-                </button>
+                </Button>
               </div>
             </form>
           </div>
 
-          {/* Directory List */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-            <div className="p-4 bg-slate-50/70 border-b border-slate-200/60 font-bold text-xs uppercase tracking-wider text-slate-600">
-              Active Customers &amp; Sub-Jobs ({customers.length})
-            </div>
-            <div className="divide-y divide-slate-100">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  Active Customers & Sub-Jobs ({customers.length})
+                </h3>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 divide-y divide-border">
               {customers.map((c) => (
                 <div key={c.id} className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-slate-900 text-sm">{c.name}</span>
-                      <span className="text-[11px] text-slate-400 ml-2 font-mono">QB: {c.qbName}</span>
+                      <span className="font-semibold text-foreground text-sm">{c.name}</span>
+                      <span className="text-[11px] text-muted-foreground ml-2 font-mono">QB: {c.qbName}</span>
                     </div>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                    <Badge variant="secondary" className="text-xs px-2.5 py-0.5">
                       Active
-                    </span>
+                    </Badge>
                   </div>
                   {c.jobs.length > 0 && (
-                    <div className="mt-3 pl-4 border-l-2 border-indigo-200 space-y-1.5">
+                    <div className="mt-3 pl-4 border-l-2 border-primary/20 space-y-1.5">
                       {c.jobs.map((j) => (
-                        <div key={j.id} className="text-xs text-slate-600 flex items-center gap-2">
-                          <span className="font-mono text-indigo-600 font-semibold">↳ {j.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">({j.fullQbJobName})</span>
+                        <div key={j.id} className="text-xs text-muted-foreground flex items-center gap-2">
+                          <span className="font-mono text-primary font-semibold">↳ {j.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">({j.fullQbJobName})</span>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               ))}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* TAB 2: SERVICE ITEMS */}
       {activeTab === "services" && (
         <div className="space-y-6">
-          <form onSubmit={handleCreateServiceItem} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] max-w-xl">
-            <h3 className="text-sm font-bold text-slate-900 mb-4">Add QuickBooks Service Item</h3>
+          <form onSubmit={handleCreateServiceItem} className="bg-background rounded-xl border border-border/60 shadow-sm p-6 max-w-xl">
+            <h3 className="text-sm font-bold text-foreground mb-4">Add QuickBooks Service Item</h3>
             <div className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Service Item Name *</label>
-                <input
+                <Label>Service Item Name</Label>
+                <Input
                   type="text"
                   required
                   placeholder="e.g. Field Engineering & Inspection"
                   value={newServiceName}
                   onChange={(e) => setNewServiceName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">QuickBooks Item Name (Exact)</label>
-                <input
+                <Label>QuickBooks Item Name (Exact)</Label>
+                <Input
                   type="text"
                   placeholder="Item name in QuickBooks Item List"
                   value={newServiceQbName}
                   onChange={(e) => setNewServiceQbName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
                 />
               </div>
               <div className="flex items-center gap-2 pt-1">
@@ -340,78 +335,83 @@ export default function SettingsPage() {
                   id="billable-check"
                   checked={newServiceBillable}
                   onChange={(e) => setNewServiceBillable(e.target.checked)}
-                  className="rounded text-emerald-600 border-slate-300"
+                  className="rounded text-primary border-input"
                 />
-                <label htmlFor="billable-check" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                <Label htmlFor="billable-check" className="text-xs font-semibold text-foreground cursor-pointer">
                   Default to Billable
-                </label>
+                </Label>
               </div>
-              <button
+              <Button
                 type="submit"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                className="w-full py-3"
               >
                 Create Service Item
-              </button>
+              </Button>
             </div>
           </form>
 
-          <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-            <div className="p-4 bg-slate-50/70 border-b border-slate-200/60 font-bold text-xs uppercase tracking-wider text-slate-600">
-              Active QuickBooks Service Items ({serviceItems.length})
-            </div>
-            <div className="divide-y divide-slate-100">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  Active QuickBooks Service Items ({serviceItems.length})
+                </h3>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 divide-y divide-border">
               {serviceItems.map((s) => (
                 <div key={s.id} className="p-4 flex items-center justify-between text-xs">
                   <div>
-                    <div className="font-bold text-slate-900">{s.name}</div>
-                    <div className="text-slate-400 font-mono text-[10px]">QB Item: {s.qbItemName}</div>
+                    <div className="font-semibold text-foreground">{s.name}</div>
+                    <div className="text-muted-foreground font-mono text-[10px]">QB Item: {s.qbItemName}</div>
                   </div>
                   <div>
                     {s.defaultBillable ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                        Billable
-                      </span>
+                      <Badge variant="secondary" className="text-xs px-2.5 py-0.5">Billable</Badge>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">
+                      <span className="px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold text-xs">
                         Non-billable
                       </span>
                     )}
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* TAB 3: EMPLOYEES & RATES */}
       {activeTab === "employees" && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-          <div className="p-4 bg-slate-50/70 border-b border-slate-200/60 font-bold text-xs uppercase tracking-wider text-slate-600">
-            Registered Engineers &amp; Billing Rates ({users.length})
-          </div>
-          <div className="divide-y divide-slate-100">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Registered Engineers & Billing Rates ({users.length})
+              </h3>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 divide-y divide-border">
             {users.map((u) => (
               <div key={u.id} className="p-5 flex items-center justify-between text-xs">
                 <div>
-                  <div className="font-bold text-slate-900 text-sm">{u.name}</div>
-                  <div className="text-slate-500">{u.email}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  <div className="font-semibold text-foreground text-sm">{u.name}</div>
+                  <div className="text-muted-foreground">{u.email}</div>
+                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
                     QuickBooks Employee: {u.qbEmployeeName}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono font-bold text-slate-900 text-sm">
+                  <div className="font-mono font-bold text-foreground text-sm">
                     ${Number(u.defaultHourlyRate).toFixed(2)}/hr
                   </div>
-                  <span className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  <Badge variant="secondary" className="text-[10px] px-2.5 py-0.5 uppercase tracking-wider">
                     {u.role}
-                  </span>
+                  </Badge>
                 </div>
               </div>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

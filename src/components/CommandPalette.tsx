@@ -16,6 +16,9 @@ import {
   ArrowRight,
   HelpCircle,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui";
 
 export function CommandPalette() {
   const { isPaletteOpen, setIsPaletteOpen, setIsHelpOpen } = useKeyboardShortcuts();
@@ -37,7 +40,7 @@ export function CommandPalette() {
       id: "nav-engineer",
       title: "Go to Engineer View",
       subtitle: "Stopwatch timer, GPS site tagging & manual logs",
-      icon: <HardHat className="w-4 h-4 text-emerald-600" />,
+      icon: <HardHat className="w-4 h-4 text-primary" />,
       shortcut: "1",
       perform: () => router.push("/engineer"),
     },
@@ -45,7 +48,7 @@ export function CommandPalette() {
       id: "nav-accountant",
       title: "Go to Accountant View",
       subtitle: "Audits, time period calculations & QuickBooks exports",
-      icon: <BarChart3 className="w-4 h-4 text-indigo-600" />,
+      icon: <BarChart3 className="w-4 h-4 text-primary" />,
       shortcut: "2",
       perform: () => router.push("/accountant"),
     },
@@ -53,7 +56,7 @@ export function CommandPalette() {
       id: "nav-settings",
       title: "Go to Directory & Settings",
       subtitle: "QuickBooks customers, sub-jobs & service items",
-      icon: <Settings className="w-4 h-4 text-slate-600" />,
+      icon: <Settings className="w-4 h-4 text-muted-foreground" />,
       shortcut: "3",
       perform: () => router.push("/settings"),
     },
@@ -122,17 +125,16 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-slate-900/40 backdrop-blur-sm"
       onClick={() => setIsPaletteOpen(false)}
     >
       <div
-        className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden transform transition-all"
+        className="w-full max-w-xl bg-background rounded-xl shadow-2xl border border-border/60 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search Input Bar */}
-        <div className="px-5 py-4 flex items-center gap-3 border-b border-slate-100">
-          <Search className="w-5 h-5 text-slate-400 shrink-0" />
-          <input
+        <div className="px-5 py-4 flex items-center gap-3 border-b border-border/40">
+          <Search className="w-5 h-5 text-muted-foreground shrink-0" />
+          <Input
             ref={inputRef}
             type="text"
             value={query}
@@ -141,18 +143,17 @@ export function CommandPalette() {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search commands, views, or exports... (Arrow keys to navigate)"
-            className="w-full text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none"
+            placeholder="Search commands, views, or exports..."
+            className="w-full text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none bg-transparent pl-0"
           />
-          <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-400 bg-slate-100 rounded border">
+          <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold text-muted-foreground bg-muted rounded border">
             Esc
           </kbd>
         </div>
 
-        {/* Results List */}
         <div className="p-2 max-h-80 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-400">
+            <div className="py-8 text-center text-sm text-muted-foreground">
               No commands matching "{query}"
             </div>
           ) : (
@@ -166,26 +167,27 @@ export function CommandPalette() {
                     item.perform();
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`px-4 py-3 rounded-2xl flex items-center justify-between cursor-pointer transition ${
-                    isSelected ? "bg-slate-100/90 text-slate-900" : "text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={cn(
+                    "px-4 py-3 rounded-xl flex items-center justify-between cursor-pointer transition",
+                    isSelected ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
+                  )}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-white shadow-xs border border-slate-200 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center border border-border/40">
                       {item.icon}
                     </div>
                     <div>
-                      <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                      <div className="text-xs text-slate-400">{item.subtitle}</div>
+                      <div className="text-sm font-semibold text-foreground">{item.title}</div>
+                      <div className="text-xs text-muted-foreground">{item.subtitle}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {item.shortcut && (
-                      <kbd className="px-2 py-0.5 text-xs font-mono font-semibold text-slate-500 bg-white border border-slate-200 rounded-md shadow-2xs">
+                      <kbd className="px-2 py-0.5 text-xs font-mono font-semibold text-muted-foreground bg-muted border border-border/40 rounded-md">
                         {item.shortcut}
                       </kbd>
                     )}
-                    <ArrowRight className={`w-4 h-4 text-slate-400 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                    <ArrowRight className={`w-4 h-4 text-muted-foreground ${isSelected ? "opacity-100" : "opacity-0"}`} />
                   </div>
                 </div>
               );
@@ -193,13 +195,12 @@ export function CommandPalette() {
           )}
         </div>
 
-        {/* Palette Footer */}
-        <div className="px-5 py-2.5 bg-slate-50/80 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+        <div className="px-5 py-2.5 bg-muted/50 border-t border-border/40 text-[11px] text-muted-foreground flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span>Navigate: <kbd className="px-1 py-0.2 font-mono bg-white border rounded">↑</kbd> <kbd className="px-1 py-0.2 font-mono bg-white border rounded">↓</kbd></span>
-            <span>Select: <kbd className="px-1 py-0.2 font-mono bg-white border rounded">↵</kbd></span>
+            <span>Navigate: <kbd className="px-1 py-0.2 font-mono bg-background border rounded">↑</kbd> <kbd className="px-1 py-0.2 font-mono bg-background border rounded">↓</kbd></span>
+            <span>Select: <kbd className="px-1 py-0.2 font-mono bg-background border rounded">↵</kbd></span>
           </div>
-          <span>TimeTrack Expressive</span>
+          <span>TimeTrack</span>
         </div>
       </div>
     </div>
