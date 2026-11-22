@@ -129,7 +129,9 @@ export function generateTimeTrackingCSV(entries: ExportableTimeEntry[]): string 
 
   const escapeCSV = (field: string | number | boolean | null | undefined): string => {
     if (field === null || field === undefined) return '""';
-    const str = String(field);
+    let str = String(field);
+    // Stop Excel/Sheets from running text like =HYPERLINK(...) typed into a note as a formula.
+    if (typeof field === "string" && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
     if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
       return `"${str.replace(/"/g, '""')}"`;
     }

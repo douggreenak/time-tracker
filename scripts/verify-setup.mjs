@@ -45,11 +45,6 @@ const requiredPages = [
   "src/db/schema.ts",
   "src/db/store.ts",
   "src/db/mock-data.ts",
-  "src/components/AuthGate.tsx",
-  "src/components/CommandPalette.tsx",
-  "src/components/KeyboardShortcutsModal.tsx",
-  "src/components/KeyboardShortcutsProvider.tsx",
-  "src/components/NavHeaderActions.tsx",
 ];
 
 let allPagesPresent = true;

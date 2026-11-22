@@ -186,6 +186,24 @@ function AccountantPage() {
     [inPeriod, issues]
   );
 
+  const [queryFor, setQueryFor] = useState<string | null>(null);
+  const [queryText, setQueryText] = useState("");
+
+  /** Send an entry back to the engineer with a question; it shows as flagged on their timesheet. */
+  const sendBack = async (id: string) => {
+    const text = queryText.trim();
+    if (!text) return;
+    const res = await fetch(`/api/time-entries/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "submitted", flagged: true, flagReason: `Accountant asks: ${text}`.slice(0, 500) }),
+    });
+    setQueryFor(null);
+    setQueryText("");
+    await load();
+    setToast({ text: res.ok ? "Sent back with your note — it's flagged on their timesheet." : "Couldn't send that back." });
+  };
+
   const setStatusFor = async (ids: string[], next: TimeEntryItem["status"], text?: string) => {
     if (!ids.length) return;
     const results = await Promise.all(
@@ -413,7 +431,29 @@ function AccountantPage() {
                         {e.flagged && e.flagReason && <div className="mt-1 text-[11px] leading-snug text-destructive">{e.flagReason}</div>}
                       </td>
                       <td className="actions-cell px-2 py-2">
+                        {queryFor === e.id && (
+                          <form
+                            onSubmit={(ev) => { ev.preventDefault(); sendBack(e.id); }}
+                            className="mb-1 flex items-center gap-1"
+                          >
+                            <input
+                              autoFocus
+                              value={queryText}
+                              onChange={(ev) => setQueryText(ev.target.value)}
+                              onKeyDown={(ev) => { if (ev.key === "Escape") setQueryFor(null); }}
+                              maxLength={400}
+                              placeholder="Question for them…"
+                              aria-label="Question for the engineer"
+                              className="h-8 min-w-0 flex-1 rounded-full border border-outline-variant bg-surface-low px-3 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+                            />
+                            <button type="submit" disabled={!queryText.trim()} className="inline-flex h-8 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-40"><Send className="h-3.5 w-3.5" />Send</button>
+                            <button type="button" aria-label="Cancel" onClick={() => setQueryFor(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/[0.06]"><X className="h-3.5 w-3.5" /></button>
+                          </form>
+                        )}
                         <div className="flex justify-end gap-1">
+                          {queryFor !== e.id && (
+                            <button onClick={() => { setQueryFor(e.id); setQueryText(""); }} title="Ask the engineer a question about this entry" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><Flag className="h-3.5 w-3.5" />Query</button>
+                          )}
                           {open ? (
                             <button onClick={() => setStatusFor([e.id], "approved", "Approved.")} className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"><CheckCircle2 className="h-3.5 w-3.5" />Approve</button>
                           ) : (

@@ -14,7 +14,7 @@ test("very long names don't break the layout (desktop + phone)", async ({ page }
   await page.getByLabel("New customer name").press("Enter");
   await page.getByLabel("New project name").fill("Phase 3 — Directional boring crossing under the Susitna River floodplain, including permitting");
   await page.getByLabel("New project name").press("Enter");
-  await expect(page.getByLabel("Project name")).toHaveValue(/Directional boring/);
+  await expect(page.locator('input[aria-label="Project name"][value*="Directional boring"]')).toHaveCount(1);
   await shot(page, "x-long-customers");
   await noSideways(page);
   await page.setViewportSize({ width: 390, height: 844 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 import { isManager, requireUser } from "@/lib/auth";
+import { checkDate, checkMinutes, checkNotes, STATUSES } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -82,9 +83,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (!Number.isFinite(Number(durationMinutes)) || Number(durationMinutes) <= 0) {
-      return NextResponse.json({ success: false, error: "Duration must be greater than 0" }, { status: 400 });
-    }
+    const bad = checkMinutes(durationMinutes) || checkDate(date) || checkNotes(notes);
+    if (bad) return NextResponse.json({ success: false, error: bad }, { status: 400 });
+    // Only an accountant/admin can create an entry that is already approved or exported.
+    const newStatus = isManager(g.user) && (STATUSES as readonly string[]).includes(status) ? status : "submitted";
 
     const newEntry = await dataStore.createTimeEntry({
       userId,
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
       longitude: longitude ? Number(longitude) : null,
       notes: notes || "",
       isBillable: isBillable !== undefined ? Boolean(isBillable) : srv?.defaultBillable ?? true,
-      status: status || "submitted",
+      status: newStatus,
     });
 
     return NextResponse.json({ success: true, data: newEntry }, { status: 201 });

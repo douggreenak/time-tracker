@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 import { isManager, requireUser } from "@/lib/auth";
+import { checkDate, checkMinutes, checkNotes, STATUSES } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,21 @@ export async function PUT(
     if (!isManager(g.user)) {
       // Review state is the accountant's; engineers just edit their own details.
       for (const k of ["status", "flagged", "flagReason", "userId"]) delete body[k];
+    }
+    const bad =
+      (body.durationMinutes !== undefined && checkMinutes(body.durationMinutes)) ||
+      (body.date !== undefined && checkDate(body.date)) ||
+      checkNotes(body.notes) ||
+      (body.status !== undefined && !(STATUSES as readonly string[]).includes(body.status) ? "Unknown status." : null);
+    if (bad) return NextResponse.json({ success: false, error: bad }, { status: 400 });
+    if (body.customerId !== undefined || body.serviceItemId !== undefined || body.jobId) {
+      const customers = await dataStore.getCustomers();
+      const cust = customers.find((c) => c.id === (body.customerId ?? current?.customerId));
+      if (!cust) return NextResponse.json({ success: false, error: "Unknown customer." }, { status: 400 });
+      if (body.jobId && !cust.jobs.some((j) => j.id === body.jobId))
+        return NextResponse.json({ success: false, error: "That project doesn't belong to this customer." }, { status: 400 });
+      if (body.serviceItemId !== undefined && !(await dataStore.getServiceItems()).some((s) => s.id === body.serviceItemId))
+        return NextResponse.json({ success: false, error: "Unknown task." }, { status: 400 });
     }
     const updated = await dataStore.updateTimeEntry(params.id, body);
     if (!updated) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Flag, Lock, Plus, Search, Trash2, Undo2 } from "lucide-react";
+import { Copy, Download, Flag, Lock, Plus, Search, Trash2, Undo2 } from "lucide-react";
 import type { CustomerItem, ServiceItem, TimeEntryItem } from "@/db/mock-data";
 import { cn } from "@/components/ui";
 import { Combobox, type ComboOption } from "@/components/ui/combobox";
@@ -407,7 +407,15 @@ export function TimesheetGrid({
         <Stat label="Billable" value={stats.billable} sub={stats.total ? `${Math.round((stats.billable / stats.total) * 100)}%` : undefined} />
         <Stat label="All logged" value={stats.total} />
         <WeekBars entries={entries} />
-        <div className="relative ml-auto w-full sm:w-64">
+        <a
+          href={`/api/export/csv?userId=${userId}`}
+          download
+          title="Download all of your time as a spreadsheet (CSV)"
+          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05] hover:text-foreground max-sm:ml-0"
+        >
+          <Download className="h-3.5 w-3.5" />Export CSV
+        </a>
+        <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}

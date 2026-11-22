@@ -15,6 +15,14 @@ export type Db = PgliteDatabase<typeof schema>;
  * Tables are created automatically; demo data is loaded once into an empty database
  * unless ENABLE_DEMO_DATA=false.
  */
+/** Where data lives: "neon" (hosted Postgres), "local" (file on this machine), or "ephemeral" (lost on restart). */
+export function storageMode(): "neon" | "local" | "ephemeral" {
+  if (process.env.DATABASE_URL?.trim()) return "neon";
+  const dir = process.env.PGLITE_DIR || "";
+  if (process.env.VERCEL || dir.startsWith("memory://")) return "ephemeral";
+  return "local";
+}
+
 const g = globalThis as unknown as { __ttDb?: Promise<Db> };
 
 async function open(): Promise<Db> {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 import { requireUser } from "@/lib/auth";
+import { storageMode } from "@/db/client";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,7 @@ export async function GET() {
   const g = await requireUser();
   if (!g.ok) return g.res;
   try {
-    return NextResponse.json({ success: true, data: { isDemo: await dataStore.isDemo() } });
+    return NextResponse.json({ success: true, data: { isDemo: await dataStore.isDemo(), storage: storageMode() } });
   } catch {
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }

@@ -7,15 +7,25 @@ import { Sparkles } from "lucide-react";
 export function DemoBanner() {
   const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [ephemeral, setEphemeral] = useState(false);
 
   useEffect(() => {
     fetch("/api/demo")
       .then((r) => r.json())
-      .then((j) => setIsDemo(Boolean(j?.data?.isDemo)))
+      .then((j) => {
+        setIsDemo(Boolean(j?.data?.isDemo));
+        setEphemeral(j?.data?.storage === "ephemeral");
+      })
       .catch(() => {});
   }, []);
 
-  if (!isDemo) return null;
+  const warn = ephemeral && (
+    <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-1.5 text-center text-xs font-medium text-destructive">
+      Temporary storage: data on this site will be erased when the server restarts. Connect a database (set DATABASE_URL) to keep it.
+    </div>
+  );
+
+  if (!isDemo) return warn || null;
 
   const clear = async () => {
     if (
@@ -31,6 +41,8 @@ export function DemoBanner() {
   };
 
   return (
+    <>
+    {warn}
     <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-b border-warning/30 bg-warning-container/50 px-4 py-1.5 text-xs text-foreground">
       <span className="inline-flex items-center gap-1.5 font-medium">
         <Sparkles className="h-3.5 w-3.5 text-warning" />
@@ -45,5 +57,6 @@ export function DemoBanner() {
         {busy ? "Clearing…" : "Clear sample data & start fresh"}
       </button>
     </div>
+    </>
   );
 }
