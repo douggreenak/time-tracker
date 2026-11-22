@@ -27,8 +27,7 @@ export function KeyboardShortcutsModal() {
       items: [
         { keys: ["Space"], desc: "Start, pause, or resume the stopwatch" },
         { keys: ["S"], desc: "Stop the timer and log the entry" },
-        { keys: ["T"], desc: "Switch to the live timer tab" },
-        { keys: ["N"], desc: "Switch to manual time entry" },
+        { keys: ["N"], desc: "Jump to the new-entry row" },
       ],
     },
     {
