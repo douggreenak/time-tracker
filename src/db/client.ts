@@ -84,9 +84,10 @@ async function seedIfEmpty(db: Db) {
 
   if (process.env.ENABLE_DEMO_DATA !== "false") {
     const users = await db.select({ id: schema.users.id }).from(schema.users);
-    const hasSeedIds = users.some((u) => u.id === seedId(initialUsers[0].id));
-    if (users.length > 0 && !hasSeedIds) {
-      // People exist but setup never finished (an interrupted earlier attempt). Nobody could sign in, so start clean.
+    const have = new Set(users.map((u) => u.id));
+    const complete = initialUsers.every((u) => have.has(seedId(u.id)));
+    if (users.length > 0 && !complete) {
+      // Some people exist but not the full sample set: an interrupted earlier setup. Nobody could sign in, so start clean.
       for (const tbl of [schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users])
         await db.delete(tbl);
     }
