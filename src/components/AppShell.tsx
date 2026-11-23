@@ -16,15 +16,15 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   if (loading)
     return (
-      <div className="flex min-h-dvh items-center justify-center text-muted-foreground">
+      <div className="flex h-dvh items-center justify-center text-muted-foreground">
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
-  if (!user) return <LoginScreen />;
+  if (!user) return <div className="h-dvh overflow-y-auto"><LoginScreen /></div>;
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
+      <header className="z-40 shrink-0 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="flex h-14 w-full items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
           <Link href="/engineer" className="group flex shrink-0 items-center gap-2.5" aria-label="TimeTrack home">
             <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl shadow-sm transition-transform duration-300 ease-expressive group-hover:scale-105">
@@ -41,9 +41,12 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      {isManager && <DemoBanner />}
       <SelectOnFocus />
-      <main className="flex flex-1 flex-col">{children}</main>
+      {/* The header above is a normal first row; only this area scrolls, so the account/menu bar always stays on top. */}
+      <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
+        {isManager && <DemoBanner />}
+        <main className="flex min-h-full flex-col">{children}</main>
+      </div>
     </>
   );
 }
