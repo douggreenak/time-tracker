@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { getDb, storageMode } from "@/db/client";
 import * as schema from "@/db/schema";
 import { seedId } from "@/db/seed";
+import { dataStore } from "@/db/store";
 import { verifyPassword } from "@/lib/password";
 import { DEMO_PASSWORD } from "@/db/seed";
 import { initialUsers } from "@/db/mock-data";
@@ -21,6 +22,8 @@ export async function GET() {
     const samplePasswordWorks = (await Promise.all(users.map((u) => verifyPassword(DEMO_PASSWORD, u.hasPassword)))).filter(Boolean).length;
     const hashLengths = Array.from(new Set(users.map((u) => (u.hasPassword ?? "").length)));
     const ids = new Set(users.map((u) => u.id));
+    const listed = await dataStore.getUsers();
+    const lookups = await Promise.all(listed.map((u) => dataStore.getUserForAuth(u.id)));
     return NextResponse.json({
       ok: true,
       storage,
@@ -29,6 +32,7 @@ export async function GET() {
       setup: {
         meta,
         people: users.length,
+        listedPeopleFoundByLookup: lookups.filter(Boolean).length,
         samplePasswordWorks,
         hashLengths,
         peopleWithPassword: users.filter((u) => u.hasPassword).length,

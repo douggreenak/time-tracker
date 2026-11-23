@@ -32,7 +32,8 @@ async function open(): Promise<Db> {
   if (url) {
     const { neon } = await import("@neondatabase/serverless");
     const { drizzle } = await import("drizzle-orm/neon-http");
-    db = drizzle(neon(url), { schema }) as unknown as Db;
+    // no-store: Next.js must never cache database responses (it would serve stale rows).
+    db = drizzle(neon(url, { fetchOptions: { cache: "no-store" } }), { schema }) as unknown as Db;
   } else {
     // Serverless hosts (Vercel) have a read-only project folder; only /tmp is writable, and it is
     // wiped between cold starts. Set DATABASE_URL (e.g. Neon) for data that persists there.
