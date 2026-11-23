@@ -74,6 +74,8 @@ export const DDL: string[] = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text`,
   `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS flagged boolean NOT NULL DEFAULT false`,
   `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS flag_reason text`,
+  // Emails are lowercase everywhere (skips any that would collide with another person's).
+  `UPDATE users u SET email = lower(btrim(u.email)) WHERE u.email <> lower(btrim(u.email)) AND NOT EXISTS (SELECT 1 FROM users o WHERE o.id <> u.id AND lower(btrim(o.email)) = lower(btrim(u.email)))`,
   // Customer and task are optional on a time entry.
   `ALTER TABLE time_entries ALTER COLUMN customer_id DROP NOT NULL`,
   `ALTER TABLE time_entries ALTER COLUMN service_item_id DROP NOT NULL`,

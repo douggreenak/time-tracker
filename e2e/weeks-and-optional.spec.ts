@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ACCOUNTANT, ADMIN, ENGINEER, expandAllWeeks, loginAs } from "./helpers";
+import { ACCOUNTANT, ADMIN, ENGINEER, expandAllWeeks, loginAs, pick } from "./helpers";
 
 test.describe("collapsible pay weeks", () => {
   test("weeks collapse and expand, with hours in the header", async ({ page }) => {
@@ -151,7 +151,7 @@ test.describe("Excel timesheet and data backup", () => {
     // The UI: download stays disabled until a week is chosen.
     await page.goto("/engineer");
     await expect(page.getByLabel("Download Excel timesheet")).toHaveAttribute("aria-disabled", "true");
-    await page.getByLabel("Excel timesheet week").selectOption({ index: 1 });
+    await pick(page, "Excel timesheet week", /–/);
     await expect(page.getByLabel("Download Excel timesheet")).toHaveAttribute("aria-disabled", "false");
   });
 });
@@ -230,11 +230,70 @@ test.describe("flag message, instant saves, layout", () => {
 
   test("the menu bar is the first thing on the page, right after signing in", async ({ page }) => {
     await page.goto("/engineer");
-    await page.getByLabel("Who are you?").selectOption({ label: "Priya Nair · engineer" });
+    await pick(page, "Who are you?", "Priya Nair");
     await page.getByRole("textbox", { name: "Password" }).fill("demo1234");
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForSelector("header");
     const top = await page.evaluate(() => document.querySelector("header")!.getBoundingClientRect().top);
     expect(top).toBe(0);
+  });
+});
+
+test.describe("login, emails, filters, stopwatch, tooltip", () => {
+  test("login starts with nobody chosen and our own dropdown", async ({ page }) => {
+    await page.goto("/engineer");
+    const who = page.getByRole("combobox", { name: "Who are you?" });
+    await expect(who).toContainText("Select your name");
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeDisabled();
+    expect(await page.locator("select").count()).toBe(0); // no native dropdowns on the page
+    await who.click();
+    await expect(page.getByRole("listbox", { name: "Who are you?" }).getByRole("option")).not.toHaveCount(0);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(who).not.toContainText("Select your name");
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled();
+  });
+
+  test("emails are always stored in lowercase", async ({ page }) => {
+    await loginAs(page, ADMIN);
+    const res = await page.request.post("/api/users", { data: { name: "Case Test", email: "  Case.Test@Example.COM ", role: "engineer", password: "abcd" } });
+    expect(res.status()).toBe(201);
+    const u = (await res.json()).data;
+    expect(u.email).toBe("case.test@example.com");
+    const upd = await (await page.request.put(`/api/users/${u.id}`, { data: { email: "MixedCase@Example.com" } })).json();
+    expect(upd.data.email).toBe("mixedcase@example.com");
+    const all = (await (await page.request.get("/api/users")).json()).data;
+    for (const x of all) expect(x.email).toBe(x.email.toLowerCase());
+  });
+
+  test("Review filters by person, and clicking a name in By person filters to them", async ({ page }) => {
+    await loginAs(page, ACCOUNTANT, "/accountant");
+    await page.getByRole("button", { name: "All time" }).click();
+    const names = async () => [...new Set((await page.locator("tbody tr td:nth-child(3)").allTextContents()).map((s) => s.trim()).filter(Boolean))];
+    await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
+    await pick(page, "Person", "Tomas Herrera");
+    await expect.poll(names).toEqual(["Tomas Herrera"]);
+    await pick(page, "Person", "Everyone");
+    await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
+    await page.getByRole("tab", { name: "By person" }).click();
+    await page.getByRole("button", { name: "Callum Brooks", exact: true }).click();
+    await expect(page.getByRole("tab", { name: /Entries/ })).toHaveAttribute("aria-selected", "true");
+    await expect.poll(names).toEqual(["Callum Brooks"]);
+    await expect(page.getByRole("combobox", { name: "Person", exact: true })).toContainText("Callum Brooks");
+  });
+
+  test("Excel button explains that a week must be picked", async ({ page }) => {
+    await loginAs(page, ENGINEER);
+    await expect(page.getByLabel("Download Excel timesheet")).toHaveAttribute("title", /Pick a week first/);
+    await expect(page.getByRole("combobox", { name: "Excel timesheet week" })).toHaveAttribute("title", /Pick a week first/);
+  });
+
+  test("opening the stopwatch scrolls it into view", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 640 });
+    await loginAs(page, ENGINEER);
+    const toggle = page.getByRole("button", { name: /Stopwatch/ }).first();
+    await toggle.click();
+    await expect(page.getByRole("combobox", { name: "Stopwatch location" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Stopwatch location" })).toBeInViewport({ ratio: 1 });
   });
 });

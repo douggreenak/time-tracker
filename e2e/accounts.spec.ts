@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
-import { ACCOUNTANT, ADMIN, loginAs } from "./helpers";
+import { ACCOUNTANT, ADMIN, loginAs, pick } from "./helpers";
 
 async function addPerson(page: Page, name: string, password: string, role = "engineer") {
   const res = await page.request.post("/api/users", { data: { name, email: `${name.replace(/\W/g, "").toLowerCase()}@example.com`, role, password } });
@@ -11,7 +11,7 @@ async function signInFresh(browser: Browser, name: string, password: string) {
   const ctx = await browser.newContext({ baseURL: "http://localhost:3100" });
   const p = await ctx.newPage();
   await p.goto("/engineer");
-  await p.getByLabel("Who are you?").selectOption({ label: `${name} · engineer` });
+  await pick(p, "Who are you?", `${name}`);
   await p.getByLabel("Password", { exact: true }).fill(password);
   await p.getByRole("button", { name: "Sign in" }).click();
   return { ctx, p };
@@ -78,7 +78,7 @@ test("admin can change their own password too", async ({ page, browser }) => {
   const ctx = await browser.newContext({ baseURL: "http://localhost:3100" });
   const p = await ctx.newPage();
   await p.goto("/engineer");
-  await p.getByLabel("Who are you?").selectOption({ label: `${name} · admin` });
+  await pick(p, "Who are you?", `${name}`);
   await p.getByLabel("Password", { exact: true }).fill("admin-pass-one-1");
   await p.getByRole("button", { name: "Sign in" }).click();
   await expect(p.getByTestId("user-menu")).toBeVisible(); // signed in before we navigate away

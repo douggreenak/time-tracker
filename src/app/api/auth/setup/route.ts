@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: `Use a password of at least ${MIN_PASSWORD} characters.` }, { status: 400 });
     const user = await dataStore.addUser({
       name: name.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       role: "admin",
       passwordHash: await hashPassword(password),
     });

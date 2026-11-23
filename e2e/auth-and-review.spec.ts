@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { ACCOUNTANT, ADMIN, DEMO_PASSWORD, ENGINEER, loginAs, expandAllWeeks } from "./helpers";
+import { ACCOUNTANT, ADMIN, DEMO_PASSWORD, ENGINEER, loginAs, expandAllWeeks, pick } from "./helpers";
 
 test.describe("sign in", () => {
   test("pick a user, wrong password is rejected, right password signs in, sign out returns", async ({ page }) => {
     await page.goto("/engineer");
     await expect(page.getByRole("heading", { name: "Sign in to TimeTrack" })).toBeVisible();
-    await page.getByLabel("Who are you?").selectOption({ label: `${ENGINEER} · engineer` });
+    await pick(page, "Who are you?", `${ENGINEER}`);
     await page.getByLabel("Password", { exact: true }).fill("not-the-password");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("form [role=alert]")).toContainText("Wrong password");
@@ -37,7 +37,7 @@ test.describe("sign in", () => {
   test("engineers' Review page opens on themselves; they can't see others' time or approve their own", async ({ page }) => {
     await loginAs(page, ENGINEER, "/accountant");
     await page.getByRole("button", { name: "All time" }).click();
-    const person = page.getByLabel("Person", { exact: true });
+    const person = page.getByRole("combobox", { name: "Person", exact: true });
     await expect(person).toBeDisabled();
     await expect(person).toContainText(ENGINEER);
     await expect(page.getByText(ACCOUNTANT)).toHaveCount(0);
@@ -141,7 +141,7 @@ test.describe("team & passwords", () => {
     const other = await browser.newContext({ baseURL: "http://localhost:3100" });
     const p2 = await other.newPage();
     await p2.goto("/engineer");
-    await p2.getByLabel("Who are you?").selectOption({ label: `Test Person ${stamp} · engineer` });
+    await pick(p2, "Who are you?", `Test Person ${stamp}`);
     await p2.getByLabel("Password", { exact: true }).fill("correct-horse-1");
     await p2.getByRole("button", { name: "Sign in" }).click();
     await expect(p2.getByLabel("New entry hours")).toBeVisible();

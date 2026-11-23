@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
     const user = await dataStore.addUser({
       name: name.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       role,
       qbEmployeeName: qbEmployeeName?.trim() || undefined,
       defaultHourlyRate: defaultHourlyRate === undefined ? undefined : Number(defaultHourlyRate),

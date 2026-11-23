@@ -7,6 +7,7 @@ import {
 import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
 import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
+import { Dropdown } from "@/components/ui/dropdown";
 import { ExcelExport } from "@/components/ExcelExport";
 import { weekRangeLabel, weekStart, weekTag } from "@/lib/weeks";
 
@@ -270,9 +271,9 @@ function AccountantPage() {
   const nameOfUser = (id: string) => users.find((u) => u.id === id)?.name ?? "";
 
   const byPerson = useMemo(() => {
-    const m = new Map<string, { name: string; total: number; billable: number; amount: number; n: number; flagged: number }>();
+    const m = new Map<string, { id: string; name: string; total: number; billable: number; amount: number; n: number; flagged: number }>();
     for (const e of inPeriod) {
-      const r = m.get(e.userId) ?? { name: e.userName, total: 0, billable: 0, amount: 0, n: 0, flagged: 0 };
+      const r = m.get(e.userId) ?? { id: e.userId, name: e.userName, total: 0, billable: 0, amount: 0, n: 0, flagged: 0 };
       r.total += e.durationMinutes; r.n++; if (e.flagged) r.flagged++;
       if (e.isBillable) { r.billable += e.durationMinutes; r.amount += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0); }
       m.set(e.userId, r);
@@ -281,9 +282,9 @@ function AccountantPage() {
   }, [inPeriod, rate]);
 
   const byCustomer = useMemo(() => {
-    const m = new Map<string, { name: string; total: number; billable: number; amount: number; jobs: Map<string, number> }>();
+    const m = new Map<string, { id: string; name: string; total: number; billable: number; amount: number; jobs: Map<string, number> }>();
     for (const e of inPeriod) {
-      const r = m.get(e.customerId) ?? { name: e.customerName || "No customer", total: 0, billable: 0, amount: 0, jobs: new Map() };
+      const r = m.get(e.customerId) ?? { id: e.customerId, name: e.customerName || "No customer", total: 0, billable: 0, amount: 0, jobs: new Map() };
       r.total += e.durationMinutes;
       r.jobs.set(e.jobName ?? "No project", (r.jobs.get(e.jobName ?? "No project") ?? 0) + e.durationMinutes);
       if (e.isBillable) { r.billable += e.durationMinutes; r.amount += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0); }
@@ -373,14 +374,19 @@ function AccountantPage() {
           </div>
         )}
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[12rem_14rem_1fr]">
-          <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} disabled={!isManager} className={select}>
-            {isManager && <option value="all">Everyone</option>}
-            {(isManager ? users : users.filter((u) => u.id === me?.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-          <select aria-label="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} className={select}>
-            <option value="all">All customers</option>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <Dropdown
+            aria-label="Person"
+            value={person}
+            onChange={setPerson}
+            disabled={!isManager}
+            options={[...(isManager ? [{ value: "all", label: "Everyone" }] : []), ...(isManager ? users : users.filter((u) => u.id === me?.id)).map((u) => ({ value: u.id, label: u.name }))]}
+          />
+          <Dropdown
+            aria-label="Customer"
+            value={customer}
+            onChange={setCustomer}
+            options={[{ value: "all", label: "All customers" }, ...customers.map((c) => ({ value: c.id, label: c.name }))]}
+          />
           <div className="relative col-span-2 lg:col-span-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, customers, notes…" aria-label="Search entries" className="h-9 w-full rounded-full border border-outline-variant bg-surface-low pl-8 pr-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
@@ -584,7 +590,9 @@ function AccountantPage() {
                       <tbody className="[&_td]:border-t [&_td]:border-border/70">
                         {w.people.map((p) => (
                           <tr key={p.id}>
-                            <td data-label="Person" className="span-2 px-3 py-2.5 pl-10 font-medium">{p.name}</td>
+                            <td data-label="Person" className="span-2 px-3 py-2.5 pl-10 font-medium">
+                              {isManager ? <button onClick={() => { setPerson(p.id); setView("entries"); }} title={`Show ${p.name}'s entries`} className="rounded text-left underline-offset-2 hover:text-primary hover:underline">{p.name}</button> : p.name}
+                            </td>
                             <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(p.total)}</td>
                             <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">{hrs(p.billable)}</td>
                             <td data-label="Entries" className="span-2 px-3 py-2.5 text-xs text-muted-foreground">
@@ -627,7 +635,9 @@ function AccountantPage() {
                 {view === "people"
                   ? byPerson.map((r) => (
                       <tr key={r.name}>
-                        <td data-label="Person" className="span-2 px-3 py-2.5 font-medium">{r.name}</td>
+                        <td data-label="Person" className="span-2 px-3 py-2.5 font-medium">
+                          {isManager ? <button onClick={() => { setPerson(r.id); setView("entries"); }} title={`Show ${r.name}'s entries`} className="rounded text-left underline-offset-2 hover:text-primary hover:underline">{r.name}</button> : r.name}
+                        </td>
                         <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.total)}</td>
                         <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.billable)}</td>
                         {isManager && <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>}
@@ -636,7 +646,9 @@ function AccountantPage() {
                     ))
                   : byCustomer.map((r) => (
                       <tr key={r.name}>
-                        <td data-label="Customer" className="span-2 px-3 py-2.5 font-medium">{r.name}</td>
+                        <td data-label="Customer" className="span-2 px-3 py-2.5 font-medium">
+                          {r.id ? <button onClick={() => { setCustomer(r.id); setView("entries"); }} title={`Show ${r.name} entries`} className="rounded text-left underline-offset-2 hover:text-primary hover:underline">{r.name}</button> : r.name}
+                        </td>
                         <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.total)}</td>
                         <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.billable)}</td>
                         {isManager && <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>}

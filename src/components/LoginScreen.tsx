@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clock, Eye, EyeOff, FileSpreadsheet, Loader2, LogIn, Send } from "lucide-react";
+import { Clock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
 import { MIN_PASSWORD } from "@/lib/validate";
+import { Dropdown } from "@/components/ui/dropdown";
 
 interface Person { id: string; name: string; role: string }
 
@@ -42,11 +43,7 @@ export function LoginScreen() {
         setPeople(j.data.users);
         setIsDemo(j.data.isDemo);
         setNeedsSetup(j.data.needsSetup);
-        let last = "";
-        try {
-          last = localStorage.getItem(LAST_KEY) ?? "";
-        } catch {}
-        setUserId(j.data.users.find((u: Person) => u.id === last)?.id ?? j.data.users[0]?.id ?? "");
+        setUserId(""); // start blank: you choose who you are
       } catch (e) {
         if (cancelled) return;
         if (attempt < 3) return void setTimeout(() => load(attempt + 1), 2500);
@@ -62,6 +59,7 @@ export function LoginScreen() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!needsSetup && !userId) return setError("Select your name first.");
     setBusy(true);
     setError(null);
     try {
@@ -89,43 +87,11 @@ export function LoginScreen() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       {/* Brand panel (large screens) */}
-      <aside className="relative hidden overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16" style={{ background: "linear-gradient(135deg, #0a5566 0%, #0b6a8c 55%, #0f78b0 100%)" }}>
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.14]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px)",
-            backgroundSize: "44px 44px",
-            maskImage: "linear-gradient(to bottom right, black 0%, transparent 75%)",
-            WebkitMaskImage: "linear-gradient(to bottom right, black 0%, transparent 75%)",
-          }}
-        />
-        <div className="relative flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25"><Clock className="h-5 w-5" strokeWidth={2.4} /></span>
-          <span className="text-lg font-semibold tracking-tight">TimeTrack</span>
+      <aside className="hidden items-center justify-center text-white lg:flex" style={{ background: "linear-gradient(135deg, #0a5566 0%, #0b6a8c 55%, #0f78b0 100%)" }}>
+        <div className="flex flex-col items-center gap-4">
+          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Clock className="h-8 w-8" strokeWidth={2.2} /></span>
+          <span className="text-3xl font-semibold tracking-tight">TimeTrack</span>
         </div>
-        <div className="relative max-w-md">
-          <h2 className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">Log the week.<br />Get paid on time.</h2>
-          <p className="mt-4 text-base text-white/80">A timesheet that works like your spreadsheet, with weekly submit, review and export built in.</p>
-          <ul className="mt-8 space-y-4 text-sm">
-            {[
-              [Clock, "Type hours straight into the grid — it saves as you go"],
-              [Send, "Submit a whole week, or just the days you pick"],
-              [CheckCircle2, "Your accountant approves it by the week"],
-              [FileSpreadsheet, "Exports to QuickBooks and the Excel timesheet"],
-            ].map(([Icon, text], i) => {
-              const I = Icon as typeof Clock;
-              return (
-                <li key={i} className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20"><I className="h-4 w-4" /></span>
-                  <span className="text-white/90">{text as string}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-        <p className="relative text-xs text-white/60">Apex Engineering</p>
       </aside>
 
       {/* Sign-in */}
@@ -162,19 +128,17 @@ export function LoginScreen() {
                 </label>
               </>
             ) : (
-              <label className="block space-y-1.5">
-                <span className="m3-label">Who are you?</span>
-                <select
+              <div className="block space-y-1.5">
+                <span className="m3-label" id="who-label">Who are you?</span>
+                <Dropdown
                   aria-label="Who are you?"
+                  variant="field"
                   value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  className={`${field} m3-select cursor-pointer appearance-none pr-10`}
-                >
-                  {people?.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} · {p.role}</option>
-                  ))}
-                </select>
-              </label>
+                  onChange={setUserId}
+                  placeholder="Select your name"
+                  options={(people ?? []).map((p) => ({ value: p.id, label: p.name, hint: p.role }))}
+                />
+              </div>
             )}
 
             <label className="block space-y-1.5">
@@ -199,7 +163,7 @@ export function LoginScreen() {
 
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || (!needsSetup && !userId)}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}

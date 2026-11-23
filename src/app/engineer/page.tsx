@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Play, Pause, Square, Timer, ChevronUp, CheckCircle, AlertCircle, Navigation, Check, X, Users } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Combobox } from "@/components/ui/combobox";
 import { TimesheetGrid } from "@/components/TimesheetGrid";
 import { useDirectory } from "@/lib/useDirectory";
@@ -264,6 +265,18 @@ export default function EngineerPage() {
 
   const current = users.find((u) => u.id === currentUserId);
   const showDock = dockOpen || running;
+
+  // Opening the stopwatch grows the page downward: scroll so the whole panel is in view.
+  const dockRef = useRef<HTMLElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (dockOpen && !wasOpen.current) {
+      const t = setTimeout(() => dockRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 60);
+      wasOpen.current = true;
+      return () => clearTimeout(t);
+    }
+    if (!dockOpen) wasOpen.current = false;
+  }, [dockOpen]);
   const kbd = "rounded border border-current/25 px-1 py-px font-mono text-[10px] opacity-80";
 
   const fail = (error: string) => {
@@ -296,16 +309,16 @@ export default function EngineerPage() {
           {isManager && users.length > 0 && (
             <>
               <label htmlFor="engineer-select" className="m3-label">Showing</label>
-              <select
-                id="engineer-select"
-                value={currentUserId}
-                onChange={(e) => chooseUser(e.target.value)}
-                className="m3-select h-10 cursor-pointer appearance-none rounded-full border border-outline-variant bg-surface-low pl-4 pr-9 text-xs font-semibold text-foreground transition-colors hover:border-outline focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/25"
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
+              <div className="w-52">
+                <Dropdown
+                  id="engineer-select"
+                  aria-label="Showing"
+                  value={currentUserId}
+                  onChange={chooseUser}
+                  options={users.map((u) => ({ value: u.id, label: u.name }))}
+                  className="h-10 text-xs font-semibold"
+                />
+              </div>
             </>
           )}
         </div>
@@ -375,7 +388,7 @@ export default function EngineerPage() {
 
       {/* Stopwatch — secondary way to record time */}
       {current && (
-        <section className="rounded-2xl border border-border/70 bg-surface-low">
+        <section ref={dockRef} className="rounded-2xl border border-border/70 bg-surface-low">
           <button
             type="button"
             onClick={() => setDockOpen((o) => !o)}

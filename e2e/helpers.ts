@@ -22,3 +22,9 @@ export async function expandAllWeeks(page: Page) {
   await expect(btn).toBeVisible();
   if (/expand/i.test((await btn.textContent()) ?? "")) await btn.click();
 }
+
+/** Picks an option from one of the app's own dropdowns (they aren't native <select>s). */
+export async function pick(page: Page, label: string, option: string | RegExp) {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("listbox", { name: label }).getByRole("option", { name: option }).first().click(); // string = substring match
+}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Check, Copy, KeyRound, Plus, Trash2, X } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
+import { Dropdown } from "@/components/ui/dropdown";
 import { TextCell, cellBase } from "@/components/ui/cell";
 import { DataBackup } from "@/components/DataBackup";
 import { RequireAdmin } from "@/components/AuthProvider";
@@ -11,7 +12,7 @@ import { cn } from "@/components/ui";
 import { MIN_PASSWORD } from "@/lib/validate";
 
 const ROLES = ["engineer", "accountant", "admin"] as const;
-const selectCell = cn(cellBase, "m3-select cursor-pointer appearance-none pr-7 capitalize [background-position:right_0.5rem_center] [background-size:12px_12px]");
+const selectCell = "h-9 rounded-md border-transparent bg-transparent px-2 text-[13px] capitalize";
 
 function TeamPage() {
   const dir = useDirectory();
@@ -109,11 +110,9 @@ function TeamPage() {
             <tbody className="[&_td]:border-b [&_td]:border-r [&_td]:border-border/70 [&_td:last-child]:border-r-0">
               <tr className="bg-primary-container/40">
                 <td data-label="Name" className="span-2"><input aria-label="New person name" placeholder="Full name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={onEnter} className={cellBase} /></td>
-                <td data-label="Email" className="span-2"><input aria-label="New person email" type="email" placeholder="email@company.com" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} onKeyDown={onEnter} className={cellBase} /></td>
+                <td data-label="Email" className="span-2"><input aria-label="New person email" type="email" placeholder="email@company.com" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value.toLowerCase() })} autoCapitalize="none" autoCorrect="off" spellCheck={false} onKeyDown={onEnter} className={cellBase} /></td>
                 <td data-label="Role">
-                  <select aria-label="New person role" value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} className={selectCell}>
-                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  <Dropdown aria-label="New person role" value={draft.role} onChange={(v) => setDraft({ ...draft, role: v })} options={ROLES.map((r) => ({ value: r, label: r }))} className={selectCell} />
                 </td>
                 <td data-label="QuickBooks name" className="px-2 text-[11px] text-muted-foreground text-[11px] cell-hide-mobile">{draft.name.trim() || "Same as name"}</td>
                 <td data-label="Rate / hr"><input aria-label="New person rate" inputMode="decimal" placeholder="125" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} onKeyDown={onEnter} className={cn(cellBase, "text-right font-mono tabular-nums")} /></td>
@@ -132,9 +131,7 @@ function TeamPage() {
                   <td data-label="Name" className="span-2"><TextCell aria-label="Name" value={u.name} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { name: v.trim() }))} /></td>
                   <td data-label="Email" className="span-2"><TextCell aria-label="Email" type="text" value={u.email} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { email: v.trim() }))} /></td>
                   <td data-label="Role">
-                    <select aria-label="Role" value={u.role} onChange={(e) => run(dir.updateUser(u.id, { role: e.target.value as typeof u.role }))} className={selectCell}>
-                      {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <Dropdown aria-label="Role" value={u.role} onChange={(v) => run(dir.updateUser(u.id, { role: v as typeof u.role }))} options={ROLES.map((r) => ({ value: r, label: r }))} className={selectCell} />
                   </td>
                   <td data-label="QuickBooks employee name" className="span-2"><TextCell aria-label="QuickBooks employee name" value={u.qbEmployeeName} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { qbEmployeeName: v.trim() }))} className="font-mono text-xs" /></td>
                   <td data-label="Rate / hr"><TextCell aria-label="Rate" inputMode="decimal" value={String(u.defaultHourlyRate)} onCommit={(v) => { const n = Number(v); if (v.trim() !== "" && Number.isFinite(n) && n >= 0) run(dir.updateUser(u.id, { defaultHourlyRate: n })); else setError("Hourly rate must be a number."); }} className="text-right font-mono tabular-nums" /></td>

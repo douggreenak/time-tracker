@@ -120,7 +120,7 @@ export const dataStore = {
       .insert(t.users)
       .values({
         name: u.name,
-        email: u.email,
+        email: u.email.trim().toLowerCase(), // emails are always stored in lowercase
         role: u.role || "engineer",
         qbEmployeeName: u.qbEmployeeName || u.name,
         defaultHourlyRate: String(u.defaultHourlyRate ?? 125),
@@ -137,7 +137,7 @@ export const dataStore = {
     const db = await getDb();
     const set: Partial<typeof t.users.$inferInsert> = {};
     if (u.name !== undefined) set.name = u.name;
-    if (u.email !== undefined) set.email = u.email;
+    if (u.email !== undefined) set.email = u.email.trim().toLowerCase();
     if (u.role !== undefined) set.role = u.role;
     if (u.qbEmployeeName !== undefined) set.qbEmployeeName = u.qbEmployeeName;
     if (u.defaultHourlyRate !== undefined) set.defaultHourlyRate = String(u.defaultHourlyRate);

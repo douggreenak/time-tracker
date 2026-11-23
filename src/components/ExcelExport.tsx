@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { weekRangeLabel, weekStart } from "@/lib/weeks";
 import { cn } from "@/components/ui";
+import { Dropdown } from "@/components/ui/dropdown";
 
-const sel =
-  "h-9 rounded-full border border-outline-variant bg-surface-low px-3 text-xs font-medium outline-none transition-colors hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25";
+const NEEDS_WEEK = "Pick a week first — the Excel timesheet is generated for one week at a time.";
 
 /**
  * Weekly Excel timesheet (the company's Time Sheet template). The week must be picked first — there is no default.
@@ -36,25 +36,32 @@ export function ExcelExport({
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)} role="group" aria-label="Excel timesheet">
       {people && (
-        <select aria-label="Excel timesheet person" value={userId} onChange={(e) => onPerson?.(e.target.value)} className={sel}>
-          {userId === "" && <option value="">Pick a person…</option>}
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        <div className="w-44">
+          <Dropdown
+            aria-label="Excel timesheet person"
+            value={userId}
+            onChange={(v) => onPerson?.(v)}
+            placeholder="Pick a person…"
+            options={people.map((p) => ({ value: p.id, label: p.name }))}
+          />
+        </div>
       )}
-      <select aria-label="Excel timesheet week" value={week} onChange={(e) => setWeek(e.target.value)} className={sel}>
-        <option value="">Pick a week…</option>
-        {options.map((w) => (
-          <option key={w} value={w}>{weekRangeLabel(w)}</option>
-        ))}
-      </select>
+      <div className="w-44">
+        <Dropdown
+          aria-label="Excel timesheet week"
+          value={week}
+          onChange={setWeek}
+          placeholder="Pick a week…"
+          title={NEEDS_WEEK}
+          options={options.map((w) => ({ value: w, label: weekRangeLabel(w) }))}
+        />
+      </div>
       <a
         href={ready ? `/api/export/excel?userId=${encodeURIComponent(userId)}&week=${week}` : undefined}
         download
         aria-disabled={!ready}
         aria-label="Download Excel timesheet"
-        title={ready ? "Download that week as the Excel timesheet" : "Pick a week first"}
+        title={ready ? "Download that week as the Excel timesheet" : NEEDS_WEEK}
         onClick={(e) => !ready && e.preventDefault()}
         className={cn(
           "inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold transition",
