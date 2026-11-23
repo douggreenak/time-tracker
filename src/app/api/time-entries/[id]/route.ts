@@ -48,13 +48,15 @@ export async function PUT(
       checkNotes(body.notes) ||
       (body.status !== undefined && !(STATUSES as readonly string[]).includes(body.status) ? "Unknown status." : null);
     if (bad) return NextResponse.json({ success: false, error: bad }, { status: 400 });
-    if (body.customerId !== undefined || body.serviceItemId !== undefined || body.jobId) {
+    // Customer, project and task are optional; "" clears them.
+    const newCustomer = body.customerId !== undefined ? body.customerId : current?.customerId;
+    if (body.customerId || body.jobId || body.serviceItemId) {
       const customers = await dataStore.getCustomers();
-      const cust = customers.find((c) => c.id === (body.customerId ?? current?.customerId));
-      if (!cust) return NextResponse.json({ success: false, error: "Unknown customer." }, { status: 400 });
-      if (body.jobId && !cust.jobs.some((j) => j.id === body.jobId))
+      const cust = customers.find((c) => c.id === newCustomer);
+      if (body.customerId && !cust) return NextResponse.json({ success: false, error: "Unknown customer." }, { status: 400 });
+      if (body.jobId && !cust?.jobs.some((j) => j.id === body.jobId))
         return NextResponse.json({ success: false, error: "That project doesn't belong to this customer." }, { status: 400 });
-      if (body.serviceItemId !== undefined && !(await dataStore.getServiceItems()).some((s) => s.id === body.serviceItemId))
+      if (body.serviceItemId && !(await dataStore.getServiceItems()).some((s) => s.id === body.serviceItemId))
         return NextResponse.json({ success: false, error: "Unknown task." }, { status: 400 });
     }
     const updated = await dataStore.updateTimeEntry(params.id, body);

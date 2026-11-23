@@ -46,8 +46,13 @@ const entrySelect = {
 
 type EntryRow = Awaited<ReturnType<typeof entryQuery>>[number];
 
+// Customer, project and task are optional: "" means none.
 const entryOf = (r: EntryRow): TimeEntryItem => ({
   ...r,
+  customerId: r.customerId ?? "",
+  customerName: r.customerName ?? "",
+  serviceItemId: r.serviceItemId ?? "",
+  serviceItemName: r.serviceItemName ?? "",
   jobId: r.jobId,
   jobName: r.jobName,
   locationType: r.locationType as Loc,
@@ -63,8 +68,8 @@ async function entryQuery(where?: SQL) {
     .select(entrySelect)
     .from(t.timeEntries)
     .innerJoin(t.users, eq(t.timeEntries.userId, t.users.id))
-    .innerJoin(t.customers, eq(t.timeEntries.customerId, t.customers.id))
-    .innerJoin(t.serviceItems, eq(t.timeEntries.serviceItemId, t.serviceItems.id))
+    .leftJoin(t.customers, eq(t.timeEntries.customerId, t.customers.id))
+    .leftJoin(t.serviceItems, eq(t.timeEntries.serviceItemId, t.serviceItems.id))
     .leftJoin(t.jobs, eq(t.timeEntries.jobId, t.jobs.id))
     .where(where)
     .orderBy(desc(t.timeEntries.date), desc(t.timeEntries.createdAt));
@@ -75,9 +80,9 @@ function describeChanges(a: TimeEntryItem, b: TimeEntryItem): string[] {
   const out: string[] = [];
   if (a.durationMinutes !== b.durationMinutes) out.push(`hours ${h(a.durationMinutes)} → ${h(b.durationMinutes)}`);
   if (a.date !== b.date) out.push(`date ${a.date} → ${b.date}`);
-  if (a.customerId !== b.customerId) out.push(`customer ${a.customerName} → ${b.customerName}`);
+  if (a.customerId !== b.customerId) out.push(`customer ${a.customerName || "none"} → ${b.customerName || "none"}`);
   if ((a.jobId ?? "") !== (b.jobId ?? "")) out.push(`project ${a.jobName ?? "none"} → ${b.jobName ?? "none"}`);
-  if (a.serviceItemId !== b.serviceItemId) out.push(`task ${a.serviceItemName} → ${b.serviceItemName}`);
+  if (a.serviceItemId !== b.serviceItemId) out.push(`task ${a.serviceItemName || "none"} → ${b.serviceItemName || "none"}`);
   if (a.isBillable !== b.isBillable) out.push(b.isBillable ? "marked billable" : "marked non-billable");
   if (a.locationType !== b.locationType) out.push(`location ${a.locationType} → ${b.locationType}`);
   if ((a.notes ?? "") !== (b.notes ?? "")) out.push("notes changed");
@@ -304,15 +309,15 @@ export const dataStore = {
     const [r] = await entryQuery(eq(t.timeEntries.id, id));
     return r ? entryOf(r) : undefined;
   },
-  createTimeEntry: async (e: Partial<TimeEntryItem> & Pick<TimeEntryItem, "userId" | "customerId" | "serviceItemId" | "date" | "durationMinutes">): Promise<TimeEntryItem> => {
+  createTimeEntry: async (e: Partial<TimeEntryItem> & Pick<TimeEntryItem, "userId" | "date" | "durationMinutes">): Promise<TimeEntryItem> => {
     const db = await getDb();
     const [row] = await db
       .insert(t.timeEntries)
       .values({
         userId: e.userId,
-        customerId: e.customerId,
-        jobId: e.jobId || null,
-        serviceItemId: e.serviceItemId,
+        customerId: e.customerId || null,
+        jobId: e.customerId ? e.jobId || null : null,
+        serviceItemId: e.serviceItemId || null,
         date: e.date,
         durationMinutes: e.durationMinutes,
         locationType: e.locationType || "office",
@@ -339,9 +344,10 @@ export const dataStore = {
 
     const set: Partial<typeof t.timeEntries.$inferInsert> = { updatedAt: new Date() };
     if (u.userId !== undefined) set.userId = u.userId;
-    if (u.customerId !== undefined) set.customerId = u.customerId;
+    if (u.customerId !== undefined) set.customerId = u.customerId || null;
     if (u.jobId !== undefined) set.jobId = u.jobId || null;
-    if (u.serviceItemId !== undefined) set.serviceItemId = u.serviceItemId;
+    if (u.customerId !== undefined && !u.customerId) set.jobId = null; // a project needs its customer
+    if (u.serviceItemId !== undefined) set.serviceItemId = u.serviceItemId || null;
     if (u.date !== undefined) set.date = u.date;
     if (u.durationMinutes !== undefined) set.durationMinutes = Math.round(Number(u.durationMinutes));
     if (u.locationType !== undefined) set.locationType = u.locationType;
@@ -468,20 +474,19 @@ export const dataStore = {
     if (!cur) return null;
     const seconds = cur.elapsedBeforePause + (cur.isRunning ? Math.floor((Date.now() - cur.startTime) / 1000) : 0);
     const [customers, services] = await Promise.all([dataStore.getCustomers(), dataStore.getServiceItems()]);
-    const cust = customers.find((c) => c.id === cur.customerId) ?? customers[0];
-    const srv = services.find((s) => s.id === cur.serviceItemId) ?? services[0];
-    if (!cust || !srv) return null;
-    const job = cust.jobs.find((j) => j.id === cur.jobId);
+    const cust = customers.find((c) => c.id === cur.customerId);
+    const srv = services.find((s) => s.id === cur.serviceItemId);
+    const job = cust?.jobs.find((j) => j.id === cur.jobId);
     const entry = await dataStore.createTimeEntry({
       userId,
-      customerId: cust.id,
+      customerId: cust?.id ?? "",
       jobId: job?.id ?? null,
-      serviceItemId: srv.id,
+      serviceItemId: srv?.id ?? "",
       date: new Date().toLocaleDateString("en-CA"),
       durationMinutes: Math.max(1, Math.round(seconds / 60)),
       locationType: cur.locationType,
       notes: cur.notes || "Recorded with stopwatch",
-      isBillable: srv.defaultBillable,
+      isBillable: srv?.defaultBillable ?? true,
       status: "submitted",
     });
     await dataStore.discardTimer(userId);

@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, X,
+  AlertTriangle, ChevronDown, ChevronRight, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, X,
 } from "lucide-react";
 import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
 import { RequireManager } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
+import { weekRangeLabel, weekStart, weekTag } from "@/lib/weeks";
 
 type Period = "today" | "this_week" | "last_week" | "this_month" | "last_month" | "quarter" | "ytd" | "all" | "custom";
 type StatusFilter = "all" | "review" | "approved" | "exported" | "flagged";
-type View = "entries" | "people" | "customers";
+type View = "entries" | "weeks" | "people" | "customers";
 type Issue = "edited" | "long_day" | "weekend" | "no_notes" | "duplicate" | "future";
 
 const PERIODS: { id: Period; label: string }[] = [
@@ -79,6 +80,7 @@ function AccountantPage() {
   const [issueFilter, setIssueFilter] = useState<Issue | "any" | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("entries");
+  const [weekOpen, setWeekOpen] = useState<Record<string, boolean>>({});
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -253,7 +255,7 @@ function AccountantPage() {
   const byCustomer = useMemo(() => {
     const m = new Map<string, { name: string; total: number; billable: number; amount: number; jobs: Map<string, number> }>();
     for (const e of inPeriod) {
-      const r = m.get(e.customerId) ?? { name: e.customerName, total: 0, billable: 0, amount: 0, jobs: new Map() };
+      const r = m.get(e.customerId) ?? { name: e.customerName || "No customer", total: 0, billable: 0, amount: 0, jobs: new Map() };
       r.total += e.durationMinutes;
       r.jobs.set(e.jobName ?? "No project", (r.jobs.get(e.jobName ?? "No project") ?? 0) + e.durationMinutes);
       if (e.isBillable) { r.billable += e.durationMinutes; r.amount += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0); }
@@ -261,6 +263,29 @@ function AccountantPage() {
     }
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
   }, [inPeriod, rate]);
+
+  // Pay weeks (Mon–Sun): per week, per person — hours, status, and the entries still waiting for approval.
+  const byWeek = useMemo(() => {
+    type P = { id: string; name: string; total: number; billable: number; n: number; flagged: number; approved: number; exported: number; submittedIds: string[] };
+    const m = new Map<string, { total: number; billable: number; people: Map<string, P> }>();
+    for (const e of inPeriod) {
+      const wk = weekStart(e.date);
+      const w = m.get(wk) ?? { total: 0, billable: 0, people: new Map<string, P>() };
+      const p = w.people.get(e.userId) ?? { id: e.userId, name: e.userName, total: 0, billable: 0, n: 0, flagged: 0, approved: 0, exported: 0, submittedIds: [] };
+      p.total += e.durationMinutes; p.n++;
+      if (e.isBillable) { p.billable += e.durationMinutes; w.billable += e.durationMinutes; }
+      if (e.flagged) p.flagged++;
+      if (e.status === "approved") p.approved++; else if (e.status === "exported") p.exported++; else p.submittedIds.push(e.id);
+      w.total += e.durationMinutes;
+      w.people.set(e.userId, p);
+      m.set(wk, w);
+    }
+    return Array.from(m.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([wk, w]) => ({ wk, ...w, people: Array.from(w.people.values()).sort((a, b) => a.name.localeCompare(b.name)) }));
+  }, [inPeriod]);
+  // The newest week starts open; the rest start closed.
+  const isWeekOpen = (wk: string, i: number) => weekOpen[wk] ?? i === 0;
 
   const card = (key: StatusFilter, label: string, n: number, m: number, tone: string, icon: React.ReactNode) => (
     <button
@@ -387,7 +412,7 @@ function AccountantPage() {
 
       {/* View tabs */}
       <div className="print-hide flex gap-1 self-start rounded-full bg-surface-container p-1" role="tablist">
-        {([["entries", `Entries (${visible.length})`], ["people", "By person"], ["customers", "By customer"]] as [View, string][]).map(([v, l]) => (
+        {([["entries", `Entries (${visible.length})`], ["weeks", "By week"], ["people", "By person"], ["customers", "By customer"]] as [View, string][]).map(([v, l]) => (
           <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cn("rounded-full px-4 py-1.5 text-xs font-semibold transition", view === v ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>{l}</button>
         ))}
       </div>
@@ -411,14 +436,14 @@ function AccountantPage() {
                   const open = e.status === "submitted" || e.status === "draft";
                   return (
                     <tr key={e.id} className={cn("hover:bg-surface-low", e.flagged && "bg-destructive/[0.04]", picked.has(e.id) && "bg-primary/5")}>
-                      <td className="text-center"><input type="checkbox" aria-label={`Select ${e.customerName} ${e.date}`} checked={picked.has(e.id)} onChange={() => toggle(e.id)} className="h-4 w-4 accent-[hsl(var(--primary))]" /></td>
+                      <td className="text-center"><input type="checkbox" aria-label={`Select ${e.customerName || "no customer"} ${e.date}`} checked={picked.has(e.id)} onChange={() => toggle(e.id)} className="h-4 w-4 accent-[hsl(var(--primary))]" /></td>
                       <td data-label="Date" className="whitespace-nowrap px-2 py-2 font-mono text-xs">{e.date}</td>
                       <td data-label="Person" className="px-2 py-2">{e.userName}</td>
                       <td data-label="Customer · project" className="span-2 px-2 py-2">
-                        <div className="font-medium">{e.customerName}{e.jobName && <span className="font-normal text-muted-foreground"> · {e.jobName}</span>}</div>
+                        <div className="font-medium">{e.customerName || <span className="font-normal italic text-muted-foreground">No customer</span>}{e.jobName && <span className="font-normal text-muted-foreground"> · {e.jobName}</span>}</div>
                         {e.notes && <div className="max-w-md truncate text-xs text-muted-foreground">{e.notes}</div>}
                       </td>
-                      <td data-label="Task" className="px-2 py-2 text-muted-foreground">{e.serviceItemName}</td>
+                      <td data-label="Task" className="px-2 py-2 text-muted-foreground">{e.serviceItemName || "—"}</td>
                       <td data-label="Hours" className="px-2 py-2 text-right font-mono tabular-nums">{hrs(e.durationMinutes)}{!e.isBillable && <span className="ml-1 text-[10px] text-muted-foreground">non-bill</span>}</td>
                       <td data-label="Value" className="px-2 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">{e.isBillable ? money((e.durationMinutes / 60) * (rate.get(e.userId) ?? 0)) : "—"}</td>
                       <td data-label="Status" className="px-2 py-2"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}>{e.status}</span></td>
@@ -473,6 +498,63 @@ function AccountantPage() {
           <div className="border-t border-border/70 px-4 py-2 text-xs text-muted-foreground">
             {visible.length} {visible.length === 1 ? "entry" : "entries"} · {hrs(visible.reduce((n, e) => n + e.durationMinutes, 0))} h
           </div>
+        </section>
+      ) : view === "weeks" ? (
+        <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm" aria-label="Hours by pay week">
+          {byWeek.length === 0 && <div className="py-12 text-center text-sm text-muted-foreground">No time in this period.</div>}
+          {byWeek.map((w, i) => {
+            const open = isWeekOpen(w.wk, i);
+            const waiting = w.people.reduce((n, p) => n + p.submittedIds.length, 0);
+            return (
+              <div key={w.wk} className="border-b border-border/70 last:border-b-0" data-week={w.wk}>
+                <button
+                  type="button"
+                  onClick={() => setWeekOpen((o) => ({ ...o, [w.wk]: !open }))}
+                  aria-expanded={open}
+                  data-testid="pay-week-toggle"
+                  className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 bg-surface-container px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.04]"
+                >
+                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                  <span className="text-sm font-semibold">{weekRangeLabel(w.wk)}</span>
+                  {weekTag(w.wk) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{weekTag(w.wk)}</span>}
+                  <span className="font-mono text-sm font-semibold tabular-nums">{hrs(w.total)} h</span>
+                  <span className="text-xs text-muted-foreground">{hrs(w.billable)} h billable · {w.people.length} {w.people.length === 1 ? "person" : "people"}</span>
+                  {waiting > 0 && <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{waiting} to review</span>}
+                </button>
+                {open && (
+                  <div className="stack-table-wrap overflow-x-auto">
+                    <table className="stack-table w-full min-w-[36rem] border-separate border-spacing-0 text-left text-[13px]">
+                      <tbody className="[&_td]:border-t [&_td]:border-border/70">
+                        {w.people.map((p) => (
+                          <tr key={p.id}>
+                            <td data-label="Person" className="span-2 px-3 py-2.5 pl-10 font-medium">{p.name}</td>
+                            <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(p.total)}</td>
+                            <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">{hrs(p.billable)}</td>
+                            <td data-label="Entries" className="span-2 px-3 py-2.5 text-xs text-muted-foreground">
+                              {p.n} {p.n === 1 ? "entry" : "entries"}
+                              {p.flagged > 0 && <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">{p.flagged} flagged</span>}
+                              {p.submittedIds.length > 0 && <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">{p.submittedIds.length} to review</span>}
+                              {p.approved > 0 && <span className="ml-2 rounded-full bg-tertiary-container px-2 py-0.5 font-medium text-tertiary-on-container">{p.approved} approved</span>}
+                              {p.exported > 0 && <span className="ml-2 rounded-full bg-surface-high px-2 py-0.5 font-medium">{p.exported} exported</span>}
+                            </td>
+                            <td className="actions-cell px-3 py-2 text-right">
+                              {p.submittedIds.length > 0 ? (
+                                <button
+                                  onClick={() => setStatusFor(p.submittedIds, "approved", `Approved ${p.name}'s week of ${weekRangeLabel(w.wk)}.`)}
+                                  aria-label={`Approve ${p.name}'s week of ${weekRangeLabel(w.wk)}`}
+                                  className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"
+                                ><CheckCircle2 className="h-3.5 w-3.5" />Approve week</button>
+                              ) : <span className="text-xs text-muted-foreground/60">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </section>
       ) : (
         <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">

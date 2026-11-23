@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ACCOUNTANT, ADMIN, DEMO_PASSWORD, ENGINEER, loginAs } from "./helpers";
+import { ACCOUNTANT, ADMIN, DEMO_PASSWORD, ENGINEER, loginAs, expandAllWeeks } from "./helpers";
 
 test.describe("sign in", () => {
   test("pick a user, wrong password is rejected, right password signs in, sign out returns", async ({ page }) => {
@@ -55,6 +55,7 @@ test.describe("editing past entries & accountant review", () => {
   test("editing an approved entry flags it; the accountant sees why and can clear it", async ({ page }) => {
     // Engineer edits an approved row.
     await loginAs(page, ENGINEER);
+    await expandAllWeeks(page);
     const approved = page.locator("tr", { has: page.getByText(/^approved$/i) }).first();
     const hours = approved.getByLabel("Hours", { exact: true });
     await expect(hours).toBeEnabled();
@@ -124,6 +125,7 @@ test.describe("team & passwords", () => {
 test.describe("text boxes select their contents on focus", () => {
   test("clicking a cell selects everything in it", async ({ page }) => {
     await loginAs(page, ENGINEER);
+    await expandAllWeeks(page);
     const notes = page.getByLabel("Notes", { exact: true }).first();
     await notes.click();
     const sel = await notes.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd, el.value.length]);

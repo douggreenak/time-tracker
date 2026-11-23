@@ -88,7 +88,7 @@ export function generateQuickBooksIIF(entries: ExportableTimeEntry[]): string {
     const qbDate = formatQuickBooksDate(entry.date);
     const qbJob = cleanIifField(formatQuickBooksJob(entry.customerName, entry.jobName));
     const qbEmp = cleanIifField(entry.employeeName || "Engineer");
-    const qbItem = cleanIifField(entry.serviceItemName || "Engineering Services");
+    const qbItem = cleanIifField(entry.serviceItemName || "");
     const qbPItem = cleanIifField(entry.payrollItemName || "");
     const qbDuration = formatQuickBooksDuration(entry.durationMinutes);
 

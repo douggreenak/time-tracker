@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, Flag, Lock, Plus, Search, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Download, Flag, Lock, Plus, Search, Trash2, Undo2 } from "lucide-react";
 import type { CustomerItem, ServiceItem, TimeEntryItem } from "@/db/mock-data";
 import { cn } from "@/components/ui";
+import { weekRangeLabel, weekStart, weekTag as weekTagOf } from "@/lib/weeks";
 import { Combobox, type ComboOption } from "@/components/ui/combobox";
 import { cellBase, TextCell } from "@/components/ui/cell";
 
@@ -51,14 +52,6 @@ export function parseDuration(raw: string): number | null {
 
 const fmtHours = (min: number) => (min / 60).toFixed(2);
 const today = () => new Date().toISOString().split("T")[0];
-
-/** Monday-based start of the week for a YYYY-MM-DD string. */
-function weekStart(d: string) {
-  const dt = new Date(`${d}T00:00:00`);
-  const diff = (dt.getDay() + 6) % 7;
-  dt.setDate(dt.getDate() - diff);
-  return dt.toLocaleDateString("en-CA");
-}
 
 interface Props {
   entries: TimeEntryItem[];
@@ -138,23 +131,16 @@ export function TimesheetGrid({
     return () => clearTimeout(t);
   }, [undo]);
 
-  // Seed the entry row once reference data arrives (and if the chosen ones disappear).
+  // If a chosen customer/project/task has since been removed, clear it (all three are optional).
   useEffect(() => {
     if (!draftLoaded) return;
     setDraft((d) => {
-      const custOk = customers.some((c) => c.id === d.customerId);
-      const cust = custOk ? d.customerId : customers.find((c) => c.isActive)?.id ?? "";
-      const jobOk = !d.jobId || customers.find((c) => c.id === cust)?.jobs.some((j) => j.id === d.jobId);
-      const srvCurrent = serviceItems.find((x) => x.id === d.serviceItemId);
-      const srv = srvCurrent ?? serviceItems[0];
-      if (cust === d.customerId && jobOk && srv?.id === d.serviceItemId) return d;
-      return {
-        ...d,
-        customerId: cust,
-        jobId: jobOk ? d.jobId : "",
-        serviceItemId: srv?.id ?? "",
-        isBillable: srvCurrent ? d.isBillable : srv?.defaultBillable ?? true,
-      };
+      const cust = customers.find((c) => c.id === d.customerId);
+      const customerId = cust ? d.customerId : "";
+      const jobId = cust?.jobs.some((j) => j.id === d.jobId) ? d.jobId : "";
+      const serviceItemId = serviceItems.some((x) => x.id === d.serviceItemId) ? d.serviceItemId : "";
+      if (customerId === d.customerId && jobId === d.jobId && serviceItemId === d.serviceItemId) return d;
+      return { ...d, customerId, jobId, serviceItemId };
     });
   }, [customers, serviceItems, draftLoaded]);
 
@@ -230,8 +216,7 @@ export function TimesheetGrid({
 
   const changeCustomer = (entry: TimeEntryItem, customerId: string) => {
     const c = customers.find((x) => x.id === customerId);
-    if (!c) return;
-    patchEntry(entry, { customerId, customerName: c.name, jobId: null, jobName: null });
+    patchEntry(entry, { customerId: c?.id ?? "", customerName: c?.name ?? "", jobId: null, jobName: null });
   };
 
   const changeJob = (entry: TimeEntryItem, jobId: string) => {
@@ -241,7 +226,7 @@ export function TimesheetGrid({
 
   const changeService = (entry: TimeEntryItem, serviceId: string) => {
     const s = serviceItems.find((x) => x.id === serviceId);
-    if (!s) return;
+    if (!s) return patchEntry(entry, { serviceItemId: "", serviceItemName: "" }); // task is optional
     patchEntry(entry, { serviceItemId: s.id, serviceItemName: s.name, isBillable: s.defaultBillable });
   };
 
@@ -312,10 +297,10 @@ export function TimesheetGrid({
       focusCell("new", "hours");
       return;
     }
-    if (!customers.some((c) => c.id === draft.customerId) || !serviceItems.some((x) => x.id === draft.serviceItemId)) {
-      onMessage({ type: "error", text: "Choose a customer and a task." });
-      return;
-    }
+    const cust = customers.find((c) => c.id === draft.customerId);
+    const customerId = cust?.id ?? "";
+    const jobId = cust?.jobs.some((j) => j.id === draft.jobId) ? draft.jobId : "";
+    const serviceItemId = serviceItems.some((x) => x.id === draft.serviceItemId) ? draft.serviceItemId : "";
     setSaving(true);
     try {
       const res = await fetch("/api/time-entries", {
@@ -323,9 +308,9 @@ export function TimesheetGrid({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
-          customerId: draft.customerId,
-          jobId: draft.jobId || null,
-          serviceItemId: draft.serviceItemId,
+          customerId,
+          jobId: jobId || null,
+          serviceItemId,
           date: draft.date,
           durationMinutes: min,
           locationType: draft.locationType,
@@ -338,6 +323,7 @@ export function TimesheetGrid({
       if (!json.success) throw new Error(json.error || "Failed to add entry");
       // Keep customer/job/service/date so repeat entries are just "hours + Enter".
       setDraft((d) => ({ ...d, hours: "", notes: "" }));
+      setWeekOpen(weekStart(draft.date), true); // make sure the week you just added to is open
       onChanged();
       setTimeout(() => focusCell("new", "hours"), 0);
     } catch (err) {
@@ -380,14 +366,66 @@ export function TimesheetGrid({
 
     e.preventDefault();
     if (row === "new") {
-      if (step > 0 && visible.length) focusCell(visible[0].id, col);
+      if (step > 0 && rendered.length) focusCell(rendered[0].id, col);
       return;
     }
-    const idx = visible.findIndex((v) => v.id === row);
+    const idx = rendered.findIndex((v) => v.id === row);
     const next = idx + step;
     if (next < 0) focusCell("new", col);
-    else if (next < visible.length) focusCell(visible[next].id, col);
+    else if (next < rendered.length) focusCell(rendered[next].id, col);
   };
+
+  // ---- collapsible weeks (pay is weekly) -----------------------------------------
+  const thisWeek = weekStart(today());
+  const [weekOverride, setWeekOverrideState] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      setWeekOverrideState(JSON.parse(localStorage.getItem("tt-weeks-v1") ?? "{}"));
+    } catch {}
+  }, []);
+  const setWeekOpen = (wk: string, open: boolean) =>
+    setWeekOverrideState((prev) => {
+      const next = { ...prev, [wk]: open };
+      try {
+        localStorage.setItem("tt-weeks-v1", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  /** The current week starts open and older weeks start closed; filtering opens everything that matches. */
+  const isWeekOpen = (wk: string) => (query.trim() ? true : weekOverride[wk] ?? wk === thisWeek);
+
+  const weeks = useMemo(() => {
+    const m = new Map<string, { minutes: number; billable: number; count: number; approved: number; exported: number; open: number; flagged: number }>();
+    visible.forEach((e) => {
+      const wk = weekStart(e.date);
+      const w = m.get(wk) ?? { minutes: 0, billable: 0, count: 0, approved: 0, exported: 0, open: 0, flagged: 0 };
+      w.minutes += e.durationMinutes;
+      if (e.isBillable) w.billable += e.durationMinutes;
+      w.count += 1;
+      if (e.status === "approved") w.approved += 1;
+      else if (e.status === "exported") w.exported += 1;
+      else w.open += 1;
+      if (e.flagged) w.flagged += 1;
+      m.set(wk, w);
+    });
+    return m;
+  }, [visible]);
+
+  const weekLabel = weekRangeLabel;
+  const weekTag = weekTagOf;
+  const allWeeks = Array.from(weeks.keys());
+  const anyClosed = allWeeks.some((w) => !isWeekOpen(w));
+  const setAllWeeks = (open: boolean) =>
+    setWeekOverrideState(() => {
+      const next = Object.fromEntries(allWeeks.map((w) => [w, open]));
+      try {
+        localStorage.setItem("tt-weeks-v1", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+  // Rows you can actually see (rows in a collapsed week are hidden); arrow-key navigation uses these.
+  const rendered = useMemo(() => visible.filter((e) => isWeekOpen(weekStart(e.date))), [visible, weekOverride, query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dayGroups = useMemo(() => {
     const totals = new Map<string, number>();
@@ -407,14 +445,27 @@ export function TimesheetGrid({
         <Stat label="Billable" value={stats.billable} sub={stats.total ? `${Math.round((stats.billable / stats.total) * 100)}%` : undefined} />
         <Stat label="All logged" value={stats.total} />
         <WeekBars entries={entries} />
+        <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0">
+        {allWeeks.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setAllWeeks(anyClosed)}
+            data-testid="weeks-toggle-all"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05] hover:text-foreground"
+          >
+            {anyClosed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {anyClosed ? "Expand all weeks" : "Collapse all weeks"}
+          </button>
+        )}
         <a
           href={`/api/export/csv?userId=${userId}`}
           download
           title="Download all of your time as a spreadsheet (CSV)"
-          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05] hover:text-foreground max-sm:ml-0"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05] hover:text-foreground"
         >
           <Download className="h-3.5 w-3.5" />Export CSV
         </a>
+        </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -467,7 +518,8 @@ export function TimesheetGrid({
                   aria-label="New entry customer"
                   data-r="new"
                   data-c="customer"
-                  placeholder="Customer…"
+                  placeholder="Customer (optional)…"
+                  emptyLabel="— no customer —"
                   value={draft.customerId}
                   options={customerOptions()}
                   onSelect={(id) => setDraft({ ...draft, customerId: id, jobId: "" })}
@@ -502,7 +554,8 @@ export function TimesheetGrid({
                   aria-label="New entry task"
                   data-r="new"
                   data-c="service"
-                  placeholder="Task…"
+                  placeholder="Task (optional)…"
+                  emptyLabel="— no task —"
                   value={draft.serviceItemId}
                   options={serviceOptions}
                   onSelect={(id) => {
@@ -578,9 +631,41 @@ export function TimesheetGrid({
 
             {visible.map((e, i) => {
               const locked = e.status === "approved" || e.status === "exported"; // can edit (flags accountant) but not delete
-              const firstOfDay = i === 0 || visible[i - 1].date !== e.date;
+              const wk = weekStart(e.date);
+              const firstOfWeek = i === 0 || weekStart(visible[i - 1].date) !== wk;
+              const weekOpen = isWeekOpen(wk);
+              const firstOfDay = i === 0 || visible[i - 1].date !== e.date || firstOfWeek;
+              const w = weeks.get(wk)!;
+              const weekHeader = firstOfWeek && (
+                <tr className="group-row week-row" data-week={wk}>
+                  <td colSpan={COLUMNS.length} className="border-y border-border bg-surface-container p-0">
+                    <button
+                      type="button"
+                      onClick={() => setWeekOpen(wk, !weekOpen)}
+                      aria-expanded={weekOpen}
+                      aria-label={`${weekOpen ? "Collapse" : "Expand"} week of ${weekLabel(wk)}`}
+                      data-testid="week-toggle"
+                      className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-foreground/[0.04]"
+                    >
+                      {weekOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                      <span className="text-[13px] font-semibold">{weekLabel(wk)}</span>
+                      {weekTag(wk) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{weekTag(wk)}</span>}
+                      <span className="font-mono text-[13px] font-semibold tabular-nums" data-testid="week-hours">{fmtHours(w.minutes)} h</span>
+                      <span className="text-[11px] text-muted-foreground">{fmtHours(w.billable)} h billable · {w.count} {w.count === 1 ? "entry" : "entries"}</span>
+                      <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+                        {w.flagged > 0 && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-destructive">{w.flagged} flagged</span>}
+                        {w.open > 0 && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{w.open} submitted</span>}
+                        {w.approved > 0 && <span className="rounded-full bg-tertiary-container px-2 py-0.5 text-tertiary-on-container">{w.approved} approved</span>}
+                        {w.exported > 0 && <span className="rounded-full bg-surface-high px-2 py-0.5 text-muted-foreground">{w.exported} exported</span>}
+                      </span>
+                    </button>
+                  </td>
+                </tr>
+              );
+              if (!weekOpen) return firstOfWeek ? <RowGroup key={`wk-${wk}`}>{weekHeader}</RowGroup> : null;
               return (
                 <RowGroup key={e.id}>
+                  {weekHeader}
                   {firstOfDay && (
                     <tr className="group-row">
                       <td
@@ -610,7 +695,9 @@ export function TimesheetGrid({
                         aria-label="Customer"
                         data-r={e.id}
                         data-c="customer"
-                                                value={e.customerId}
+                        placeholder="— no customer —"
+                        emptyLabel="— no customer —"
+                        value={e.customerId}
                         options={customerOptions(e.customerId)}
                         onSelect={(id) => changeCustomer(e, id)}
                         onCreate={async (name) => {
@@ -629,10 +716,14 @@ export function TimesheetGrid({
                         value={e.jobId ?? ""}
                         options={jobOptions(e.customerId, e.jobId)}
                         onSelect={(id) => changeJob(e, id)}
-                        onCreate={async (name) => {
-                          const id = await track(onCreateJob(e.customerId, name));
-                          if (id) changeJob(e, id);
-                        }}
+                        onCreate={
+                          e.customerId
+                            ? async (name) => {
+                                const id = await track(onCreateJob(e.customerId, name));
+                                if (id) changeJob(e, id);
+                              }
+                            : undefined
+                        }
                       />
                     </td>
                     <td data-label="Task" className="max-md:order-5">
@@ -640,7 +731,9 @@ export function TimesheetGrid({
                         aria-label="Task"
                         data-r={e.id}
                         data-c="service"
-                                                value={e.serviceItemId}
+                        placeholder="— no task —"
+                        emptyLabel="— no task —"
+                        value={e.serviceItemId}
                         options={serviceOptions}
                         onSelect={(id) => changeService(e, id)}
                         onCreate={async (name) => {

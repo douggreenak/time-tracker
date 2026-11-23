@@ -36,9 +36,9 @@ export const DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS time_entries (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    customer_id uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    customer_id uuid REFERENCES customers(id) ON DELETE CASCADE,
     job_id uuid REFERENCES jobs(id) ON DELETE SET NULL,
-    service_item_id uuid NOT NULL REFERENCES service_items(id) ON DELETE CASCADE,
+    service_item_id uuid REFERENCES service_items(id) ON DELETE CASCADE,
     date date NOT NULL,
     duration_minutes integer NOT NULL,
     location_type varchar(50) NOT NULL DEFAULT 'office',
@@ -74,5 +74,8 @@ export const DDL: string[] = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text`,
   `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS flagged boolean NOT NULL DEFAULT false`,
   `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS flag_reason text`,
+  // Customer and task are optional on a time entry.
+  `ALTER TABLE time_entries ALTER COLUMN customer_id DROP NOT NULL`,
+  `ALTER TABLE time_entries ALTER COLUMN service_item_id DROP NOT NULL`,
   `CREATE INDEX IF NOT EXISTS time_entries_user_date_idx ON time_entries (user_id, date)`,
 ];

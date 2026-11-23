@@ -39,9 +39,9 @@ export const serviceItems = pgTable("service_items", {
 export const timeEntries = pgTable("time_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-  customerId: uuid("customer_id").references(() => customers.id, { onDelete: "cascade" }).notNull(),
+  customerId: uuid("customer_id").references(() => customers.id, { onDelete: "cascade" }), // optional
   jobId: uuid("job_id").references(() => jobs.id, { onDelete: "set null" }),
-  serviceItemId: uuid("service_item_id").references(() => serviceItems.id, { onDelete: "cascade" }).notNull(),
+  serviceItemId: uuid("service_item_id").references(() => serviceItems.id, { onDelete: "cascade" }), // optional
   date: date("date").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
   locationType: varchar("location_type", { length: 50 }).notNull().default("office"), // 'office', 'on_site', 'remote', 'travel'

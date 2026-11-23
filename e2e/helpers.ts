@@ -15,3 +15,10 @@ export async function loginAs(page: Page, name: string, path = "/engineer") {
 export const ENGINEER = "Priya Nair";
 export const ACCOUNTANT = "Marguerite Okafor";
 export const ADMIN = "Ingrid Solberg";
+
+/** Older weeks start collapsed; open them all so sample rows are reachable. */
+export async function expandAllWeeks(page: Page) {
+  const btn = page.getByTestId("weeks-toggle-all");
+  await expect(btn).toBeVisible();
+  if (/expand/i.test((await btn.textContent()) ?? "")) await btn.click();
+}

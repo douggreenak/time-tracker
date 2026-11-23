@@ -57,19 +57,20 @@ export async function POST(request: Request) {
       status,
     } = body;
 
-    if (!userId || !customerId || !serviceItemId || !date || durationMinutes === undefined) {
+    // Customer, project and task are all optional.
+    if (!userId || !date || durationMinutes === undefined) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields (userId, customerId, serviceItemId, date, durationMinutes)" },
+        { success: false, error: "Missing required fields (userId, date, durationMinutes)" },
         { status: 400 }
       );
     }
 
     const customers = await dataStore.getCustomers();
-    const cust = customers.find((c) => c.id === customerId);
+    const cust = customerId ? customers.find((c) => c.id === customerId) : undefined;
     const job = cust?.jobs.find((j) => j.id === jobId);
 
     const services = await dataStore.getServiceItems();
-    const srv = services.find((s) => s.id === serviceItemId);
+    const srv = serviceItemId ? services.find((s) => s.id === serviceItemId) : undefined;
 
     const users = await dataStore.getUsers();
     const user = users.find((u) => u.id === userId);
@@ -77,11 +78,14 @@ export async function POST(request: Request) {
     if (!isManager(g.user) && userId !== g.user.id) {
       return NextResponse.json({ success: false, error: "You can only log time for yourself." }, { status: 403 });
     }
-    if (!cust || !srv || !user) {
+    if (!user || (customerId && !cust) || (serviceItemId && !srv)) {
       return NextResponse.json(
-        { success: false, error: "Unknown " + (!user ? "engineer" : !cust ? "customer" : "service item") },
+        { success: false, error: "Unknown " + (!user ? "engineer" : !cust ? "customer" : "task") },
         { status: 400 }
       );
+    }
+    if (jobId && !job) {
+      return NextResponse.json({ success: false, error: "That project doesn't belong to the customer." }, { status: 400 });
     }
     const bad = checkMinutes(durationMinutes) || checkDate(date) || checkNotes(notes);
     if (bad) return NextResponse.json({ success: false, error: bad }, { status: 400 });
@@ -91,12 +95,12 @@ export async function POST(request: Request) {
     const newEntry = await dataStore.createTimeEntry({
       userId,
       userName: user?.name || "Engineer",
-      customerId,
-      customerName: cust?.name || "Customer",
+      customerId: cust?.id ?? "",
+      customerName: cust?.name ?? "",
       jobId: job?.id || null,
       jobName: job?.name || null,
-      serviceItemId,
-      serviceItemName: srv?.name || "Service Item",
+      serviceItemId: srv?.id ?? "",
+      serviceItemName: srv?.name ?? "",
       date,
       durationMinutes: Number(durationMinutes),
       locationType: locationType || "office",

@@ -129,8 +129,9 @@ export default function EngineerPage() {
 
   // Default the pickers once reference data is in (and if the chosen ones disappear).
   useEffect(() => {
-    if (!customers.some((c) => c.id === tCustomerId)) setTCustomerId(customers.find((c) => c.isActive)?.id ?? "");
-    if (!serviceItems.some((s) => s.id === tServiceId)) setTServiceId(serviceItems[0]?.id ?? "");
+    // Customer, project and task are optional: only clear a choice whose record has been removed.
+    if (tCustomerId && !customers.some((c) => c.id === tCustomerId)) setTCustomerId("");
+    if (tServiceId && !serviceItems.some((s) => s.id === tServiceId)) setTServiceId("");
   }, [customers, serviceItems, tCustomerId, tServiceId]);
 
   useEffect(() => {
@@ -175,12 +176,11 @@ export default function EngineerPage() {
 
   const start = () =>
     guard(async () => {
-      if (!tCustomerId || !tServiceId) throw new Error("Choose a customer and task for the stopwatch first.");
       adopt(
         await timerApi("start", {
-          customerId: tCustomerId,
+          customerId: tCustomerId || undefined,
           jobId: tJobId || undefined,
-          serviceItemId: tServiceId,
+          serviceItemId: tServiceId || undefined,
           locationType: tLocation,
           notes: tNotes,
         })
@@ -416,17 +416,17 @@ export default function EngineerPage() {
               </div>
               <div className="ml-auto grid w-full grid-cols-2 gap-2 lg:w-auto lg:grid-cols-[13rem_11rem_13rem_8rem_auto]">
                 {[
-                  <Combobox key="c" aria-label="Stopwatch customer" placeholder="Customer…" value={tCustomerId}
+                  <Combobox key="c" aria-label="Stopwatch customer" placeholder="Customer (optional)…" emptyLabel="— no customer —" value={tCustomerId}
                     options={customers.filter((c) => c.isActive).map((c) => ({ id: c.id, label: c.name }))}
-                    onSelect={(id) => { setTCustomerId(id); setTJobId(""); saveTimerFields({ customerId: id, jobId: null }); }}
+                    onSelect={(id) => { setTCustomerId(id); setTJobId(""); saveTimerFields({ customerId: id || null, jobId: null }); }}
                     onCreate={async (name) => { const r = await dir.createCustomer(name); if (r.ok) { setTCustomerId(r.data.id); setTJobId(""); saveTimerFields({ customerId: r.data.id, jobId: null }); } else fail(r.error); }} />,
                   <Combobox key="j" aria-label="Stopwatch project" placeholder="Project…" emptyLabel="— no project —" value={tJobId}
                     options={(customers.find((c) => c.id === tCustomerId)?.jobs ?? []).filter((j) => j.isActive).map((j) => ({ id: j.id, label: j.name }))}
                     onSelect={(id) => { setTJobId(id); saveTimerFields({ jobId: id || null }); }}
                     onCreate={tCustomerId ? async (name) => { const r = await dir.createJob(tCustomerId, name); if (r.ok) { setTJobId(r.data.id); saveTimerFields({ jobId: r.data.id }); } else fail(r.error); } : undefined} />,
-                  <Combobox key="s" aria-label="Stopwatch task" placeholder="Task…" value={tServiceId}
+                  <Combobox key="s" aria-label="Stopwatch task" placeholder="Task (optional)…" emptyLabel="— no task —" value={tServiceId}
                     options={serviceItems.map((s) => ({ id: s.id, label: s.name }))}
-                    onSelect={(id) => { setTServiceId(id); saveTimerFields({ serviceItemId: id }); }}
+                    onSelect={(id) => { setTServiceId(id); saveTimerFields({ serviceItemId: id || null }); }}
                     onCreate={async (name) => { const r = await dir.createService(name); if (r.ok) { setTServiceId(r.data.id); saveTimerFields({ serviceItemId: r.data.id }); } else fail(r.error); }} />,
                   <Combobox key="l" aria-label="Stopwatch location" value={tLocation} options={LOCATION_OPTS}
                     onSelect={(id) => { setTLocation(id as LocationType); saveTimerFields({ locationType: id }); }} />,
