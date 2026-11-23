@@ -58,37 +58,53 @@ export interface TimeEntryItem {
 export const initialUsers: UserItem[] = [
   {
     id: "usr_eng_1",
-    name: "Doug Mitchell",
-    email: "doug@engineering.com",
+    name: "Priya Nair",
+    email: "priya.nair@engineering.com",
     role: "engineer",
-    qbEmployeeName: "Doug Mitchell",
+    qbEmployeeName: "Priya Nair",
     defaultHourlyRate: 165.0,
   },
   {
     id: "usr_eng_2",
-    name: "Elena Rostova",
-    email: "elena@engineering.com",
+    name: "Tomas Herrera",
+    email: "tomas.herrera@engineering.com",
     role: "engineer",
-    qbEmployeeName: "Elena Rostova",
+    qbEmployeeName: "Tomas Herrera",
     defaultHourlyRate: 155.0,
   },
   {
     id: "usr_eng_3",
-    name: "Marcus Vance",
-    email: "marcus@engineering.com",
+    name: "Callum Brooks",
+    email: "callum.brooks@engineering.com",
     role: "engineer",
-    qbEmployeeName: "Marcus Vance",
+    qbEmployeeName: "Callum Brooks",
     defaultHourlyRate: 125.0,
   },
   {
     id: "usr_acc_1",
-    name: "Sarah Jenkins",
-    email: "sarah@accounting.com",
+    name: "Marguerite Okafor",
+    email: "marguerite.okafor@accounting.com",
     role: "accountant",
-    qbEmployeeName: "Sarah Jenkins",
+    qbEmployeeName: "Marguerite Okafor",
     defaultHourlyRate: 95.0,
   },
+  {
+    id: "usr_adm_1",
+    name: "Ingrid Solberg",
+    email: "ingrid.solberg@engineering.com",
+    role: "admin",
+    qbEmployeeName: "Ingrid Solberg",
+    defaultHourlyRate: 0,
+  },
 ];
+
+/** Emails the sample people had in earlier versions (used to rename them in existing databases). */
+export const legacySampleEmails: Record<string, string> = {
+  usr_eng_1: "doug@engineering.com",
+  usr_eng_2: "elena@engineering.com",
+  usr_eng_3: "marcus@engineering.com",
+  usr_acc_1: "sarah@accounting.com",
+};
 
 export const initialCustomers: CustomerItem[] = [
   {
@@ -240,7 +256,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_1",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_1",
     customerName: "Apex Energy Solutions",
     jobId: "job_1_1",
@@ -261,7 +277,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_2",
     userId: "usr_eng_2",
-    userName: "Elena Rostova",
+    userName: "Tomas Herrera",
     customerId: "cust_2",
     customerName: "Metro Water District",
     jobId: "job_2_1",
@@ -282,7 +298,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_3",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_2",
     customerName: "Metro Water District",
     jobId: "job_2_1",
@@ -303,7 +319,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_4",
     userId: "usr_eng_3",
-    userName: "Marcus Vance",
+    userName: "Callum Brooks",
     customerId: "cust_3",
     customerName: "Highland Industrial Park",
     jobId: "job_3_1",
@@ -322,7 +338,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_5",
     userId: "usr_eng_2",
-    userName: "Elena Rostova",
+    userName: "Tomas Herrera",
     customerId: "cust_4",
     customerName: "Cascade Tunnel Authority",
     jobId: "job_4_1",
@@ -343,7 +359,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_6",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_1",
     customerName: "Apex Energy Solutions",
     jobId: "job_1_1",
@@ -364,7 +380,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_7",
     userId: "usr_eng_3",
-    userName: "Marcus Vance",
+    userName: "Callum Brooks",
     customerId: "cust_5",
     customerName: "Pacific Power Grid",
     jobId: "job_5_1",
@@ -383,7 +399,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_8",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_6",
     customerName: "Internal Overhead",
     serviceItemId: "srv_6",
@@ -400,7 +416,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_9",
     userId: "usr_eng_2",
-    userName: "Elena Rostova",
+    userName: "Tomas Herrera",
     customerId: "cust_1",
     customerName: "Apex Energy Solutions",
     jobId: "job_1_2",
@@ -421,7 +437,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_10",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_3",
     customerName: "Highland Industrial Park",
     jobId: "job_3_2",
@@ -442,7 +458,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_11",
     userId: "usr_eng_2",
-    userName: "Elena Rostova",
+    userName: "Tomas Herrera",
     customerId: "cust_4",
     customerName: "Cascade Tunnel Authority",
     jobId: "job_4_1",
@@ -461,7 +477,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_12",
     userId: "usr_eng_3",
-    userName: "Marcus Vance",
+    userName: "Callum Brooks",
     customerId: "cust_2",
     customerName: "Metro Water District",
     jobId: "job_2_2",
@@ -480,7 +496,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_13",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_5",
     customerName: "Pacific Power Grid",
     jobId: "job_5_1",
@@ -501,7 +517,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_14",
     userId: "usr_eng_2",
-    userName: "Elena Rostova",
+    userName: "Tomas Herrera",
     customerId: "cust_2",
     customerName: "Metro Water District",
     jobId: "job_2_1",
@@ -520,7 +536,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_15",
     userId: "usr_eng_3",
-    userName: "Marcus Vance",
+    userName: "Callum Brooks",
     customerId: "cust_1",
     customerName: "Apex Energy Solutions",
     jobId: "job_1_1",
@@ -541,7 +557,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_16",
     userId: "usr_eng_1",
-    userName: "Doug Mitchell",
+    userName: "Priya Nair",
     customerId: "cust_1",
     customerName: "Apex Energy Solutions",
     jobId: "job_1_1",
@@ -560,7 +576,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_17",
     userId: "usr_eng_2",
-    userName: "Elena Rostova",
+    userName: "Tomas Herrera",
     customerId: "cust_3",
     customerName: "Highland Industrial Park",
     jobId: "job_3_2",
@@ -579,7 +595,7 @@ export const initialTimeEntries: TimeEntryItem[] = [
   {
     id: "entry_18",
     userId: "usr_eng_3",
-    userName: "Marcus Vance",
+    userName: "Callum Brooks",
     customerId: "cust_4",
     customerName: "Cascade Tunnel Authority",
     jobId: "job_4_1",

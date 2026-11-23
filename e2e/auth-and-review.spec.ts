@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ACCOUNTANT, DEMO_PASSWORD, ENGINEER, loginAs } from "./helpers";
+import { ACCOUNTANT, ADMIN, DEMO_PASSWORD, ENGINEER, loginAs } from "./helpers";
 
 test.describe("sign in", () => {
   test("pick a user, wrong password is rejected, right password signs in, sign out returns", async ({ page }) => {
@@ -31,8 +31,14 @@ test.describe("sign in", () => {
     expect(new Set(mine.data.map((e: { userName: string }) => e.userName))).toEqual(new Set([ENGINEER]));
   });
 
-  test("accountants see every nav item", async ({ page }) => {
+  test("accountants see everything except people management; admins see all", async ({ page }) => {
     await loginAs(page, ACCOUNTANT);
+    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks"]) {
+      await expect(page.getByRole("link", { name })).toBeVisible();
+    }
+    await expect(page.getByRole("link", { name: "Team" })).toHaveCount(0);
+    await page.request.post("/api/auth/logout");
+    await loginAs(page, ADMIN);
     for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
@@ -95,9 +101,9 @@ test.describe("editing past entries & accountant review", () => {
 });
 
 test.describe("team & passwords", () => {
-  test("accountant adds a person with a password and they can sign in", async ({ page, browser }) => {
+  test("admin adds a person with a password and they can sign in", async ({ page, browser }) => {
     const stamp = Date.now();
-    await loginAs(page, ACCOUNTANT, "/team");
+    await loginAs(page, ADMIN, "/team");
     await page.getByLabel("New person name").fill(`Test Person ${stamp}`);
     await page.getByLabel("New person email").fill(`t${stamp}@example.com`);
     await page.getByLabel("New person password").fill("correct-horse-1");

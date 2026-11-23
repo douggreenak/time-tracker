@@ -12,7 +12,7 @@ import { DemoBanner } from "./DemoBanner";
 import { UserMenu } from "./UserMenu";
 
 function Shell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isManager } = useAuth();
+  const { user, loading, isManager, isAdmin } = useAuth();
 
   if (loading)
     return (
@@ -33,7 +33,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="hidden text-[15px] font-semibold tracking-tight lg:block">TimeTrack</span>
           </Link>
-          <NavLinks isManager={isManager} />
+          <NavLinks isManager={isManager} isAdmin={isAdmin} />
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <SaveIndicator />
             <ThemeToggle />
@@ -44,7 +44,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <SelectOnFocus />
       {/* The header above is a normal first row; only this area scrolls, so the account/menu bar always stays on top. */}
       <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
-        {isManager && <DemoBanner />}
+        {isManager && <DemoBanner canClear={isAdmin} />}
         <main className="flex min-h-full flex-col">{children}</main>
       </div>
     </>

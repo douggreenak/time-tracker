@@ -7,11 +7,12 @@ interface AuthCtx {
   user: UserItem | null;
   loading: boolean;
   isManager: boolean;
+  isAdmin: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-const Ctx = createContext<AuthCtx>({ user: null, loading: true, isManager: false, refresh: async () => {}, signOut: async () => {} });
+const Ctx = createContext<AuthCtx>({ user: null, loading: true, isManager: false, isAdmin: false, refresh: async () => {}, signOut: async () => {} });
 export const useAuth = () => useContext(Ctx);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, loading, isManager: !!user && (user.role === "accountant" || user.role === "admin"), refresh, signOut }}>
+    <Ctx.Provider value={{ user, loading, isManager: !!user && (user.role === "accountant" || user.role === "admin"), isAdmin: user?.role === "admin", refresh, signOut }}>
       {children}
     </Ctx.Provider>
   );
@@ -69,6 +70,20 @@ export function RequireManager({ children }: { children: React.ReactNode }) {
       <div>
         <p className="text-lg font-semibold">This page is for accountants and admins.</p>
         <p className="mt-1 text-sm text-muted-foreground">Ask an admin if you need access.</p>
+      </div>
+    </div>
+  );
+}
+
+/** Wraps a page that only admins may use (managing people and passwords). */
+export function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuth();
+  if (isAdmin) return <>{children}</>;
+  return (
+    <div className="flex flex-1 items-center justify-center p-8 text-center">
+      <div>
+        <p className="text-lg font-semibold">This page is for admins.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Ask an admin to make changes to people or passwords.</p>
       </div>
     </div>
   );

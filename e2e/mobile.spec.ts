@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ACCOUNTANT, ENGINEER, loginAs } from "./helpers";
+import { ACCOUNTANT, ADMIN, ENGINEER, loginAs } from "./helpers";
 
 // Phone-sized viewport: nothing may spill sideways, and the key controls must still be reachable.
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -39,7 +39,17 @@ test("manager pages fit", async ({ page }) => {
   await page.getByRole("button", { name: "All time" }).click();
   await noSidewaysScroll(page);
   await shot(page, "m-review");
-  for (const [path, name] of [["/customers", "m-customers"], ["/tasks", "m-tasks"], ["/team", "m-team"]] as const) {
+  for (const [path, name] of [["/customers", "m-customers"], ["/tasks", "m-tasks"]] as const) {
+    await page.goto(path);
+    await expect(page.getByRole("heading").first()).toBeVisible();
+    await noSidewaysScroll(page);
+    await shot(page, name);
+  }
+});
+
+test("admin pages fit (team, account)", async ({ page }) => {
+  await loginAs(page, ADMIN, "/team");
+  for (const [path, name] of [["/team", "m-team"], ["/account", "m-account"]] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading").first()).toBeVisible();
     await noSidewaysScroll(page);

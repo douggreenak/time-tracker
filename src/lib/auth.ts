@@ -65,14 +65,17 @@ export async function currentUser(): Promise<UserItem | null> {
   return id ? (await dataStore.getUserById(id)) ?? null : null;
 }
 
+export const isAdmin = (u: Pick<UserItem, "role">) => u.role === "admin";
 export const isManager = (u: Pick<UserItem, "role">) => u.role === "accountant" || u.role === "admin";
 
 type Guard = { ok: true; user: UserItem } | { ok: false; res: NextResponse };
 
 /** Use at the top of an API handler: `const g = await requireUser(); if (!g.ok) return g.res;` */
-export async function requireUser(opts: { manager?: boolean } = {}): Promise<Guard> {
+export async function requireUser(opts: { manager?: boolean; admin?: boolean } = {}): Promise<Guard> {
   const user = await currentUser();
   if (!user) return { ok: false, res: NextResponse.json({ success: false, error: "Please sign in." }, { status: 401 }) };
+  if (opts.admin && !isAdmin(user))
+    return { ok: false, res: NextResponse.json({ success: false, error: "Only an admin can do that." }, { status: 403 }) };
   if (opts.manager && !isManager(user))
     return { ok: false, res: NextResponse.json({ success: false, error: "Only an accountant or admin can do that." }, { status: 403 }) };
   return { ok: true, user };

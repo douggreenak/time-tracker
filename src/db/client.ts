@@ -4,7 +4,7 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 import { DDL } from "./ddl";
 import { demoHash, demoSeedStatements, seedId } from "./seed";
-import { initialUsers } from "./mock-data";
+import { initialUsers, legacySampleEmails } from "./mock-data";
 
 export type Db = PgliteDatabase<typeof schema>;
 
@@ -89,7 +89,7 @@ async function upgradeLegacySample(db: Db) {
   if (!demo) return; // real data: never touch
   const users = await db.select({ id: schema.users.id }).from(schema.users);
   const have = new Set(users.map((u) => u.id));
-  if (users.length === 0 || initialUsers.every((u) => have.has(seedId(u.id)))) return;
+  if (users.length === 0 || initialUsers.some((u) => have.has(seedId(u.id)))) return;
   await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seeded'`);
   await seedIfEmpty(db);
 }
@@ -105,10 +105,33 @@ async function fixSamplePasswords(db: Db) {
   await db.insert(schema.appMeta).values({ key: "demo_pw_v1", value: "true" }).onConflictDoNothing();
 }
 
+/** One-time: give existing sample databases the current sample people (new names, plus the admin). */
+async function syncSamplePeople(db: Db) {
+  if (process.env.ENABLE_DEMO_DATA === "false") return;
+  const meta = (k: string) => db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = ${k}`);
+  const [[demo], [done]] = await Promise.all([meta("demo"), meta("demo_people_v2")]);
+  if (!demo || done) return;
+  const existing = await db.select({ id: schema.users.id, email: schema.users.email }).from(schema.users);
+  const hash = await demoHash();
+  for (const u of initialUsers) {
+    const row = existing.find((r) => r.id === seedId(u.id)) ?? existing.find((r) => r.email === legacySampleEmails[u.id]);
+    if (row) {
+      await db.update(schema.users).set({ name: u.name, email: u.email, qbEmployeeName: u.qbEmployeeName }).where(sql`${schema.users.id} = ${row.id}`);
+    } else {
+      await db
+        .insert(schema.users)
+        .values({ id: seedId(u.id), name: u.name, email: u.email, role: u.role, qbEmployeeName: u.qbEmployeeName, defaultHourlyRate: String(u.defaultHourlyRate), passwordHash: hash })
+        .onConflictDoNothing();
+    }
+  }
+  await db.insert(schema.appMeta).values({ key: "demo_people_v2", value: "true" }).onConflictDoNothing();
+}
+
 async function seedIfEmpty(db: Db) {
   if (await isSeeded(db)) {
     await upgradeLegacySample(db);
-    return fixSamplePasswords(db);
+    await fixSamplePasswords(db);
+    return syncSamplePeople(db);
   }
   await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`); // leftover from an earlier version
 
@@ -128,6 +151,7 @@ async function seedIfEmpty(db: Db) {
       x.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing(),
       x.insert(schema.appMeta).values({ key: "seeded", value: "true" }).onConflictDoNothing(),
       x.insert(schema.appMeta).values({ key: "demo_pw_v1", value: "true" }).onConflictDoNothing(),
+      x.insert(schema.appMeta).values({ key: "demo_people_v2", value: "true" }).onConflictDoNothing(),
     ];
     if (storageMode() === "neon") {
       await (db as unknown as { batch: (q: unknown[]) => Promise<unknown> }).batch(build(db));

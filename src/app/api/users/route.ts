@@ -17,12 +17,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser({ admin: true });
   if (!g.ok) return g.res;
   try {
     const { name, email, role, qbEmployeeName, defaultHourlyRate, password } = await request.json();
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ success: false, error: "Name and email are required" }, { status: 400 });
+    }
+    if (role !== undefined && !["engineer", "accountant", "admin"].includes(role)) {
+      return NextResponse.json({ success: false, error: "Unknown role." }, { status: 400 });
     }
     if (typeof password !== "string" || password.length < 8) {
       return NextResponse.json({ success: false, error: "Set a starting password of at least 8 characters." }, { status: 400 });

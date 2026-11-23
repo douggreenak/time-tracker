@@ -17,7 +17,7 @@ export async function GET() {
 
 /** Removes the sample data (and everything else) so the database starts empty. Only allowed while demo data is loaded. */
 export async function DELETE() {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser({ admin: true });
   if (!g.ok) return g.res;
   try {
     if (!(await dataStore.isDemo())) {

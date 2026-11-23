@@ -12,5 +12,6 @@ export async function loginAs(page: Page, name: string, path = "/engineer") {
   await page.goto(path);
 }
 
-export const ENGINEER = "Doug Mitchell";
-export const ACCOUNTANT = "Sarah Jenkins";
+export const ENGINEER = "Priya Nair";
+export const ACCOUNTANT = "Marguerite Okafor";
+export const ADMIN = "Ingrid Solberg";

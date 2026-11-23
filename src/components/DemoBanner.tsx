@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 /** Shown while the database still holds the bundled sample data. */
-export function DemoBanner() {
+export function DemoBanner({ canClear = false }: { canClear?: boolean }) {
   const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [ephemeral, setEphemeral] = useState(false);
@@ -48,6 +48,7 @@ export function DemoBanner() {
         <Sparkles className="h-3.5 w-3.5 text-warning" />
         You’re looking at sample data.
       </span>
+      {canClear ? (
       <button
         onClick={clear}
         disabled={busy}
@@ -56,6 +57,9 @@ export function DemoBanner() {
       >
         {busy ? "Clearing…" : "Clear sample data & start fresh"}
       </button>
+      ) : (
+        <span className="text-muted-foreground">An admin can clear it.</span>
+      )}
     </div>
     </>
   );

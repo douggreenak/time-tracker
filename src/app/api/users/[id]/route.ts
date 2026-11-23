@@ -6,7 +6,7 @@ import { hashPassword } from "@/lib/password";
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser({ admin: true });
   if (!g.ok) return g.res;
   try {
     const body = await request.json();
@@ -24,16 +24,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (updates.name === "" || updates.email === "") {
       return NextResponse.json({ success: false, error: "Name and email can't be empty" }, { status: 400 });
     }
-    if (body.password !== undefined) {
-      if (typeof body.password !== "string" || body.password.length < 8) {
-        return NextResponse.json({ success: false, error: "Use a password of at least 8 characters." }, { status: 400 });
-      }
-      await dataStore.setPassword(params.id, await hashPassword(body.password));
+    if (body.password !== undefined && (typeof body.password !== "string" || body.password.length < 8)) {
+      return NextResponse.json({ success: false, error: "Use a password of at least 8 characters." }, { status: 400 });
+    }
+    if (body.role !== undefined && !["engineer", "accountant", "admin"].includes(body.role)) {
+      return NextResponse.json({ success: false, error: "Unknown role." }, { status: 400 });
     }
     if (body.role !== undefined && g.user.id === params.id && body.role !== g.user.role) {
       return NextResponse.json({ success: false, error: "You can't change your own role." }, { status: 400 });
     }
     const updated = await dataStore.updateUser(params.id, updates);
+    if (updated && body.password !== undefined) await dataStore.setPassword(params.id, await hashPassword(body.password));
     if (!updated) return NextResponse.json({ success: false, error: "Person not found" }, { status: 404 });
     return NextResponse.json({ success: true, data: updated });
   } catch (error: unknown) {
@@ -46,7 +47,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser({ admin: true });
   if (!g.ok) return g.res;
   if (g.user.id === params.id) return NextResponse.json({ success: false, error: "You can't remove yourself." }, { status: 400 });
   try {

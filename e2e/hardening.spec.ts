@@ -43,7 +43,7 @@ test("CSV export: engineers get only their own time, and formulas are defused", 
   const text = await res.text();
   expect(text).toContain("'=HYPERLINK");
   expect(text).not.toMatch(/"=HYPERLINK/);
-  expect(text).not.toContain("Sarah Jenkins");
+  expect(text).not.toContain(ACCOUNTANT);
 });
 
 test("accountant can send an entry back with a note the engineer sees", async ({ page }) => {

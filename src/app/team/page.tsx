@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Copy, KeyRound, Plus, Trash2, X } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
 import { TextCell, cellBase } from "@/components/ui/cell";
-import { RequireManager } from "@/components/AuthProvider";
+import { RequireAdmin } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
 
@@ -18,6 +18,15 @@ function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [pwDone, setPwDone] = useState<string | null>(null);
   const [pwKey, setPwKey] = useState(0);
+  const [temp, setTemp] = useState<{ name: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  /** A readable one-time password (no look-alike characters). Shown once; the person should change it after signing in. */
+  const makeTemp = () => {
+    const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+  };
 
   useEffect(() => {
     fetch("/api/time-entries").then((r) => r.json()).then((j) => j.success && setEntries(j.data)).catch(() => {});
@@ -35,6 +44,12 @@ function TeamPage() {
     return r;
   };
 
+  const resetPassword = async (id: string, name: string) => {
+    const password = makeTemp();
+    const r = await run(dir.updateUser(id, { password }));
+    if (r.ok) { setTemp({ name, password }); setCopied(false); }
+  };
+
   const add = async () => {
     if (!draft.name.trim() || !draft.email.trim()) return setError("Enter a name and an email to add someone.");
     if (draft.password.length < 8) return setError("Give them a starting password of at least 8 characters.");
@@ -50,9 +65,22 @@ function TeamPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Team</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          People who log time. Engineers appear in the timesheet’s engineer picker; the QuickBooks name must match the employee name in QuickBooks.
+          Admins manage everyone here: add people, change roles and rates, and set or reset passwords. Engineers appear in the timesheet’s engineer picker; the QuickBooks name must match the employee name in QuickBooks.
         </p>
       </div>
+
+      {temp && (
+        <div role="status" className="flex animate-m3-rise flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-tertiary/30 bg-tertiary-container/60 px-4 py-3 text-sm">
+          <span>New temporary password for <strong>{temp.name}</strong>:</span>
+          <code data-testid="temp-password" className="rounded-md bg-card px-2 py-1 font-mono text-[13px] tracking-wide">{temp.password}</code>
+          <button
+            onClick={() => { navigator.clipboard?.writeText(temp.password); setCopied(true); }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-outline-variant bg-card px-3 text-xs font-semibold hover:bg-foreground/[0.05]"
+          >{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copied ? "Copied" : "Copy"}</button>
+          <span className="text-xs text-muted-foreground">Shown once — it can’t be looked up later. Ask them to change it from their Account page.</span>
+          <button onClick={() => setTemp(null)} aria-label="Dismiss" className="ml-auto rounded-full p-1 hover:bg-foreground/10"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       {error && (
         <div role="alert" className="flex animate-m3-rise items-center justify-between gap-3 rounded-xl bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
@@ -110,6 +138,7 @@ function TeamPage() {
                   <td data-label="Rate / hr"><TextCell aria-label="Rate" inputMode="decimal" value={String(u.defaultHourlyRate)} onCommit={(v) => { const n = Number(v); if (v.trim() !== "" && Number.isFinite(n) && n >= 0) run(dir.updateUser(u.id, { defaultHourlyRate: n })); else setError("Hourly rate must be a number."); }} className="text-right font-mono tabular-nums" /></td>
                   <td data-label="Hours" className="px-2 text-right font-mono text-[13px] tabular-nums">{((minutes.get(u.id) ?? 0) / 60).toFixed(2)}</td>
                   <td data-label="New password" className="span-2">
+                    <div className="flex items-center">
                     <TextCell
                       key={`${u.id}-pw-${pwKey}`}
                       aria-label={`Set password for ${u.name}`}
@@ -124,6 +153,13 @@ function TeamPage() {
                         if (r.ok) { setPwKey((k) => k + 1); setPwDone(u.id); setTimeout(() => setPwDone(null), 3000); }
                       }}
                     />
+                    <button
+                      onClick={() => resetPassword(u.id, u.name)}
+                      aria-label={`Generate a temporary password for ${u.name}`}
+                      title="Generate a temporary password"
+                      className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                    ><KeyRound className="h-3.5 w-3.5" /></button>
+                    </div>
                   </td>
                   <td className="actions-cell text-center">
                     <button
@@ -141,7 +177,7 @@ function TeamPage() {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">People can only be removed while they have no time entries. Edits save as you leave a cell.</div>
+        <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">Passwords are stored scrambled, so nobody — admins included — can read one back. Set a new one, or use the key button to generate a temporary one. People can only be removed while they have no time entries. Edits save as you leave a cell.</div>
       </section>
     </div>
   );
@@ -149,8 +185,8 @@ function TeamPage() {
 
 export default function Page() {
   return (
-    <RequireManager>
+    <RequireAdmin>
       <TeamPage />
-    </RequireManager>
+    </RequireAdmin>
   );
 }

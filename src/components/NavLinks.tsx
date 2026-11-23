@@ -10,12 +10,12 @@ const NAV_ITEMS = [
   { href: "/accountant", label: "Review & export", icon: BarChart3, manager: true },
   { href: "/customers", label: "Customers", icon: Building2, manager: true },
   { href: "/tasks", label: "Tasks", icon: ListChecks, manager: true },
-  { href: "/team", label: "Team", icon: Users, manager: true },
+  { href: "/team", label: "Team", icon: Users, manager: true, admin: true },
 ];
 
-export function NavLinks({ isManager }: { isManager: boolean }) {
+export function NavLinks({ isManager, isAdmin = false }: { isManager: boolean; isAdmin?: boolean }) {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter((i) => isManager || !i.manager);
+  const items = NAV_ITEMS.filter((i) => (isManager || !i.manager) && (isAdmin || !i.admin));
   return (
     <nav aria-label="Main" className="flex min-w-0 items-center gap-0.5 rounded-full bg-surface-container p-1">
       {items.map(({ href, label, icon: Icon }) => {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ACCOUNTANT, loginAs } from "./helpers";
+import { ACCOUNTANT, ADMIN, loginAs } from "./helpers";
 
 const SHOTS = process.env.SHOT_DIR;
 const shot = async (page: import("@playwright/test").Page, name: string) => SHOTS && (await page.screenshot({ path: `${SHOTS}/${name}.png` }));
@@ -33,7 +33,7 @@ test("very long names don't break the layout (desktop + phone)", async ({ page }
 });
 
 test("clearing sample data leads to first-run setup and clean empty screens", async ({ page }) => {
-  await loginAs(page, ACCOUNTANT, "/accountant");
+  await loginAs(page, ADMIN, "/accountant");
   page.once("dialog", (d) => d.accept());
   await page.getByTestId("clear-demo").click();
 
