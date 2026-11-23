@@ -3,7 +3,8 @@ import { sql } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 import { DDL } from "./ddl";
-import { seedDemoData } from "./seed";
+import { seedDemoData, seedId } from "./seed";
+import { initialUsers } from "./mock-data";
 
 export type Db = PgliteDatabase<typeof schema>;
 
@@ -71,50 +72,28 @@ async function ensureSchema(db: Db) {
   );
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const isSeeded = async (db: Db) => (await db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = 'seeded'`)).length > 0;
 
 /**
- * Loads the sample data exactly once, even when several server instances start at the same moment
- * (serverless): whoever inserts the 'seed_lock' row does the seeding, everyone else waits for 'seeded'.
+ * Loads the sample data once. Seeding uses fixed ids and skips rows that already exist, so it is safe
+ * to repeat and safe if two server instances do it at the same moment (no lock to get stuck on).
  */
 async function seedIfEmpty(db: Db) {
-  for (let attempt = 0; attempt < 12; attempt++) {
-    if (await isSeeded(db)) return;
+  if (await isSeeded(db)) return;
+  await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`); // leftover from an earlier version
 
-    const claimed = await db
-      .insert(schema.appMeta)
-      .values({ key: "seed_lock", value: String(Date.now()) })
-      .onConflictDoNothing()
-      .returning({ key: schema.appMeta.key });
-
-    if (claimed.length) {
-      try {
-        const existing = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
-        if (existing.length === 0 && process.env.ENABLE_DEMO_DATA !== "false") {
-          await seedDemoData(db);
-          await db.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing();
-        }
-        await db.insert(schema.appMeta).values({ key: "seeded", value: "true" }).onConflictDoNothing();
-      } catch (err) {
-        // Don't leave half a seed behind: wipe it so the next start can try cleanly.
-        for (const tbl of [schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users])
-          await db.delete(tbl).catch(() => {});
-        throw err;
-      } finally {
-        await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`).catch(() => {});
-      }
-      return;
+  if (process.env.ENABLE_DEMO_DATA !== "false") {
+    const users = await db.select({ id: schema.users.id }).from(schema.users);
+    const hasSeedIds = users.some((u) => u.id === seedId(initialUsers[0].id));
+    if (users.length > 0 && !hasSeedIds) {
+      // People exist but setup never finished (an interrupted earlier attempt). Nobody could sign in, so start clean.
+      for (const tbl of [schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users])
+        await db.delete(tbl);
     }
-
-    // Someone else is seeding. If their lock is stale (they crashed), clear it and try again.
-    const [lock] = await db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`);
-    if (lock && Date.now() - Number(lock.value) > 20_000) {
-      await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`);
-    }
-    await sleep(500);
+    await seedDemoData(db);
+    await db.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing();
   }
-  throw new Error("The database is still doing its first-time setup. Try again in a few seconds.");
+  await db.insert(schema.appMeta).values({ key: "seeded", value: "true" }).onConflictDoNothing();
 }
 
 export function getDb(): Promise<Db> {

@@ -1,17 +1,21 @@
+import { createHash } from "node:crypto";
 import * as schema from "./schema";
 import type { Db } from "./client";
 import { hashPassword } from "../lib/password";
 import { initialCustomers, initialServiceItems, initialTimeEntries, initialUsers } from "./mock-data";
 
+/** Stable UUID for a sample record, e.g. seedId("user-1"). */
+export function seedId(old: string): string {
+  const h = createHash("sha1").update(`tt-seed:${old}`).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
 export const DEMO_PASSWORD = "demo1234";
 
 /** Loads the sample data from mock-data.ts into an empty database (ids become real UUIDs). */
 export async function seedDemoData(db: Db) {
-  const uid = new Map<string, string>();
-  const id = (old: string) => {
-    if (!uid.has(old)) uid.set(old, crypto.randomUUID());
-    return uid.get(old)!;
-  };
+  // Fixed ids (derived from the sample ids) make seeding safe to repeat or run from two servers at once.
+  const id = seedId;
 
   const demoHash = await hashPassword(DEMO_PASSWORD);
   await db.insert(schema.users).values(
@@ -24,10 +28,10 @@ export async function seedDemoData(db: Db) {
       qbEmployeeName: u.qbEmployeeName,
       defaultHourlyRate: String(u.defaultHourlyRate),
     }))
-  );
+  ).onConflictDoNothing();
   await db.insert(schema.customers).values(
     initialCustomers.map((c) => ({ id: id(c.id), name: c.name, qbName: c.qbName, isActive: c.isActive }))
-  );
+  ).onConflictDoNothing();
   const jobs = initialCustomers.flatMap((c) => c.jobs);
   if (jobs.length)
     await db.insert(schema.jobs).values(
@@ -38,10 +42,10 @@ export async function seedDemoData(db: Db) {
         fullQbJobName: j.fullQbJobName,
         isActive: j.isActive,
       }))
-    );
+    ).onConflictDoNothing();
   await db.insert(schema.serviceItems).values(
     initialServiceItems.map((s) => ({ id: id(s.id), name: s.name, qbItemName: s.qbItemName, defaultBillable: s.defaultBillable }))
-  );
+  ).onConflictDoNothing();
   if (initialTimeEntries.length)
     await db.insert(schema.timeEntries).values(
       initialTimeEntries.map((e) => ({
@@ -61,5 +65,5 @@ export async function seedDemoData(db: Db) {
         status: e.status,
         createdAt: new Date(e.createdAt),
       }))
-    );
+    ).onConflictDoNothing();
 }
