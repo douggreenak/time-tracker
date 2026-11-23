@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Clock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Clock, Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
 import { MIN_PASSWORD } from "@/lib/validate";
-import { Loader } from "@/components/ui/loader";
+import { Loader, Spinner } from "@/components/ui/loader";
 import { Dropdown } from "@/components/ui/dropdown";
 
 interface Person { id: string; name: string; role: string }
@@ -28,6 +28,7 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [tries, setTries] = useState(0);
+  const pwRef = useRef<HTMLInputElement>(null);
 
   // The first visit after a deploy can take a while (database setup), so wait, retry, and then say what's wrong.
   useEffect(() => {
@@ -86,7 +87,7 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
       {/* Brand panel (large screens) */}
       <aside className="hidden items-center justify-center text-white lg:flex" style={{ background: "linear-gradient(135deg, #0a5566 0%, #0b6a8c 55%, #0f78b0 100%)" }}>
         <div className="flex flex-col items-center gap-4">
@@ -108,7 +109,7 @@ export function LoginScreen() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">{needsSetup ? "Set up TimeTrack" : "Sign in to TimeTrack"}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {needsSetup ? "Create the first admin account to get started." : "Pick your name and enter your password."}
+              {needsSetup ? "Create the first admin account to get started." : "Choose your name, type your password, press Enter."}
             </p>
           </div>
         </div>
@@ -135,7 +136,8 @@ export function LoginScreen() {
                   aria-label="Who are you?"
                   variant="field"
                   value={userId}
-                  onChange={setUserId}
+                  onChange={(v) => { setUserId(v); setTimeout(() => pwRef.current?.focus(), 0); }}
+                  autoFocus
                   placeholder="Select your name"
                   options={(people ?? []).map((p) => ({ value: p.id, label: p.name, hint: p.role }))}
                 />
@@ -146,6 +148,7 @@ export function LoginScreen() {
               <span className="m3-label">{needsSetup ? `Choose a password (${MIN_PASSWORD}+ characters)` : "Password"}</span>
               <div className="relative">
                 <input
+                  ref={pwRef}
                   aria-label="Password"
                   type={show ? "text" : "password"}
                   className={`${field} pr-11`}
@@ -167,7 +170,7 @@ export function LoginScreen() {
               disabled={busy || (!needsSetup && !userId)}
               className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+              {busy ? <Spinner size={16} stroke="currentColor" /> : <LogIn className="h-4 w-4" />}
               {needsSetup ? "Create admin & continue" : "Sign in"}
             </button>
 

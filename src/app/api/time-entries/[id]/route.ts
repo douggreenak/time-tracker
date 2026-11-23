@@ -43,8 +43,13 @@ export async function PUT(
       // The one exception: moving your own time between draft and submitted, until the accountant has acted on it.
       const wanted = body.status;
       const mayToggle = (wanted === "draft" || wanted === "submitted") && (current?.status === "draft" || current?.status === "submitted");
-      for (const k of ["status", "flagged", "flagReason", "userId"]) delete body[k];
+      for (const k of ["status", "flagged", "flagReason", "userId", "dismissedIssues"]) delete body[k];
       if (mayToggle) body.status = wanted;
+    }
+    if (body.dismissedIssues !== undefined) {
+      const known = ["missing", "long_day", "weekend", "no_notes", "duplicate", "future"];
+      if (!Array.isArray(body.dismissedIssues) || body.dismissedIssues.some((x: unknown) => typeof x !== "string" || !known.includes(x)))
+        return NextResponse.json({ success: false, error: "Unknown check." }, { status: 400 });
     }
     const bad =
       (body.durationMinutes !== undefined && checkMinutes(body.durationMinutes)) ||

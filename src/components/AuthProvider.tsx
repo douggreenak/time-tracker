@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import type { UserItem } from "@/db/mock-data";
+import { AccessDenied } from "./AccessDenied";
 
 interface AuthCtx {
   user: UserItem | null;
@@ -64,27 +65,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 /** Wraps a page that only accountants and admins may use. */
 export function RequireManager({ children }: { children: React.ReactNode }) {
   const { isManager } = useAuth();
-  if (isManager) return <>{children}</>;
-  return (
-    <div className="flex flex-1 items-center justify-center p-8 text-center">
-      <div>
-        <p className="text-lg font-semibold">This page is for accountants and admins.</p>
-        <p className="mt-1 text-sm text-muted-foreground">Ask an admin if you need access.</p>
-      </div>
-    </div>
-  );
+  return isManager ? <>{children}</> : <AccessDenied />;
 }
 
-/** Wraps a page that only admins may use (managing people and passwords). */
+/** Wraps a page that only admins may use. */
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useAuth();
-  if (isAdmin) return <>{children}</>;
-  return (
-    <div className="flex flex-1 items-center justify-center p-8 text-center">
-      <div>
-        <p className="text-lg font-semibold">This page is for admins.</p>
-        <p className="mt-1 text-sm text-muted-foreground">Ask an admin to make changes to people or passwords.</p>
-      </div>
-    </div>
-  );
+  return isAdmin ? <>{children}</> : <AccessDenied />;
 }

@@ -53,6 +53,7 @@ export const timeEntries = pgTable("time_entries", {
   status: varchar("status", { length: 50 }).default("draft").notNull(), // 'draft', 'submitted', 'approved', 'exported'
   flagged: boolean("flagged").default(false).notNull(), // edited after approval/export — needs accountant attention
   flagReason: text("flag_reason"),
+  dismissedIssues: text("dismissed_issues"), // JSON list of automatic checks an accountant dismissed for this entry
   flagHistory: text("flag_history"), // JSON list of every question / edit note / withdrawal, kept even after the flag clears
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

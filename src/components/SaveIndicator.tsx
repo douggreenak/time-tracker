@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, Check, Loader2, Cloud } from "lucide-react";
+import { AlertCircle, Check, Cloud } from "lucide-react";
+import { Spinner } from "./ui/loader";
 import { cn } from "@/lib/utils";
 
 type State = "idle" | "saving" | "saved" | "error";
@@ -56,7 +57,7 @@ export function SaveIndicator() {
 
   const view = {
     idle: { icon: <Cloud className="h-3.5 w-3.5" />, text: "Autosave on", cls: "text-muted-foreground" },
-    saving: { icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, text: "Saving…", cls: "text-muted-foreground" },
+    saving: { icon: <Spinner size={14} />, text: "Saving…", cls: "text-muted-foreground" },
     saved: { icon: <Check className="h-3.5 w-3.5" />, text: "All changes saved", cls: "text-tertiary" },
     error: { icon: <AlertCircle className="h-3.5 w-3.5" />, text: "Couldn’t save — retry your last change", cls: "text-destructive" },
   }[state];

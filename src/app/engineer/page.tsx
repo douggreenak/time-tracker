@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Play, Pause, Square, Timer, ChevronUp, CheckCircle, AlertCircle, Navigation, Check, X, Users } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
 import { Button } from "@/components/ui/button";
+import { PageLoader } from "@/components/ui/loader";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Combobox } from "@/components/ui/combobox";
 import { TimesheetGrid } from "@/components/TimesheetGrid";
@@ -47,6 +48,7 @@ export default function EngineerPage() {
   const { customers, serviceItems, users } = dir;
 
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
+  const [entriesReady, setEntriesReady] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -93,11 +95,14 @@ export default function EngineerPage() {
       if (res.success) setEntries(res.data);
     } catch (err) {
       console.error("Failed to load entries", err);
+    } finally {
+      setEntriesReady(true);
     }
   }, [currentUserId]);
 
   useEffect(() => {
     setEntries([]);
+    setEntriesReady(false);
     loadEntries();
   }, [loadEntries]);
 
@@ -353,7 +358,7 @@ export default function EngineerPage() {
             Add a person
           </Link>
         </div>
-      ) : dir.loaded && current ? (
+      ) : dir.loaded && current && entriesReady ? (
         <TimesheetGrid
           entries={entries}
           setEntries={setEntries}
@@ -383,7 +388,7 @@ export default function EngineerPage() {
           }}
         />
       ) : (
-        <div className="h-[calc(100dvh-14rem)] animate-pulse rounded-2xl border border-border/70 bg-surface-low" />
+        <PageLoader label="Loading your timesheet…" className="h-[calc(100dvh-14rem)]" />
       )}
 
       {/* Stopwatch — secondary way to record time */}

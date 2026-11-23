@@ -85,10 +85,11 @@ test.describe("sign in", () => {
     await expect(page.getByLabel("Customer name", { exact: true })).toBeEnabled();
     await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();
     await page.goto("/team");
-    await expect(page.getByLabel("New person name")).toHaveCount(0);
+    await expect(page.getByLabel("New person name")).toBeVisible(); // accountants can add people
+    await expect(page.getByRole("link", { name: "Data" })).toHaveCount(0); // ...but backup/restore is admin-only
     await page.request.post("/api/auth/logout");
     await loginAs(page, ADMIN);
-    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
+    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team", "Data"]) {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
   });

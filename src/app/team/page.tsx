@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Check, Copy, KeyRound, Plus, Search, Trash2, X } from "lucide-react";
-import type { TimeEntryItem } from "@/db/mock-data";
 import { Dropdown } from "@/components/ui/dropdown";
 import { TextCell, cellBase } from "@/components/ui/cell";
-import { DataBackup } from "@/components/DataBackup";
+import { PageLoader } from "@/components/ui/loader";
 import { useAuth } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
@@ -16,7 +15,7 @@ const selectCell = "h-9 rounded-md border-transparent bg-transparent px-2 text-[
 
 function TeamPage() {
   const dir = useDirectory();
-  const [entries, setEntries] = useState<TimeEntryItem[]>([]);
+  const { isAdmin } = useAuth();
   const [draft, setDraft] = useState({ name: "", email: "", role: "engineer", rate: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [pwDone, setPwDone] = useState<string | null>(null);
@@ -33,16 +32,6 @@ function TeamPage() {
     return Array.from(bytes, (b) => chars[b % chars.length]).join("");
   };
 
-  useEffect(() => {
-    fetch("/api/time-entries").then((r) => r.json()).then((j) => j.success && setEntries(j.data)).catch(() => {});
-  }, []);
-
-  const minutes = useMemo(() => {
-    const m = new Map<string, number>();
-    entries.forEach((e) => m.set(e.userId, (m.get(e.userId) ?? 0) + e.durationMinutes));
-    return m;
-  }, [entries]);
-
   const shownUsers = useMemo(() => {
     const s = q.trim().toLowerCase();
     return dir.users.filter((u) => (roleFilter === "all" || u.role === roleFilter) && (!s || u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s)));
@@ -55,6 +44,7 @@ function TeamPage() {
   };
 
   const resetPassword = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to overwrite ${name}'s password with a new temporary one? Their current password will stop working.`)) return;
     const password = makeTemp();
     const r = await run(dir.updateUser(id, { password }));
     if (r.ok) { setTemp({ name, password }); setCopied(false); }
@@ -75,7 +65,7 @@ function TeamPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Team</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Admins manage everyone here: add people, change roles and rates, and set or reset passwords. Engineers appear in the timesheet’s engineer picker; the QuickBooks name must match the employee name in QuickBooks.
+          Accountants and admins can add people and change names, emails and rates. Only admins change roles, set or reset passwords, or remove people. Engineers appear in the timesheet’s engineer picker; the QuickBooks name must match the employee name in QuickBooks.
         </p>
       </div>
 
@@ -109,7 +99,7 @@ function TeamPage() {
 
       <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
         <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-13rem)] min-h-[8rem] overflow-auto">
-          <table className="stack-table w-full min-w-[64rem] border-separate border-spacing-0 text-left">
+          <table className="stack-table w-full min-w-[56rem] border-separate border-spacing-0 text-left">
             <thead className="sticky top-0 z-10">
               <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-r [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-2 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground [&_th:last-child]:border-r-0">
                 <th>Name</th>
@@ -117,7 +107,6 @@ function TeamPage() {
                 <th className="w-36">Role</th>
                 <th>QuickBooks employee name</th>
                 <th className="w-28 text-right">Rate / hr</th>
-                <th className="w-24 text-right">Hours</th>
                 <th className="w-44">Password</th>
                 <th className="w-24" />
               </tr>
@@ -127,11 +116,10 @@ function TeamPage() {
                 <td data-label="Name" className="span-2"><input aria-label="New person name" placeholder="Full name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={onEnter} className={cellBase} /></td>
                 <td data-label="Email" className="span-2"><input aria-label="New person email" type="email" placeholder="email@company.com" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value.toLowerCase() })} autoCapitalize="none" autoCorrect="off" spellCheck={false} onKeyDown={onEnter} className={cellBase} /></td>
                 <td data-label="Role">
-                  <Dropdown aria-label="New person role" value={draft.role} onChange={(v) => setDraft({ ...draft, role: v })} options={ROLES.map((r) => ({ value: r, label: r }))} className={selectCell} />
+                  <Dropdown aria-label="New person role" value={draft.role} onChange={(v) => setDraft({ ...draft, role: v })} options={(isAdmin ? ROLES : ROLES.filter((r) => r !== "admin")).map((r) => ({ value: r, label: r }))} className={selectCell} />
                 </td>
                 <td data-label="QuickBooks name" className="px-2 text-[11px] text-muted-foreground text-[11px] cell-hide-mobile">{draft.name.trim() || "Same as name"}</td>
                 <td data-label="Rate / hr"><input aria-label="New person rate" inputMode="decimal" placeholder="125" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} onKeyDown={onEnter} className={cn(cellBase, "text-right font-mono tabular-nums")} /></td>
-                <td className="cell-hide-mobile" />
                 <td data-label="Starting password">
                   <input aria-label="New person password" type="password" autoComplete="new-password" placeholder={`${MIN_PASSWORD}+ characters`} value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} onKeyDown={onEnter} className={cellBase} />
                 </td>
@@ -146,12 +134,16 @@ function TeamPage() {
                   <td data-label="Name" className="span-2"><TextCell aria-label="Name" value={u.name} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { name: v.trim() }))} /></td>
                   <td data-label="Email" className="span-2"><TextCell aria-label="Email" type="text" value={u.email} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { email: v.trim() }))} /></td>
                   <td data-label="Role">
-                    <Dropdown aria-label="Role" value={u.role} onChange={(v) => run(dir.updateUser(u.id, { role: v as typeof u.role }))} options={ROLES.map((r) => ({ value: r, label: r }))} className={selectCell} />
+                    {isAdmin ? (
+                      <Dropdown aria-label="Role" value={u.role} onChange={(v) => run(dir.updateUser(u.id, { role: v as typeof u.role }))} options={ROLES.map((r) => ({ value: r, label: r }))} className={selectCell} />
+                    ) : (
+                      <span className="px-2 text-[13px] capitalize">{u.role}</span>
+                    )}
                   </td>
                   <td data-label="QuickBooks employee name" className="span-2"><TextCell aria-label="QuickBooks employee name" value={u.qbEmployeeName} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { qbEmployeeName: v.trim() }))} className="font-mono text-xs" /></td>
                   <td data-label="Rate / hr"><TextCell aria-label="Rate" inputMode="decimal" value={String(u.defaultHourlyRate)} onCommit={(v) => { const n = Number(v); if (v.trim() !== "" && Number.isFinite(n) && n >= 0) run(dir.updateUser(u.id, { defaultHourlyRate: n })); else setError("Hourly rate must be a number."); }} className="text-right font-mono tabular-nums" /></td>
-                  <td data-label="Hours" className="px-2 text-right font-mono text-[13px] tabular-nums">{((minutes.get(u.id) ?? 0) / 60).toFixed(2)}</td>
                   <td data-label="New password" className="span-2">
+                    {isAdmin ? (
                     <div className="flex items-center">
                     <TextCell
                       key={`${u.id}-pw-${pwKey}`}
@@ -163,6 +155,7 @@ function TeamPage() {
                       onCommit={async (v) => {
                         if (!v) return;
                         if (v.length < MIN_PASSWORD) return setError(`Passwords need at least ${MIN_PASSWORD} characters.`);
+                        if (!confirm(`Are you sure you want to overwrite ${u.name}'s password? Their current password will stop working.`)) return setPwKey((k) => k + 1);
                         const r = await run(dir.updateUser(u.id, { password: v }));
                         if (r.ok) { setPwKey((k) => k + 1); setPwDone(u.id); setTimeout(() => setPwDone(null), 3000); }
                       }}
@@ -174,14 +167,15 @@ function TeamPage() {
                       className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
                     ><KeyRound className="h-3.5 w-3.5" /></button>
                     </div>
+                    ) : <span className="px-2 text-xs text-muted-foreground">Admins only</span>}
                   </td>
                   <td className="actions-cell text-center">
-                    <button
+                    {isAdmin && <button
                       onClick={() => confirm(`Remove ${u.name}? This can't be undone.`) && run(dir.deleteUser(u.id))}
                       aria-label={`Remove ${u.name}`}
                       title="Remove person"
                       className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                    ><Trash2 className="h-3.5 w-3.5" /></button>
+                    ><Trash2 className="h-3.5 w-3.5" /></button>}
                   </td>
                 </tr>
               ))}
@@ -193,7 +187,6 @@ function TeamPage() {
         </div>
         <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">Passwords are stored scrambled, so nobody — admins included — can read one back. Set a new one, or use the key button to generate a temporary one. People can only be removed while they have no time entries. Edits save as you leave a cell.</div>
       </section>
-      <DataBackup />
     </div>
   );
 }
@@ -246,6 +239,8 @@ function TeamDirectory() {
 }
 
 export default function Page() {
-  const { isAdmin } = useAuth();
-  return isAdmin ? <TeamPage /> : <TeamDirectory />;
+  const { isManager } = useAuth();
+  const dir = useDirectory();
+  if (!dir.loaded) return <PageLoader label="Loading team…" />;
+  return isManager ? <TeamPage /> : <TeamDirectory />;
 }

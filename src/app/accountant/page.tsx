@@ -1,5 +1,6 @@
 "use client";
 
+import { flushSync } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ChevronDown, ChevronRight, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, Undo2, X,
@@ -7,9 +8,10 @@ import {
 import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
 import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
+import { PageLoader } from "@/components/ui/loader";
 import { Dropdown } from "@/components/ui/dropdown";
 import { FilterPanel } from "@/components/FilterPanel";
-import { type EntryFilters, NO_FILTERS, matchesFilters } from "@/lib/filters";
+import { type EntryFilters, NO_FILTERS, locationLabel, matchesFilters } from "@/lib/filters";
 import { PersonTimeReport, ProjectReport } from "@/components/Reports";
 import { ExcelExport } from "@/components/ExcelExport";
 import { weekRangeLabel, weekStart, weekTag } from "@/lib/weeks";
@@ -70,6 +72,59 @@ function range(p: Period, from: string, to: string): [string | null, string | nu
   }
 }
 
+/** What comes out of the printer: a plain, paginated report instead of a copy of the screen. */
+function PrintSheet({ entries, title, filters, showValue, rate }: { entries: TimeEntryItem[]; title: string; filters: string[]; showValue: boolean; rate: Map<string, number> }) {
+  const total = entries.reduce((s, e) => s + e.durationMinutes, 0);
+  const billable = entries.filter((e) => e.isBillable).reduce((s, e) => s + e.durationMinutes, 0);
+  const value = entries.filter((e) => e.isBillable).reduce((s, e) => s + (e.durationMinutes / 60) * (rate.get(e.userId) ?? 0), 0);
+  const byPerson = Array.from(
+    entries.reduce((m, e) => m.set(e.userName, (m.get(e.userName) ?? 0) + e.durationMinutes), new Map<string, number>())
+  ).sort((a, b) => a[0].localeCompare(b[0]));
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date) || a.userName.localeCompare(b.userName));
+  return (
+    <div data-testid="print-sheet" className="print-sheet hidden print:block">
+      <h1 style={{ fontSize: "20pt", fontWeight: 700, margin: 0 }}>{title}</h1>
+      <p style={{ margin: "4pt 0 0", fontSize: "10pt", color: "#444" }}>
+        Printed {new Date().toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })} · {filters.length ? `Filters: ${filters.join(", ")}` : "All time, everyone"}
+      </p>
+      <table className="print-summary">
+        <tbody>
+          <tr><td>Entries</td><td>{entries.length}</td><td>Total hours</td><td>{hrs(total)}</td><td>Billable hours</td><td>{hrs(billable)}</td>{showValue && <><td>Billable value</td><td>{money(value)}</td></>}</tr>
+        </tbody>
+      </table>
+      {byPerson.length > 0 && (
+        <>
+          <h2>Hours by person</h2>
+          <table className="print-table">
+            <thead><tr><th>Person</th><th className="num">Hours</th></tr></thead>
+            <tbody>{byPerson.map(([n, m]) => <tr key={n}><td>{n}</td><td className="num">{hrs(m)}</td></tr>)}</tbody>
+          </table>
+        </>
+      )}
+      <h2>Entries</h2>
+      <table className="print-table">
+        <thead>
+          <tr><th>Date</th><th>Person</th><th>Customer · project</th><th>Task</th><th>Notes</th><th className="num">Hours</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {sorted.map((e) => (
+            <tr key={e.id}>
+              <td>{e.date}</td><td>{e.userName}</td>
+              <td>{e.customerName || "—"}{e.jobName ? ` · ${e.jobName}` : ""}</td>
+              <td>{e.serviceItemName || "—"}</td>
+              <td>{e.notes}</td>
+              <td className="num">{hrs(e.durationMinutes)}{e.isBillable ? "" : " (nb)"}</td>
+              <td style={{ textTransform: "capitalize" }}>{e.status}</td>
+            </tr>
+          ))}
+          {sorted.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", padding: "12pt" }}>No time matches these filters.</td></tr>}
+        </tbody>
+        <tfoot><tr><td colSpan={5}>Total</td><td className="num">{hrs(total)}</td><td /></tr></tfoot>
+      </table>
+    </div>
+  );
+}
+
 function AccountantPage() {
   // Everyone can open this page. Engineers see only their own time (the page opens on them), can't approve it,
   // and don't see pay rates / dollar values.
@@ -81,7 +136,7 @@ function AccountantPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ text: string; action?: { label: string; run: () => void } } | null>(null);
 
-  const [period, setPeriod] = useState<Period>("this_month");
+  const [period, setPeriod] = useState<Period>("all");
   const [from, setFrom] = useState(() => iso(new Date(Date.now() - 30 * 864e5)));
   const [to, setTo] = useState(() => iso(new Date()));
   const [extra, setExtra] = useState<EntryFilters>(NO_FILTERS);
@@ -96,6 +151,15 @@ function AccountantPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [draftCount, setDraftCount] = useState(0);
   const [xlPerson, setXlPerson] = useState("");
+  // The printable report only exists while the browser is printing (beforeprint → render it, afterprint → drop it).
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const before = () => flushSync(() => setPrinting(true));
+    const after = () => setPrinting(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -108,14 +172,16 @@ function AccountantPage() {
       if (u.success) setUsers(u.data);
       if (e.success) {
         // Time the engineer hasn't submitted yet isn't ready for review.
+        // (Accountants and admins approve their own time too, so their own drafts are reviewable.)
         const all = e.data as TimeEntryItem[];
-        setEntries(all.filter((x) => x.status !== "draft"));
-        setDraftCount(all.filter((x) => x.status === "draft").length);
+        const reviewable = (x: TimeEntryItem) => x.status !== "draft" || (isManager && x.userId === me?.id);
+        setEntries(all.filter(reviewable));
+        setDraftCount(all.filter((x) => !reviewable(x)).length);
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isManager, me?.id]);
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
@@ -127,7 +193,7 @@ function AccountantPage() {
   const rate = useMemo(() => new Map(users.map((u) => [u.id, u.defaultHourlyRate])), [users]);
 
   // ── automatic exception checks (use ALL entries so a person's whole day is considered) ──
-  const issues = useMemo(() => {
+  const rawIssues = useMemo(() => {
     const today = iso(new Date());
     const dayTotals = new Map<string, number>();
     const dupes = new Map<string, number>();
@@ -151,6 +217,22 @@ function AccountantPage() {
     }
     return out;
   }, [entries]);
+
+  // Checks an accountant dismissed for a specific entry no longer count (the entry keeps them so they can be restored).
+  const issues = useMemo(() => {
+    const out = new Map<string, Issue[]>();
+    for (const e of entries) out.set(e.id, (rawIssues.get(e.id) ?? []).filter((i) => i === "edited" || !(e.dismissedIssues ?? []).includes(i)));
+    return out;
+  }, [entries, rawIssues]);
+
+  const dismissIssue = async (e: TimeEntryItem, issue: Issue, dismissed: boolean) => {
+    const cur = e.dismissedIssues ?? [];
+    const next = dismissed ? Array.from(new Set([...cur, issue])) : cur.filter((x) => x !== issue);
+    setEntries((all) => all.map((x) => (x.id === e.id ? { ...x, dismissedIssues: next } : x))); // instant
+    const res = await fetch(`/api/time-entries/${e.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dismissedIssues: next }) });
+    if (!res.ok) { await load(); setToast({ text: "Couldn't save that." }); }
+    else setToast({ text: dismissed ? `Dismissed “${ISSUES[issue].label}” for that entry.` : `Brought back “${ISSUES[issue].label}”.`, action: dismissed ? { label: "Undo", run: () => dismissIssue({ ...e, dismissedIssues: next }, issue, false) } : undefined });
+  };
 
   const [start, end] = range(period, from, to);
   const inPeriod = useMemo(
@@ -348,12 +430,36 @@ function AccountantPage() {
     </button>
   );
 
+  // ── one filter system: everything that narrows the list is summarised (and removable) here ──
+  const STATUS_LABEL: Record<StatusFilter, string> = { all: "", review: "To review", flagged: "Edited / flagged", approved: "Approved", exported: "Exported" };
+  const nameOf = (key: "jobId" | "serviceItemId", id: string) => {
+    const e = entries.find((x) => x[key] === id);
+    return key === "jobId" ? e?.jobName : e?.serviceItemName;
+  };
+  const activeChips: { key: string; label: string; clear: () => void }[] = [];
+  if (period !== "all") activeChips.push({ key: "period", label: PERIODS.find((p) => p.id === period)!.label, clear: () => setPeriod("all") });
+  if (isManager && person !== "all") activeChips.push({ key: "person", label: nameOfUser(person) || "Person", clear: () => setPerson("all") });
+  if (customer !== "all") activeChips.push({ key: "customer", label: customers.find((c) => c.id === customer)?.name ?? "Customer", clear: () => { setCustomer("all"); setExtra((x) => ({ ...x, project: "" })); } });
+  if (extra.project) activeChips.push({ key: "project", label: `Project: ${nameOf("jobId", extra.project) ?? ""}`, clear: () => setExtra((x) => ({ ...x, project: "" })) });
+  if (extra.task) activeChips.push({ key: "task", label: `Task: ${nameOf("serviceItemId", extra.task) ?? ""}`, clear: () => setExtra((x) => ({ ...x, task: "" })) });
+  if (extra.billable !== "all") activeChips.push({ key: "billable", label: extra.billable === "billable" ? "Billable only" : "Non-billable only", clear: () => setExtra((x) => ({ ...x, billable: "all" })) });
+  if (extra.location) activeChips.push({ key: "location", label: `Location: ${locationLabel(extra.location)}`, clear: () => setExtra((x) => ({ ...x, location: "" })) });
+  if (status !== "all") activeChips.push({ key: "status", label: STATUS_LABEL[status], clear: () => setStatus("all") });
+  if (issueFilter) activeChips.push({ key: "issue", label: issueFilter === "any" ? "Has a check" : ISSUES[issueFilter].label, clear: () => setIssueFilter(null) });
+  if (query.trim()) activeChips.push({ key: "q", label: `“${query.trim()}”`, clear: () => setQuery("") });
+  const clearAll = () => {
+    setPeriod("all"); setPerson("all"); setCustomer("all"); setStatus("all"); setIssueFilter(null); setQuery(""); setExtra(NO_FILTERS);
+  };
+  // Submitted time that the current filters are hiding (the usual "where did that entry go?" question).
+  const hiddenSubmitted = entries.filter((e) => e.status === "submitted").length - visible.filter((e) => e.status === "submitted").length;
+
   const chip = (active: boolean) =>
     cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors", active ? "border-transparent bg-primary text-primary-foreground" : "border-outline-variant text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground");
   const select = "m3-select h-9 w-full cursor-pointer appearance-none rounded-full border border-outline-variant bg-surface-low pl-3 pr-8 text-xs font-medium outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25";
 
   return (
-    <div className="flex w-full flex-col gap-4 px-3 py-4 pb-24 sm:px-6 sm:py-5">
+    <>
+    <div className="flex w-full flex-col gap-4 px-3 py-4 pb-24 sm:px-6 sm:py-5 print:hidden">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em]">Review &amp; export</h1>
@@ -368,7 +474,7 @@ function AccountantPage() {
           <button onClick={() => exportApproved("csv")} className="inline-flex h-10 items-center gap-2 rounded-full border border-outline-variant px-4 text-sm font-semibold transition hover:bg-foreground/[0.05]">
             <FileSpreadsheet className="h-4 w-4" />CSV
           </button>
-          <button onClick={() => window.print()} aria-label="Print" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant transition hover:bg-foreground/[0.05]">
+          <button onClick={() => window.print()} aria-label="Print" title="Print a clean report of what is listed" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant transition hover:bg-foreground/[0.05]">
             <Printer className="h-4 w-4" />
           </button>
         </div>
@@ -408,7 +514,24 @@ function AccountantPage() {
           </div>
         </div>
         <FilterPanel entries={entries} value={extra} onChange={setExtra} fields={["project", "task", "billable", "location"]} customerId={customer === "all" ? "" : customer} label="More filters" />
+        {activeChips.length > 0 && (
+          <div data-testid="active-filters" className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2">
+            <span className="m3-label mr-1">Showing</span>
+            {activeChips.map((c) => (
+              <button key={c.key} onClick={c.clear} aria-label={`Remove filter ${c.label}`} className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-3 pr-2 text-xs font-semibold text-primary transition hover:bg-primary/20">
+                {c.label}<X className="h-3 w-3" />
+              </button>
+            ))}
+            <button onClick={clearAll} data-testid="clear-all-filters" className="ml-1 inline-flex h-7 items-center rounded-full px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.06] hover:text-foreground">Clear all</button>
+          </div>
+        )}
       </div>
+      {hiddenSubmitted > 0 && (
+        <div role="status" data-testid="hidden-submitted" className="print-hide flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-warning-container/60 px-4 py-2.5 text-sm">
+          <span><strong>{hiddenSubmitted}</strong> submitted {hiddenSubmitted === 1 ? "entry is" : "entries are"} hidden by the filters above.</span>
+          <button onClick={clearAll} className="rounded-full bg-card px-3 py-1 text-xs font-semibold text-primary shadow-sm transition hover:brightness-95">Show everything</button>
+        </div>
+      )}
 
       {/* Pipeline */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
@@ -486,7 +609,7 @@ function AccountantPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 animate-pulse rounded-[22px] border border-border/70 bg-surface-low" />
+        <PageLoader label="Loading entries…" />
       ) : view === "entries" ? (
         <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
           <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-14rem)] min-h-[12rem] overflow-auto">
@@ -516,9 +639,21 @@ function AccountantPage() {
                       {isManager && <td data-label="Value" className="px-2 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">{e.isBillable ? money((e.durationMinutes / 60) * (rate.get(e.userId) ?? 0)) : "—"}</td>}
                       <td data-label="Status" className="px-2 py-2"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}>{e.status}</span></td>
                       <td data-label="Issues" className="span-2 px-2 py-2">
-                        {list.length === 0 ? <span className="text-xs text-muted-foreground/60">—</span> : (
+                        {list.length === 0 && !(e.dismissedIssues ?? []).some((i) => (rawIssues.get(e.id) ?? []).includes(i as Issue)) ? <span className="text-xs text-muted-foreground/60">—</span> : (
                           <div className="flex flex-wrap gap-1">
-                            {list.map((i) => <span key={i} title={i === "edited" ? e.flagReason ?? ISSUES[i].help : ISSUES[i].help} className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", ISSUES[i].tone)}>{ISSUES[i].short}</span>)}
+                            {list.map((i) => (
+                              <span key={i} title={i === "edited" ? e.flagReason ?? ISSUES[i].help : ISSUES[i].help} className={cn("inline-flex items-center gap-0.5 rounded-full py-0.5 pl-2 text-[11px] font-medium", i === "edited" ? "pr-2" : "pr-0.5", ISSUES[i].tone)}>
+                                {ISSUES[i].short}
+                                {i !== "edited" && (
+                                  <button onClick={() => dismissIssue(e, i, true)} aria-label={`Dismiss ${ISSUES[i].short} for ${e.userName} ${e.date}`} title="Dismiss this check for this entry" className="rounded-full p-0.5 opacity-60 transition hover:bg-foreground/10 hover:opacity-100"><X className="h-3 w-3" /></button>
+                                )}
+                              </span>
+                            ))}
+                            {(rawIssues.get(e.id) ?? []).filter((i) => (e.dismissedIssues ?? []).includes(i)).map((i) => (
+                              <button key={`d-${i}`} onClick={() => dismissIssue(e, i, false)} aria-label={`Restore ${ISSUES[i].short} for ${e.userName} ${e.date}`} title="Dismissed — click to bring this check back" className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground line-through transition hover:bg-foreground/[0.05]">
+                                <RotateCcw className="h-3 w-3 no-underline" />{ISSUES[i].short}
+                              </button>
+                            ))}
                           </div>
                         )}
                         {e.flagged && e.flagReason && <div className="mt-1 text-[11px] leading-snug text-destructive">{e.flagReason}</div>}
@@ -716,6 +851,14 @@ function AccountantPage() {
         </div>
       )}
     </div>
+    {printing && <PrintSheet
+      entries={visible}
+      title="Time review"
+      filters={activeChips.map((c) => c.label)}
+      showValue={isManager}
+      rate={rate}
+    />}
+    </>
   );
 }
 

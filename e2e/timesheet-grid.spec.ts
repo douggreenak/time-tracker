@@ -44,6 +44,7 @@ test.describe("timesheet grid", () => {
     await hours.press("Enter");
     await expect(page.getByLabel("Hours", { exact: true }).first()).toBeVisible();
 
+    await expect(hours).toBeFocused(); // focus is back on the entry row after the add
     await hours.press("ArrowDown");
     await expect(page.getByLabel("Hours", { exact: true }).first()).toBeFocused();
 
@@ -146,6 +147,8 @@ test("tasks page: add and edit a task", async ({ page }) => {
   await page.getByLabel("New task name").press("Enter");
   const row = page.locator("tr", { has: page.locator(`input[value="Drone survey ${stamp}"]`) });
   await expect(row).toHaveCount(1);
-  await row.getByLabel("Billable by default").click();
-  await expect(row.getByLabel("Billable by default")).not.toBeChecked();
+  // Billable and hours belong to the timesheet, not the task list.
+  await expect(page.getByRole("columnheader", { name: "Billable" })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Hours" })).toHaveCount(0);
+  await expect(page.getByLabel("Billable by default")).toHaveCount(0);
 });

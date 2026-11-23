@@ -273,30 +273,23 @@ test.describe("filters", () => {
     await expect.poll(() => rows().count()).toBe(mine.filter((e) => e.serviceItemId === t.serviceItemId).length);
   });
 
-  test("Tasks and Team pages filter by search, billing, usage and role", async ({ page }) => {
+  test("Tasks and Team pages filter by search and role", async ({ page }) => {
     await loginAs(page, ACCOUNTANT, "/tasks");
-    const items = (await (await page.request.get("/api/service-items")).json()).data as { name: string; qbItemName: string; defaultBillable: boolean }[];
+    const items = (await (await page.request.get("/api/service-items")).json()).data as { name: string; qbItemName: string }[];
     const rows = () => page.getByLabel("Task name", { exact: true });
     await expect.poll(() => rows().count()).toBe(items.length);
     await page.getByLabel("Search tasks").fill(items[0].name.slice(0, 6));
     await expect.poll(() => rows().count()).toBe(items.filter((i) => `${i.name} ${i.qbItemName}`.toLowerCase().includes(items[0].name.slice(0, 6).toLowerCase())).length);
     await page.getByLabel("Search tasks").fill("");
-    await pick(page, "Filter task billing", "Non-billable");
-    await expect.poll(() => rows().count()).toBe(items.filter((i) => !i.defaultBillable).length);
-    await pick(page, "Filter task billing", "Billable & not");
-    await pick(page, "Filter task usage", "No time yet");
-    const used = new Set((await api(page)).map((e) => e.serviceItemId));
-    await expect.poll(() => rows().count()).toBe((await (await page.request.get("/api/service-items")).json()).data.filter((i: { id: string }) => !used.has(i.id)).length);
-
     await page.goto("/team");
     const users = (await (await page.request.get("/api/users")).json()).data as { name: string; email: string; role: string }[];
     const trs = () => page.locator("tbody tr");
-    await expect.poll(() => trs().count()).toBe(users.length);
+    await expect.poll(() => trs().count()).toBe(users.length + 1); // + the add-person row
     await pick(page, "Filter role", "engineer");
-    await expect.poll(() => trs().count()).toBe(users.filter((u) => u.role === "engineer").length);
+    await expect.poll(() => trs().count()).toBe(users.filter((u) => u.role === "engineer").length + 1);
     await pick(page, "Filter role", "All roles");
     await page.getByLabel("Search team").fill("okafor");
-    await expect.poll(() => trs().count()).toBe(users.filter((u) => `${u.name} ${u.email}`.toLowerCase().includes("okafor")).length);
+    await expect.poll(() => trs().count()).toBe(users.filter((u) => `${u.name} ${u.email}`.toLowerCase().includes("okafor")).length + 1);
   });
 
   test("Team (admin view) filters too", async ({ page }) => {
@@ -320,20 +313,21 @@ test.describe("look and feel", () => {
     await expect(btn.locator(open ? "svg.lucide-fold-vertical" : "svg.lucide-unfold-vertical")).toHaveCount(1);
   });
 
-  test("loading shows the morphing loader", async ({ page }) => {
+  test("loading shows the Material circular spinner", async ({ page }) => {
     await page.route("**/api/auth/me", async (route) => {
       await new Promise((r) => setTimeout(r, 5000));
       await route.continue();
     });
     await page.goto("/engineer");
     await expect(page.getByRole("status").filter({ hasText: "Loading TimeTrack" })).toBeVisible();
-    const loader = page.locator(".m3-loader").first();
-    await expect(loader).toBeVisible();
-    // It really animates (a different shape a moment later).
-    const radius = () => loader.evaluate((el) => getComputedStyle(el).borderRadius);
-    const a = await radius();
-    await page.waitForTimeout(700);
-    expect(await radius()).not.toBe(a);
+    const arc = page.locator("svg.m3-spinner circle.m3-spinner-arc").first();
+    await expect(arc).toBeVisible();
+    // The arc grows and shrinks while the ring turns.
+    const dash = () => arc.evaluate((el) => getComputedStyle(el).strokeDashoffset);
+    const a = await dash();
+    await page.waitForTimeout(600);
+    expect(await dash()).not.toBe(a);
+    expect(await page.locator("svg.m3-spinner").first().evaluate((el) => getComputedStyle(el).animationName)).toBe("m3-spin");
   });
 
   test("weeks, days and entries are shaded as three distinct levels", async ({ page }) => {

@@ -224,26 +224,23 @@
     @apply bg-white/70 dark:bg-card/70 backdrop-blur-md border border-white/50 dark:border-border/50;
   }
 
-  /* ── Loading indicator: a morphing, colour-shifting shape ── */
-  .m3-loader-wrap { display: inline-flex; align-items: center; justify-content: center; animation: m3-turn 2.6s linear infinite; }
-  .m3-loader {
-    width: 72%; height: 72%;
-    background: hsl(var(--primary));
-    box-shadow: 0 6px 18px -4px hsl(var(--primary) / 0.45);
-    animation: m3-morph 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  /* ── Loading indicator: Material circular progress (indeterminate) ── */
+  .m3-spinner { animation: m3-spin 1.4s linear infinite; }
+  .m3-spinner-arc {
+    stroke: hsl(var(--primary));
+    stroke-dasharray: 1, 200;
+    stroke-dashoffset: 0;
+    animation: m3-dash 1.4s ease-in-out infinite;
   }
-  @keyframes m3-morph {
-    0%   { border-radius: 50%;                        background: hsl(var(--primary));   transform: scale(0.9); }
-    20%  { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; background: hsl(204 82% 40%); transform: scale(1.05); }
-    40%  { border-radius: 22%;                        background: hsl(var(--tertiary));  transform: scale(0.95); }
-    60%  { border-radius: 70% 30% 50% 50% / 50% 50% 30% 70%; background: hsl(204 82% 40%); transform: scale(1.08); }
-    80%  { border-radius: 38%;                        background: hsl(var(--primary));   transform: scale(0.92); }
-    100% { border-radius: 50%;                        background: hsl(var(--primary));   transform: scale(0.9); }
+  @keyframes m3-spin { to { transform: rotate(360deg); } }
+  @keyframes m3-dash {
+    0%   { stroke-dasharray: 1, 200;  stroke-dashoffset: 0; }
+    50%  { stroke-dasharray: 89, 200; stroke-dashoffset: -35px; }
+    100% { stroke-dasharray: 89, 200; stroke-dashoffset: -124px; }
   }
-  @keyframes m3-turn { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) {
-    .m3-loader-wrap { animation-duration: 8s; }
-    .m3-loader { animation-duration: 6s; }
+    .m3-spinner { animation-duration: 4s; }
+    .m3-spinner-arc { animation-duration: 4s; }
   }
 
   /* ── Expressive touches: springy press feedback ── */
@@ -312,8 +309,23 @@
 }
 
 @media print {
+  @page { margin: 14mm; }
   header, .print-hide { display: none !important; }
-  body { background: white; }
+  html, body { background: white !important; color: #111 !important; height: auto !important; overflow: visible !important; }
+  /* The printed report: plain black-on-white tables that paginate cleanly. */
+  .print-sheet { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 9.5pt; }
+  .print-sheet h2 { font-size: 12pt; margin: 16pt 0 4pt; }
+  .print-sheet table { width: 100%; border-collapse: collapse; }
+  .print-sheet .print-summary { margin-top: 10pt; border: 1px solid #999; }
+  .print-sheet .print-summary td { padding: 5pt 8pt; }
+  .print-sheet .print-summary td:nth-child(odd) { color: #555; }
+  .print-sheet .print-summary td:nth-child(even) { font-weight: 700; }
+  .print-sheet .print-table th { text-align: left; border-bottom: 1.5px solid #111; padding: 4pt 6pt; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.04em; }
+  .print-sheet .print-table td { border-bottom: 0.5px solid #bbb; padding: 3.5pt 6pt; vertical-align: top; }
+  .print-sheet .print-table tfoot td { border-top: 1.5px solid #111; border-bottom: 0; font-weight: 700; }
+  .print-sheet .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .print-sheet thead { display: table-header-group; }
+  .print-sheet tr { break-inside: avoid; }
 }
 
 /* Last-column buttons (Add, Approve, delete…) must never touch the rounded edge of their panel. */

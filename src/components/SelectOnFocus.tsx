@@ -33,9 +33,22 @@ export function SelectOnFocus() {
       }
     };
 
+    // Pressing Enter in any stand-alone box "submits" it: the box is committed and leaves focus
+    // (cells that move focus or add a row on Enter do that first, so this only catches the rest).
+    const COMMITTABLE = new Set(["text", "search", "email", "tel", "url", "number", "date", "password"]);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.defaultPrevented || e.isComposing) return;
+      const el = e.target;
+      if (!(el instanceof HTMLInputElement) || !COMMITTABLE.has(el.type) || el.form || el.getAttribute("role") === "combobox") return;
+      if (el.hasAttribute("data-r") || /^new/i.test(el.getAttribute("aria-label") ?? "") || /^new/i.test(el.id)) return; // add-rows handle Enter themselves
+      setTimeout(() => document.activeElement === el && el.blur(), 0);
+    };
+
+    document.addEventListener("keydown", onKeyDown);
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("mouseup", onMouseUp, true);
     return () => {
+      document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("mouseup", onMouseUp, true);
     };

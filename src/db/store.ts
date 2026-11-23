@@ -42,6 +42,7 @@ const entrySelect = {
   flagged: t.timeEntries.flagged,
   flagReason: t.timeEntries.flagReason,
   flagHistory: t.timeEntries.flagHistory,
+  dismissedIssues: t.timeEntries.dismissedIssues,
   createdAt: t.timeEntries.createdAt,
 };
 
@@ -53,6 +54,16 @@ function parseHistory(raw: string | null | undefined): FlagNote[] {
   try {
     const v = JSON.parse(raw);
     return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
   } catch {
     return [];
   }
@@ -71,6 +82,7 @@ const entryOf = (r: EntryRow): TimeEntryItem => ({
   longitude: num(r.longitude),
   status: r.status as TimeEntryItem["status"],
   flagHistory: parseHistory(r.flagHistory),
+  dismissedIssues: parseList(r.dismissedIssues),
   createdAt: r.createdAt.toISOString(),
 });
 
@@ -375,6 +387,7 @@ export const dataStore = {
         set.flagReason = null;
       }
     }
+    if (u.dismissedIssues !== undefined) set.dismissedIssues = JSON.stringify(u.dismissedIssues);
     if (u.flagged !== undefined) set.flagged = u.flagged;
     if (u.flagReason !== undefined) set.flagReason = u.flagReason;
     // Withdrawing a question clears the flag; the note stays in the history.

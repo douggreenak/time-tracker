@@ -5,6 +5,7 @@ import { Archive, ArchiveRestore, Building2, FolderKanban, Plus, Search, Trash2,
 import type { CustomerItem, TimeEntryItem } from "@/db/mock-data";
 import { TextCell, cellBase } from "@/components/ui/cell";
 import { useAuth } from "@/components/AuthProvider";
+import { PageLoader } from "@/components/ui/loader";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
 
@@ -81,6 +82,8 @@ function CustomersPage() {
   const confirmDelete = async (what: string, fn: () => Promise<unknown>) => {
     if (confirm(`Delete ${what}? This can't be undone.`)) await fn();
   };
+
+  if (!dir.loaded) return <PageLoader label="Loading customers…" />;
 
   return (
     <div className="flex w-full flex-col gap-4 px-4 py-5 sm:px-6">

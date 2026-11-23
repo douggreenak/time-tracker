@@ -61,6 +61,8 @@ export interface TimeEntryItem {
   flagReason?: string | null;
   /** Every note ever attached to this entry (questions, post-approval edits, withdrawals), oldest first. */
   flagHistory?: FlagNote[];
+  /** Automatic review checks (e.g. "weekend") an accountant has dismissed for this entry. */
+  dismissedIssues?: string[];
   createdAt: string;
 }
 

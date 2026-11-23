@@ -162,8 +162,9 @@ test.describe("admin data export & import", () => {
     expect((await page.request.get("/api/admin/backup")).status()).toBe(403);
     await page.request.post("/api/auth/logout");
 
-    await loginAs(page, ADMIN, "/team");
+    await loginAs(page, ADMIN, "/admin");
     await expect(page.getByTestId("backup-export")).toBeVisible();
+    await expect(page.getByTestId("backup-choose")).toBeVisible();
     const users = (await (await page.request.get("/api/users")).json()).data;
     const uid = users[0].id;
     await page.request.post("/api/time-entries", { data: { userId: uid, date: "2025-06-06", durationMinutes: 75, notes: "backup-marker" } });

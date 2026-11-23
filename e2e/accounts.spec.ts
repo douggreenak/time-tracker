@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
-import { ACCOUNTANT, ADMIN, loginAs, pick } from "./helpers";
+import { ACCOUNTANT, ADMIN, ENGINEER, loginAs, pick } from "./helpers";
 
 async function addPerson(page: Page, name: string, password: string, role = "engineer") {
   const res = await page.request.post("/api/users", { data: { name, email: `${name.replace(/\W/g, "").toLowerCase()}@example.com`, role, password } });
@@ -59,6 +59,10 @@ test("admin can reset anyone's password with a one-time temporary password", asy
   await loginAs(page, ADMIN, "/team");
   await addPerson(page, name, "forgotten-pass-1");
   await page.reload();
+  page.once("dialog", async (d) => {
+    expect(d.message()).toMatch(/Are you sure/);
+    await d.accept();
+  });
   await page.getByRole("button", { name: `Generate a temporary password for ${name}` }).click();
   const temp = (await page.getByTestId("temp-password").textContent())!.trim();
   expect(temp.length).toBeGreaterThanOrEqual(10);
@@ -91,21 +95,83 @@ test("admin can change their own password too", async ({ page, browser }) => {
   await ctx.close();
 });
 
-test("only admins can manage people; accountants are blocked", async ({ page }) => {
+test("accountants can add people and change rates; only admins change roles, passwords or remove people", async ({ page }) => {
   await loginAs(page, ACCOUNTANT, "/team");
-  // Everyone else gets a read-only directory: no way to add people, set passwords or see rates.
-  await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
-  await expect(page.getByLabel("New person name")).toHaveCount(0);
+  await expect(page.getByLabel("New person name")).toBeVisible();
   await expect(page.getByLabel(/Set password for/)).toHaveCount(0);
-  // (accountants may see pay rates; engineers may not)
-  const seen = (await (await page.request.get("/api/users")).json()).data;
-  expect(seen.some((u: { defaultHourlyRate: number }) => u.defaultHourlyRate > 0)).toBe(true);
-  expect((await page.request.post("/api/users", { data: { name: "X", email: "x@example.com", password: "longenough1" } })).status()).toBe(403);
-  const users = (await (await page.request.get("/api/users")).json()).data;
-  const someone = users.find((u: { role: string }) => u.role === "engineer");
-  expect((await page.request.put(`/api/users/${someone.id}`, { data: { password: "hijacked-pass-1" } })).status()).toBe(403);
-  expect((await page.request.delete(`/api/users/${someone.id}`)).status()).toBe(403);
+  await expect(page.getByRole("columnheader", { name: "Hours" })).toHaveCount(0);
+  // Add someone (starting as an engineer; accountants can't create admins).
+  const email = `acct${Date.now()}@example.com`;
+  const made = await page.request.post("/api/users", { data: { name: "Added By Accountant", email, role: "engineer", password: "longenough1", defaultHourlyRate: 90 } });
+  expect(made.status()).toBe(201);
+  const id = (await made.json()).data.id;
+  expect((await page.request.post("/api/users", { data: { name: "Sneaky Admin", email: `s${Date.now()}@example.com`, role: "admin", password: "longenough1" } })).status()).toBe(403);
+  // Rate, name and email are theirs to change.
+  const upd = await (await page.request.put(`/api/users/${id}`, { data: { defaultHourlyRate: 140, name: "Renamed Person", email: "NEW.Mail@Example.com" } })).json();
+  expect(Number(upd.data.defaultHourlyRate)).toBe(140);
+  expect(upd.data.email).toBe("new.mail@example.com");
+  // ...but not roles, passwords or removal.
+  expect((await page.request.put(`/api/users/${id}`, { data: { role: "admin" } })).status()).toBe(403);
+  expect((await page.request.put(`/api/users/${id}`, { data: { password: "hijacked-pass-1" } })).status()).toBe(403);
+  expect((await page.request.delete(`/api/users/${id}`)).status()).toBe(403);
   expect((await page.request.delete("/api/demo")).status()).toBe(403);
+  // The rate edit works in the UI too.
+  await page.reload();
+  const rate = page.locator("tr", { has: page.locator('input[value="Renamed Person"]') }).getByLabel("Rate");
+  await rate.fill("150");
+  await rate.press("Enter");
+  await expect.poll(async () => Number((await (await page.request.get("/api/users")).json()).data.find((u: { id: string }) => u.id === id).defaultHourlyRate)).toBe(150);
+});
+
+test("everyone can edit their own name and email, but not their role", async ({ page }) => {
+  await loginAs(page, ENGINEER, "/account");
+  const me = (await (await page.request.get("/api/auth/me")).json()).data;
+  await page.getByLabel("Your name").fill("Priya N. Nair");
+  await page.getByLabel("Your email").fill("Priya.Nair@Engineering.com");
+  await page.getByRole("button", { name: "Save details" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  const after = (await (await page.request.get("/api/auth/me")).json()).data;
+  expect(after.name).toBe("Priya N. Nair");
+  expect(after.email).toBe("priya.nair@engineering.com");
+  expect(after.role).toBe("engineer");
+  expect((await page.request.put(`/api/users/${me.id}`, { data: { role: "admin" } })).status()).toBe(403);
+  expect((await page.request.put(`/api/users/${me.id}`, { data: { defaultHourlyRate: 999 } })).status()).toBe(403);
+  const others = (await (await page.request.get("/api/users")).json()).data.filter((u: { id: string }) => u.id !== me.id);
+  expect((await page.request.put(`/api/users/${others[0].id}`, { data: { name: "Hacked" } })).status()).toBe(403);
+  // put it back
+  await page.request.put(`/api/users/${me.id}`, { data: { name: "Priya Nair", email: me.email } });
+});
+
+test("the show-password eye sits inside the password box", async ({ page }) => {
+  await loginAs(page, ENGINEER, "/account");
+  const input = page.getByLabel("New password", { exact: true });
+  const eye = page.getByRole("button", { name: "Show passwords" }).nth(1); // the New password box's own eye
+  const [ib, eb] = await Promise.all([input.boundingBox(), eye.boundingBox()]);
+  expect(eb!.x).toBeGreaterThan(ib!.x);
+  expect(eb!.x + eb!.width).toBeLessThanOrEqual(ib!.x + ib!.width + 1);
+  expect(eb!.y).toBeGreaterThanOrEqual(ib!.y - 1);
+  expect(eb!.y + eb!.height).toBeLessThanOrEqual(ib!.y + ib!.height + 1);
+  await eye.click();
+  await expect(input).toHaveAttribute("type", "text");
+});
+
+test("overwriting a password asks first; saying no changes nothing", async ({ page, browser }) => {
+  const name = `Confirm Me ${Date.now()}`;
+  await loginAs(page, ADMIN, "/team");
+  await addPerson(page, name, "original-pass-1");
+  await page.reload();
+  const field = page.getByLabel(`Set password for ${name}`);
+  page.once("dialog", (d) => d.dismiss());
+  await field.fill("replacement-pass-1");
+  await field.press("Enter");
+  await page.waitForTimeout(600);
+  const { ctx, p } = await signInFresh(browser, name, "original-pass-1");
+  await expect(p.getByLabel("New entry hours")).toBeVisible(); // still the old password
+  await ctx.close();
+  page.once("dialog", (d) => d.accept());
+  await page.getByLabel(`Set password for ${name}`).fill("replacement-pass-1");
+  await page.getByLabel(`Set password for ${name}`).press("Enter");
+  await expect(page.getByLabel(`Set password for ${name}`)).toHaveAttribute("placeholder", /updated/);
 });
 
 test("admin can't demote or remove themselves, and role values are validated", async ({ page }) => {

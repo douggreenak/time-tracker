@@ -7,6 +7,9 @@ const nextConfig = {
     // The Excel timesheet fills in this template at request time, so it must ship with the function.
     outputFileTracingIncludes: { "/api/export/excel": ["./assets/**/*"] },
   },
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Service-Worker-Allowed", value: "/" }] }];
+  },
 };
 
 export default nextConfig;

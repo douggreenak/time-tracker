@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertTriangle, Download, Upload } from "lucide-react";
+import { AlertTriangle, Download, FileUp, Upload } from "lucide-react";
 
 interface Summary { name: string; users: number; customers: number; entries: number; exportedAt?: string }
 
@@ -83,7 +83,13 @@ export function DataBackup() {
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Importing replaces everything currently in the app with the file’s contents. Export first if you might want today’s data back.
           </p>
-          <input ref={fileRef} type="file" accept=".json,application/json" aria-label="Backup file" onChange={(e) => pick(e.target.files?.[0])} className="mt-3 block w-full text-xs file:mr-3 file:rounded-full file:border file:border-outline-variant file:bg-transparent file:px-3 file:py-1.5 file:text-xs file:font-semibold" />
+          <input ref={fileRef} type="file" accept=".json,application/json" aria-label="Backup file" onChange={(e) => pick(e.target.files?.[0])} className="sr-only" tabIndex={-1} />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => fileRef.current?.click()} data-testid="backup-choose" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary-container px-5 text-sm font-semibold text-primary-on-container transition hover:brightness-95">
+              <FileUp className="h-4 w-4" />{summary ? "Choose a different file" : "Choose backup file"}
+            </button>
+            <span className="min-w-0 truncate text-xs text-muted-foreground">{summary ? summary.name : "No file chosen — pick a .json backup"}</span>
+          </div>
           {summary && (
             <div className="mt-3 space-y-2 text-xs">
               <p>

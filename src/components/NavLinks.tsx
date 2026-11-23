@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, Clock, ListChecks, Users } from "lucide-react";
+import { BarChart3, Building2, Clock, Database, ListChecks, Users } from "lucide-react";
+import { useAuth } from "./AuthProvider";
 import { cn } from "@/components/ui";
 
 // Everyone sees every tab; what they can change on each depends on their role.
@@ -12,13 +13,15 @@ const NAV_ITEMS = [
   { href: "/customers", label: "Customers", icon: Building2 },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/team", label: "Team", icon: Users },
+  { href: "/admin", label: "Data", icon: Database, admin: true },
 ];
 
 export function NavLinks() {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
   return (
     <nav aria-label="Main" className="flex min-w-0 items-center gap-0.5 rounded-full bg-surface-container p-1">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+      {NAV_ITEMS.filter((i) => !("admin" in i && i.admin) || isAdmin).map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link

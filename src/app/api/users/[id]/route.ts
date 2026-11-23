@@ -1,19 +1,33 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
-import { requireUser } from "@/lib/auth";
+import { isAdmin, isManager, requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { MIN_PASSWORD } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ admin: true });
+  const g = await requireUser();
   if (!g.ok) return g.res;
   try {
     const body = await request.json();
+    const self = g.user.id === params.id;
+    // Everyone may edit their own name and email; accountants and admins may also edit anyone's details and rate;
+    // only admins may change roles or passwords.
+    if (!isManager(g.user)) {
+      if (!self) return NextResponse.json({ success: false, error: "You can only edit your own details." }, { status: 403 });
+      if (Object.keys(body).some((k) => !["name", "email"].includes(k)))
+        return NextResponse.json({ success: false, error: "You can change your name and email here. Ask an admin about anything else." }, { status: 403 });
+    }
+    if (!isAdmin(g.user)) {
+      const target = await dataStore.getUserById(params.id);
+      if (body.password !== undefined || (body.role !== undefined && body.role !== target?.role))
+        return NextResponse.json({ success: false, error: "Only an admin can change roles or passwords." }, { status: 403 });
+      delete body.role;
+    }
     const updates: Record<string, unknown> = {};
     for (const k of ["name", "email", "role", "qbEmployeeName"]) {
-      if (typeof body[k] === "string") updates[k] = body[k].trim();
+      if (typeof body[k] === "string") updates[k] = k === "email" ? body[k].trim().toLowerCase() : body[k].trim();
     }
     if (body.defaultHourlyRate !== undefined) {
       const rate = Number(body.defaultHourlyRate);

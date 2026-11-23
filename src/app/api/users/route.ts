@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
-import { isManager, requireUser } from "@/lib/auth";
+import { isAdmin, isManager, requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { MIN_PASSWORD } from "@/lib/validate";
 
@@ -21,7 +21,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const g = await requireUser({ admin: true });
+  // Accountants can add people too, but only engineers and accountants (admins are made by admins).
+  const g = await requireUser({ manager: true });
   if (!g.ok) return g.res;
   try {
     const { name, email, role, qbEmployeeName, defaultHourlyRate, password } = await request.json();
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
     }
     if (role !== undefined && !["engineer", "accountant", "admin"].includes(role)) {
       return NextResponse.json({ success: false, error: "Unknown role." }, { status: 400 });
+    }
+    if (role === "admin" && !isAdmin(g.user)) {
+      return NextResponse.json({ success: false, error: "Only an admin can add another admin." }, { status: 403 });
     }
     if (typeof password !== "string" || password.length < MIN_PASSWORD) {
       return NextResponse.json({ success: false, error: `Set a starting password of at least ${MIN_PASSWORD} characters.` }, { status: 400 });
