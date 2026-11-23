@@ -269,7 +269,7 @@ test.describe("login, emails, filters, stopwatch, tooltip", () => {
   test("Review filters by person, and clicking a name in By person filters to them", async ({ page }) => {
     await loginAs(page, ACCOUNTANT, "/accountant");
     await page.getByRole("button", { name: "All time" }).click();
-    const names = async () => [...new Set((await page.locator("tbody tr td:nth-child(3)").allTextContents()).map((s) => s.trim()).filter(Boolean))];
+    const names = async () => Array.from(new Set((await page.locator("tbody tr td:nth-child(3)").allTextContents()).map((s) => s.trim()).filter(Boolean)));
     await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
     await pick(page, "Person", "Tomas Herrera");
     await expect.poll(names).toEqual(["Tomas Herrera"]);
