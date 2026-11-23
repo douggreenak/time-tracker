@@ -88,7 +88,7 @@ test.describe("review page", () => {
     if (others) await expect(page.getByTestId("hidden-submitted")).toContainText(String(others));
     const chips = page.getByTestId("active-filters");
     await expect(chips).toContainText("Tomas Herrera");
-    await page.getByRole("button", { name: "Last month" }).click();
+    await pick(page, "Period", "Last month");
     await expect(chips).toContainText("Last month");
     await page.getByRole("button", { name: "Remove filter Last month" }).click();
     await expect(chips).not.toContainText("Last month");

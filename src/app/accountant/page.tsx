@@ -482,19 +482,12 @@ function AccountantPage() {
 
       {/* Filters */}
       <div className="print-hide space-y-3 rounded-[22px] border border-border/70 bg-card p-3 shadow-sm">
-        <div className="m3-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Period">
-          {PERIODS.map((p) => (
-            <button key={p.id} onClick={() => setPeriod(p.id)} aria-pressed={period === p.id} className={chip(period === p.id)}>{p.label}</button>
-          ))}
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, customers, projects, notes…" aria-label="Search entries" className="h-10 w-full rounded-full border border-outline-variant bg-surface-low pl-10 pr-4 text-sm outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
         </div>
-        {period === "custom" && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <input type="date" aria-label="From date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-full border border-outline-variant bg-surface-low px-3 outline-none focus:border-primary" />
-            <span className="text-muted-foreground">to</span>
-            <input type="date" aria-label="To date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-full border border-outline-variant bg-surface-low px-3 outline-none focus:border-primary" />
-          </div>
-        )}
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-[12rem_14rem_1fr]">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <Dropdown aria-label="Period" value={period} onChange={(v) => setPeriod(v as Period)} options={PERIODS.map((p) => ({ value: p.id, label: p.label }))} />
           <Dropdown
             aria-label="Person"
             value={person}
@@ -508,12 +501,15 @@ function AccountantPage() {
             onChange={(v) => { setCustomer(v); setExtra((x) => ({ ...x, project: "" })); }}
             options={[{ value: "all", label: "All customers" }, ...customers.map((c) => ({ value: c.id, label: c.name }))]}
           />
-          <div className="relative col-span-2 lg:col-span-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, customers, notes…" aria-label="Search entries" className="h-9 w-full rounded-full border border-outline-variant bg-surface-low pl-8 pr-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
-          </div>
+          <FilterPanel inline entries={entries} value={extra} onChange={setExtra} fields={["project", "task", "billable", "location"]} customerId={customer === "all" ? "" : customer} label="More filters" />
         </div>
-        <FilterPanel entries={entries} value={extra} onChange={setExtra} fields={["project", "task", "billable", "location"]} customerId={customer === "all" ? "" : customer} label="More filters" />
+        {period === "custom" && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <input type="date" aria-label="From date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 rounded-full border border-outline-variant bg-surface-low px-3 outline-none focus:border-primary" />
+            <span className="text-muted-foreground">to</span>
+            <input type="date" aria-label="To date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-full border border-outline-variant bg-surface-low px-3 outline-none focus:border-primary" />
+          </div>
+        )}
         {activeChips.length > 0 && (
           <div data-testid="active-filters" className="flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2">
             <span className="m3-label mr-1">Showing</span>

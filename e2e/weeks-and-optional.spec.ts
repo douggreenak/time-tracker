@@ -85,7 +85,6 @@ test.describe("submitting, week approval, locations and wording", () => {
     await page.request.post("/api/auth/logout");
 
     await loginAs(page, ACCOUNTANT, "/accountant");
-    await page.getByRole("button", { name: "All time" }).click();
     await expect(page.getByText(/still a draft/)).toBeVisible();
     await page.getByRole("tab", { name: "By week" }).click();
     const week = page.locator('[data-week="2026-02-01"]');
@@ -269,7 +268,6 @@ test.describe("login, emails, filters, stopwatch, tooltip", () => {
 
   test("Review filters by person, and clicking a name in By person filters to them", async ({ page }) => {
     await loginAs(page, ACCOUNTANT, "/accountant");
-    await page.getByRole("button", { name: "All time" }).click();
     const names = async () => Array.from(new Set((await page.locator("tbody tr td:nth-child(3)").allTextContents()).map((s) => s.trim()).filter(Boolean)));
     await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
     await pick(page, "Person", "Tomas Herrera");

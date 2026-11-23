@@ -36,7 +36,6 @@ test("timesheet: entry card works on a phone", async ({ page }) => {
 test("manager pages fit", async ({ page }) => {
   await loginAs(page, ACCOUNTANT, "/accountant");
   await expect(page.getByRole("heading", { name: "Review & export" })).toBeVisible();
-  await page.getByRole("button", { name: "All time" }).click();
   await noSidewaysScroll(page);
   await shot(page, "m-review");
   for (const [path, name] of [["/customers", "m-customers"], ["/tasks", "m-tasks"]] as const) {

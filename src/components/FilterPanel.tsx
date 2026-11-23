@@ -28,6 +28,7 @@ export function FilterPanel({
   fields,
   customerId,
   label = "Filters",
+  inline = false,
 }: {
   entries: TimeEntryItem[];
   value: EntryFilters;
@@ -36,6 +37,8 @@ export function FilterPanel({
   /** Restricts the project list to one customer. */
   customerId?: string;
   label?: string;
+  /** Lay the controls straight into the parent's grid: no captions, no own clear button. */
+  inline?: boolean;
 }) {
   const opts = useMemo(() => {
     const customers = new Map<string, string>();
@@ -57,24 +60,24 @@ export function FilterPanel({
   const n = fields.filter((f) => value[f] !== NO_FILTERS[f]).length;
 
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap items-end gap-2">
+    <div role="group" aria-label={label} className={inline ? "contents" : "flex flex-wrap items-end gap-2"}>
       {has("customer") && (
-        <Field label="Customer">
+        <Field inline={inline} label="Customer">
           <Dropdown aria-label="Filter customer" value={value.customer} onChange={(v) => set({ customer: v, project: "" })} options={[{ value: "", label: "All customers" }, ...opts.customers]} />
         </Field>
       )}
       {has("project") && (
-        <Field label="Project">
+        <Field inline={inline} label="Project">
           <Dropdown aria-label="Filter project" value={value.project} onChange={(v) => set({ project: v })} options={[{ value: "", label: "All projects" }, ...opts.projects]} />
         </Field>
       )}
       {has("task") && (
-        <Field label="Task">
+        <Field inline={inline} label="Task">
           <Dropdown aria-label="Filter task" value={value.task} onChange={(v) => set({ task: v })} options={[{ value: "", label: "All tasks" }, ...opts.tasks]} />
         </Field>
       )}
       {has("billable") && (
-        <Field label="Billing">
+        <Field inline={inline} label="Billing">
           <Dropdown
             aria-label="Filter billable"
             value={value.billable}
@@ -84,26 +87,26 @@ export function FilterPanel({
         </Field>
       )}
       {has("location") && (
-        <Field label="Location">
+        <Field inline={inline} label="Location">
           <Dropdown aria-label="Filter location" value={value.location} onChange={(v) => set({ location: v })} options={[{ value: "", label: "Any location" }, ...opts.locations.map((l) => ({ value: l, label: locationLabel(l) }))]} />
         </Field>
       )}
       {has("status") && (
-        <Field label="Status">
+        <Field inline={inline} label="Status">
           <Dropdown aria-label="Filter status" value={value.status} onChange={(v) => set({ status: v })} options={STATUS_OPTIONS} />
         </Field>
       )}
       {has("from") && (
-        <Field label="From" narrow>
+        <Field inline={inline} label="From" narrow>
           <input type="date" aria-label="Filter from date" value={value.from} onChange={(e) => set({ from: e.target.value })} className="h-9 w-full rounded-full border border-outline-variant bg-surface-low px-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
         </Field>
       )}
       {has("to") && (
-        <Field label="To" narrow>
+        <Field inline={inline} label="To" narrow>
           <input type="date" aria-label="Filter to date" value={value.to} onChange={(e) => set({ to: e.target.value })} className="h-9 w-full rounded-full border border-outline-variant bg-surface-low px-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
         </Field>
       )}
-      {n > 0 && (
+      {n > 0 && !inline && (
         <button
           type="button"
           onClick={() => onChange({ ...value, ...Object.fromEntries(fields.map((f) => [f, NO_FILTERS[f]])) })}
@@ -116,10 +119,10 @@ export function FilterPanel({
   );
 }
 
-function Field({ label, narrow, children }: { label: string; narrow?: boolean; children: React.ReactNode }) {
+function Field({ label, narrow, inline, children }: { label: string; narrow?: boolean; inline?: boolean; children: React.ReactNode }) {
   return (
-    <div className={narrow ? "w-36" : "w-44"}>
-      <div className="m3-label mb-1">{label}</div>
+    <div className={inline ? "min-w-0" : narrow ? "w-36" : "w-44"}>
+      {!inline && <div className="m3-label mb-1">{label}</div>}
       {children}
     </div>
   );

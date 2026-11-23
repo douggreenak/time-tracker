@@ -11,7 +11,6 @@ const hours = (m: number) => (m / 60).toFixed(2);
 
 async function reviewAllTime(page: Page) {
   await loginAs(page, ACCOUNTANT, "/accountant");
-  await page.getByRole("button", { name: "All time" }).click();
   await expect.poll(async () => page.locator("tbody tr").count()).toBeGreaterThan(3);
 }
 
@@ -25,7 +24,6 @@ test.describe("flag notes: ask, withdraw, history", () => {
 
     // Withdraw it from the Review page.
     await page.reload();
-    await page.getByRole("button", { name: "All time" }).click();
     const row = page.locator("tr", { hasText: q });
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "Withdraw question" }).click();
@@ -158,7 +156,6 @@ test.describe("accountant reports", () => {
 
   test("engineers can use the reports for their own time only", async ({ page }) => {
     await loginAs(page, ENGINEER, "/accountant");
-    await page.getByRole("button", { name: "All time" }).click();
     await page.getByRole("tab", { name: "Person × time" }).click();
     await expect(page.getByTestId("person-row")).toHaveCount(1);
     await expect(page.getByTestId("person-row")).toContainText(ENGINEER);
@@ -178,21 +175,21 @@ test.describe("filters", () => {
     const proj = all.find((e) => e.jobId)!;
     await pick(page, "Filter project", proj.jobName!);
     await expect.poll(() => rows().count()).toBe(all.filter((e) => e.jobId === proj.jobId).length);
-    await page.getByRole("button", { name: /Clear filters/ }).click();
+    await page.getByTestId("clear-all-filters").click();
     await expect.poll(() => rows().count()).toBe(all.length);
 
     // Task
     const task = all.find((e) => e.serviceItemId)!;
     await pick(page, "Filter task", task.serviceItemName);
     await expect.poll(() => rows().count()).toBe(all.filter((e) => e.serviceItemId === task.serviceItemId).length);
-    await page.getByRole("button", { name: /Clear filters/ }).click();
+    await page.getByTestId("clear-all-filters").click();
 
     // Billable / non-billable
     await pick(page, "Filter billable", "Billable only");
     await expect.poll(() => rows().count()).toBe(all.filter((e) => e.isBillable).length);
     await pick(page, "Filter billable", "Non-billable only");
     await expect.poll(() => rows().count()).toBe(all.filter((e) => !e.isBillable).length);
-    await page.getByRole("button", { name: /Clear filters/ }).click();
+    await page.getByTestId("clear-all-filters").click();
 
     // Location
     const loc = all[0].locationType;
@@ -202,7 +199,7 @@ test.describe("filters", () => {
     const wantType = picked === "On site" ? "on_site" : picked.toLowerCase();
     await expect.poll(() => rows().count()).toBe(all.filter((e) => e.locationType === wantType).length);
     expect(loc).toBeTruthy();
-    await page.getByRole("button", { name: /Clear filters/ }).click();
+    await page.getByTestId("clear-all-filters").click();
 
     // Combined with person + search: the intersection.
     await pick(page, "Person", "Tomas Herrera");

@@ -55,7 +55,6 @@ test.describe("sign in", () => {
 
   test("engineers' Review page opens on themselves; they can't see others' time or approve their own", async ({ page }) => {
     await loginAs(page, ENGINEER, "/accountant");
-    await page.getByRole("button", { name: "All time" }).click();
     const person = page.getByRole("combobox", { name: "Person", exact: true });
     await expect(person).toBeDisabled();
     await expect(person).toContainText(ENGINEER);
@@ -117,7 +116,6 @@ test.describe("editing past entries & accountant review", () => {
     // Accountant sees it.
     await page.request.post("/api/auth/logout");
     await loginAs(page, ACCOUNTANT, "/accountant");
-    await page.getByRole("button", { name: "All time" }).click();
     await expect(page.getByTestId("card-flagged")).toContainText("1");
     await page.getByTestId("card-flagged").click();
     await expect(page.getByText(/Edited after approved: hours .* → 9\.00/).first()).toBeVisible();
@@ -139,7 +137,6 @@ test.describe("editing past entries & accountant review", () => {
 
   test("review page: automatic checks, approve-all-clean, export marks", async ({ page }) => {
     await loginAs(page, ACCOUNTANT, "/accountant");
-    await page.getByRole("button", { name: "All time" }).click();
     await expect(page.getByText("Worth a second look")).toBeVisible();
     await expect(page.getByTestId("card-review")).toBeVisible();
     const clean = page.getByTestId("approve-clean");

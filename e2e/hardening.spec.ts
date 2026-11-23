@@ -53,7 +53,6 @@ test("accountant can send an entry back with a note the engineer sees", async ({
   await page.request.post("/api/auth/logout");
 
   await loginAs(page, ACCOUNTANT, "/accountant");
-  await page.getByRole("button", { name: "All time" }).click();
   const row = page.getByRole("row").filter({ hasText: "query-me" });
   await row.getByRole("button", { name: "Query" }).click();
   await page.getByLabel("Question for the engineer").fill("Was this on site?");
