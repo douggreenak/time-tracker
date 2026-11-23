@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     const ok = !!rec && (await verifyPassword(password, rec.passwordHash));
     recordLogin(userId, ok);
     if (!rec || !ok) {
+      console.warn(`login rejected: ${!rec ? "no such person" : !rec.passwordHash ? "no password set" : "password did not match"} (hash length ${rec?.passwordHash?.length ?? 0}, password length ${password.length})`);
       const noPw = rec && !rec.passwordHash;
       return NextResponse.json(
         { success: false, error: noPw ? "No password is set for this person yet — ask an admin to set one." : "Wrong password." },
