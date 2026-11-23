@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
+import { CheckCircle2, Clock, Eye, EyeOff, FileSpreadsheet, Loader2, LogIn, Send } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
 import { MIN_PASSWORD } from "@/lib/validate";
@@ -87,18 +87,59 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <div aria-hidden className="pointer-events-none absolute -top-40 left-1/2 h-[28rem] w-[44rem] -translate-x-1/2 rounded-full opacity-30 blur-3xl" style={{ background: "var(--fab-gradient)" }} />
-      <div className="absolute right-4 top-4"><ThemeToggle /></div>
+    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+      {/* Brand panel (large screens) */}
+      <aside className="relative hidden overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16" style={{ background: "linear-gradient(135deg, #0a5566 0%, #0b6a8c 55%, #0f78b0 100%)" }}>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.14]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,.55) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px)",
+            backgroundSize: "44px 44px",
+            maskImage: "linear-gradient(to bottom right, black 0%, transparent 75%)",
+            WebkitMaskImage: "linear-gradient(to bottom right, black 0%, transparent 75%)",
+          }}
+        />
+        <div className="relative flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25"><Clock className="h-5 w-5" strokeWidth={2.4} /></span>
+          <span className="text-lg font-semibold tracking-tight">TimeTrack</span>
+        </div>
+        <div className="relative max-w-md">
+          <h2 className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">Log the week.<br />Get paid on time.</h2>
+          <p className="mt-4 text-base text-white/80">A timesheet that works like your spreadsheet, with weekly submit, review and export built in.</p>
+          <ul className="mt-8 space-y-4 text-sm">
+            {[
+              [Clock, "Type hours straight into the grid — it saves as you go"],
+              [Send, "Submit a whole week, or just the days you pick"],
+              [CheckCircle2, "Your accountant approves it by the week"],
+              [FileSpreadsheet, "Exports to QuickBooks and the Excel timesheet"],
+            ].map(([Icon, text], i) => {
+              const I = Icon as typeof Clock;
+              return (
+                <li key={i} className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20"><I className="h-4 w-4" /></span>
+                  <span className="text-white/90">{text as string}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <p className="relative text-xs text-white/60">Apex Engineering</p>
+      </aside>
 
-      <form onSubmit={submit} className="relative w-full max-w-sm animate-m3-in space-y-5 rounded-3xl border border-border/70 bg-card p-6 shadow-xl sm:p-8">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl shadow-md">
+      {/* Sign-in */}
+      <main className="relative flex items-center justify-center bg-background px-4 py-10">
+        <div className="absolute right-4 top-4"><ThemeToggle /></div>
+
+      <form onSubmit={submit} className="relative w-full max-w-sm animate-m3-in space-y-5 rounded-2xl border border-border/70 bg-card p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col items-center gap-3 text-center lg:items-start lg:text-left">
+          <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl shadow-md lg:hidden">
             <span className="absolute inset-0" style={{ background: "var(--fab-gradient)" }} />
             <Clock className="relative h-6 w-6 text-white" strokeWidth={2.4} />
           </span>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">{needsSetup ? "Set up TimeTrack" : "Sign in to TimeTrack"}</h1>
+            <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">{needsSetup ? "Set up TimeTrack" : "Sign in to TimeTrack"}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {needsSetup ? "Create the first admin account to get started." : "Pick your name and enter your password."}
             </p>
@@ -179,6 +220,7 @@ export function LoginScreen() {
           </div>
         )}
       </form>
+      </main>
     </div>
   );
 }
