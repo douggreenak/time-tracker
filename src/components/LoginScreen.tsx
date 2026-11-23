@@ -87,32 +87,19 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-      {/* Brand panel (large screens) */}
-      <aside className="hidden items-center justify-center text-white lg:flex" style={{ background: "linear-gradient(135deg, #0a5566 0%, #0b6a8c 55%, #0f78b0 100%)" }}>
-        <div className="flex flex-col items-center gap-4">
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25"><Clock className="h-8 w-8" strokeWidth={2.2} /></span>
-          <span className="text-3xl font-semibold tracking-tight">TimeTrack</span>
-        </div>
-      </aside>
+    <main className="relative flex min-h-dvh flex-col items-center justify-center gap-6 bg-gradient-to-b from-primary/[0.08] via-background to-background px-4 py-10">
+      <div className="absolute right-4 top-4"><ThemeToggle /></div>
 
-      {/* Sign-in */}
-      <main className="relative flex items-center justify-center bg-background px-4 py-10">
-        <div className="absolute right-4 top-4"><ThemeToggle /></div>
+      <div className="flex flex-col items-center gap-3">
+        <span className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl shadow-md">
+          <span className="absolute inset-0" style={{ background: "var(--fab-gradient)" }} />
+          <Clock className="relative h-7 w-7 text-white" strokeWidth={2.4} />
+        </span>
+        <span className="text-2xl font-semibold tracking-tight">TimeTrack</span>
+      </div>
 
-      <form onSubmit={submit} className="relative w-full max-w-sm animate-m3-in space-y-5 rounded-2xl border border-border/70 bg-card p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col items-center gap-3 text-center lg:items-start lg:text-left">
-          <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl shadow-md lg:hidden">
-            <span className="absolute inset-0" style={{ background: "var(--fab-gradient)" }} />
-            <Clock className="relative h-6 w-6 text-white" strokeWidth={2.4} />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">{needsSetup ? "Set up TimeTrack" : "Sign in to TimeTrack"}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {needsSetup ? "Create the first admin account to get started." : "Choose your name, type your password, press Enter."}
-            </p>
-          </div>
-        </div>
+      <form onSubmit={submit} className="relative w-full max-w-sm animate-m3-in space-y-5 rounded-[28px] border border-border/70 bg-card p-6 shadow-lg sm:p-8">
+        <h1 className="text-center text-lg font-semibold tracking-tight">{needsSetup ? "Create the first admin account" : "Sign in"}</h1>
 
         {people === null ? (
           error ? null : <div className="flex justify-center py-6"><Loader size={40} /></div>
@@ -188,7 +175,6 @@ export function LoginScreen() {
           </div>
         )}
       </form>
-      </main>
-    </div>
+    </main>
   );
 }

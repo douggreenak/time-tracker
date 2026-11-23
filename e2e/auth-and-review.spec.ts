@@ -4,7 +4,7 @@ import { ACCOUNTANT, ADMIN, DEMO_PASSWORD, ENGINEER, loginAs, expandAllWeeks, pi
 test.describe("sign in", () => {
   test("pick a user, wrong password is rejected, right password signs in, sign out returns", async ({ page }) => {
     await page.goto("/engineer");
-    await expect(page.getByRole("heading", { name: "Sign in to TimeTrack" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
     await pick(page, "Who are you?", `${ENGINEER}`);
     await page.getByLabel("Password", { exact: true }).fill("not-the-password");
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -16,7 +16,7 @@ test.describe("sign in", () => {
 
     await page.getByTestId("user-menu").click();
     await page.getByTestId("sign-out").click();
-    await expect(page.getByRole("heading", { name: "Sign in to TimeTrack" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in", exact: true })).toBeVisible();
     // and the data really is protected
     expect((await page.request.get("/api/time-entries")).status()).toBe(401);
   });
