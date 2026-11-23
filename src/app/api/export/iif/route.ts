@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
-import { requireUser } from "@/lib/auth";
+import { isManager, requireUser } from "@/lib/auth";
 import { generateQuickBooksIIF, ExportableTimeEntry } from "@/lib/quickbooks";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,8 @@ export async function GET(request: Request) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const customerId = searchParams.get("customerId") || undefined;
-    const userId = searchParams.get("userId") || undefined;
+    // Engineers get their own time only.
+    const userId = isManager(g.user) ? searchParams.get("userId") || undefined : g.user.id;
     const status = searchParams.get("status") || undefined;
 
     const entries = await dataStore.getTimeEntries({

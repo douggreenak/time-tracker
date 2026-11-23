@@ -11,6 +11,10 @@ export async function GET(
 ) {
   const g = await requireUser();
   if (!g.ok) return g.res;
+  const found = await dataStore.getTimeEntryById(params.id);
+  if (found && !isManager(g.user) && found.userId !== g.user.id) {
+    return NextResponse.json({ success: false, error: "That entry belongs to someone else." }, { status: 403 });
+  }
   try {
     const entry = await dataStore.getTimeEntryById(params.id);
     if (!entry) {
@@ -31,14 +35,10 @@ export async function PUT(
   const current = await dataStore.getTimeEntryById(params.id);
   try {
     const body = await request.json();
-    if (!isManager(g.user) && current && current.userId !== g.user.id) {
-      // Reviewing a colleague's time (Review & export page): status and flags only — never their details.
-      const { status, flagged, flagReason } = body;
-      for (const k of Object.keys(body)) delete body[k];
-      if (status !== undefined && status !== "draft" && current.status !== "draft") body.status = status; // drafts aren't submitted yet
-      if (flagged !== undefined) body.flagged = flagged;
-      if (flagReason !== undefined) body.flagReason = flagReason;
-    } else if (!isManager(g.user)) {
+    if (current && !isManager(g.user) && current.userId !== g.user.id) {
+      return NextResponse.json({ success: false, error: "That entry belongs to someone else." }, { status: 403 });
+    }
+    if (!isManager(g.user)) {
       // Review state is the accountant's; engineers just edit their own details.
       // The one exception: moving your own time between draft and submitted, until the accountant has acted on it.
       const wanted = body.status;

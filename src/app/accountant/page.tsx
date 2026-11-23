@@ -67,8 +67,8 @@ function range(p: Period, from: string, to: string): [string | null, string | nu
 }
 
 function AccountantPage() {
-  // Everyone can open this page. Engineers can review colleagues' time but never approve their own,
-  // and they don't see pay rates / dollar values.
+  // Everyone can open this page. Engineers see only their own time (the page opens on them), can't approve it,
+  // and don't see pay rates / dollar values.
   const { user: me, isManager } = useAuth();
   const isOwn = (e: { userId: string }) => !isManager && e.userId === me?.id;
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
@@ -80,7 +80,8 @@ function AccountantPage() {
   const [period, setPeriod] = useState<Period>("this_month");
   const [from, setFrom] = useState(() => iso(new Date(Date.now() - 30 * 864e5)));
   const [to, setTo] = useState(() => iso(new Date()));
-  const [person, setPerson] = useState("all");
+  const [personPick, setPerson] = useState("all");
+  const person = isManager ? personPick : me?.id ?? "none";
   const [customer, setCustomer] = useState("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [issueFilter, setIssueFilter] = useState<Issue | "any" | null>(null);
@@ -260,7 +261,7 @@ function AccountantPage() {
     window.location.href = `/api/export/${kind}?${params({ status: "approved" })}`;
     setToast({
       text: `Downloading ${sendIds.length} approved ${sendIds.length === 1 ? "entry" : "entries"}.${left ? ` ${left} left out — no customer or task (see “No customer or task”).` : ""} Once it’s imported into QuickBooks, mark them exported so they aren’t sent twice.`,
-      action: { label: "Mark as exported", run: () => setStatusFor(sendIds, "exported", `${sendIds.length} marked exported.`) },
+      action: isManager ? { label: "Mark as exported", run: () => setStatusFor(sendIds, "exported", `${sendIds.length} marked exported.`) } : undefined,
     });
   };
 
@@ -372,9 +373,9 @@ function AccountantPage() {
           </div>
         )}
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[12rem_14rem_1fr]">
-          <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} className={select}>
-            <option value="all">Everyone</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} disabled={!isManager} className={select}>
+            {isManager && <option value="all">Everyone</option>}
+            {(isManager ? users : users.filter((u) => u.id === me?.id)).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
           <select aria-label="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} className={select}>
             <option value="all">All customers</option>
@@ -439,12 +440,18 @@ function AccountantPage() {
 
       {(draftCount > 0 || users.length > 0) && (
         <div className="print-hide flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>{draftCount > 0 ? `${draftCount} ${draftCount === 1 ? "entry is" : "entries are"} still a draft — engineers haven’t submitted ${draftCount === 1 ? "it" : "them"} yet.` : "All logged time has been submitted."}</span>
+          <span>
+            {draftCount > 0
+              ? isManager
+                ? `${draftCount} ${draftCount === 1 ? "entry is" : "entries are"} still a draft — engineers haven’t submitted ${draftCount === 1 ? "it" : "them"} yet.`
+                : `${draftCount} of your ${draftCount === 1 ? "entry is" : "entries are"} still a draft — submit ${draftCount === 1 ? "it" : "them"} from the Timesheet.`
+              : isManager ? "All logged time has been submitted." : "All your time has been submitted."}
+          </span>
           <ExcelExport
-            userId={xlPerson}
-            onPerson={setXlPerson}
-            people={users.map((u) => ({ id: u.id, name: u.name }))}
-            weeks={Array.from(new Set(entries.filter((e) => !xlPerson || e.userId === xlPerson).map((e) => weekStart(e.date))))}
+            userId={isManager ? xlPerson : me?.id ?? ""}
+            onPerson={isManager ? setXlPerson : undefined}
+            people={isManager ? users.map((u) => ({ id: u.id, name: u.name })) : undefined}
+            weeks={Array.from(new Set(entries.filter((e) => (isManager ? !xlPerson || e.userId === xlPerson : true)).map((e) => weekStart(e.date))))}
           />
         </div>
       )}

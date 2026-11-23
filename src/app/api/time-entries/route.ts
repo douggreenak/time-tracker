@@ -13,8 +13,8 @@ export async function GET(request: Request) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const customerId = searchParams.get("customerId") || undefined;
-    // Everyone can use the Review & export page, so anyone's time can be listed.
-    const userId = searchParams.get("userId") || undefined;
+    // Engineers only ever see their own entries; accountants/admins can look at anyone.
+    const userId = isManager(g.user) ? searchParams.get("userId") || undefined : g.user.id;
     const status = searchParams.get("status") || undefined;
     const billableParam = searchParams.get("billable");
     const isBillable = billableParam !== null ? billableParam === "true" : undefined;

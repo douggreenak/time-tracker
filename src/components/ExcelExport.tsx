@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileSpreadsheet } from "lucide-react";
+import { Download } from "lucide-react";
 import { weekRangeLabel, weekStart } from "@/lib/weeks";
 import { cn } from "@/components/ui";
 
@@ -61,7 +61,7 @@ export function ExcelExport({
           ready ? "text-foreground hover:bg-foreground/[0.05]" : "cursor-not-allowed text-muted-foreground/60"
         )}
       >
-        <FileSpreadsheet className="h-3.5 w-3.5" />Excel timesheet
+        <Download className="h-3.5 w-3.5" />Excel timesheet
       </a>
     </div>
   );

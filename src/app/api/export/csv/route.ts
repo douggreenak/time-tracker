@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
-import { requireUser } from "@/lib/auth";
+import { isManager, requireUser } from "@/lib/auth";
 import { generateTimeTrackingCSV, ExportableTimeEntry } from "@/lib/quickbooks";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  // Anyone signed in can use the Review & export page.
+  // Accountants/admins can export anyone; engineers can only export their own time.
   const g = await requireUser();
   if (!g.ok) return g.res;
   try {
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const customerId = searchParams.get("customerId") || undefined;
-    const userId = searchParams.get("userId") || undefined;
+    const userId = isManager(g.user) ? searchParams.get("userId") || undefined : g.user.id;
     const status = searchParams.get("status") || undefined;
 
     const entries = await dataStore.getTimeEntries({

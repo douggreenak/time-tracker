@@ -34,30 +34,27 @@ test.describe("sign in", () => {
     expect((await page.request.get("/api/admin/backup")).status()).toBe(403);
   });
 
-  test("an engineer can approve a colleague's time but never their own", async ({ page }) => {
-    await loginAs(page, ENGINEER);
-    const users = (await (await page.request.get("/api/auth/users")).json()).data.users;
-    const me = users.find((u: { name: string }) => u.name === ENGINEER).id;
-    const other = users.find((u: { name: string }) => u.name !== ENGINEER && u.name !== ACCOUNTANT && u.name !== ADMIN).id;
-    const mk = async (uid: string) => {
-      const r = await page.request.post("/api/time-entries", { data: { userId: uid, date: "2026-02-10", durationMinutes: 60, status: "submitted" } });
-      return r;
-    };
-    expect((await mk(other)).status()).toBe(403); // can't log time for someone else
-    const mine = (await (await mk(me)).json()).data;
-    await page.request.put(`/api/time-entries/${mine.id}`, { data: { status: "submitted" } });
+  test("engineers' Review page opens on themselves; they can't see others' time or approve their own", async ({ page }) => {
+    await loginAs(page, ENGINEER, "/accountant");
+    await page.getByRole("button", { name: "All time" }).click();
+    const person = page.getByLabel("Person", { exact: true });
+    await expect(person).toBeDisabled();
+    await expect(person).toContainText(ENGINEER);
+    await expect(page.getByText(ACCOUNTANT)).toHaveCount(0);
+    const rows = await page.locator("tbody tr").allTextContents();
+    expect(rows.join(" ")).not.toMatch(/Callum Brooks|Tomas Herrera/);
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
+
+    const all = (await (await page.request.get("/api/time-entries")).json()).data;
+    expect(new Set(all.map((e: { userName: string }) => e.userName))).toEqual(new Set([ENGINEER]));
+    const mine = all.find((e: { status: string }) => e.status === "submitted");
     const own = await (await page.request.put(`/api/time-entries/${mine.id}`, { data: { status: "approved" } })).json();
     expect(own.data.status).toBe("submitted");
-    // A colleague's submitted entry: approving works, editing their details does not.
-    const all = (await (await page.request.get("/api/time-entries")).json()).data;
-    const theirs = all.find((e: { userId: string; status: string }) => e.userId === other && e.status === "submitted");
-    if (theirs) {
-      const r = await (await page.request.put(`/api/time-entries/${theirs.id}`, { data: { status: "approved", durationMinutes: 1, notes: "hacked" } })).json();
-      expect(r.data.status).toBe("approved");
-      expect(r.data.durationMinutes).toBe(theirs.durationMinutes);
-      expect(r.data.notes).not.toBe("hacked");
-    }
-    expect((await page.request.delete(`/api/time-entries/${all.find((e: { userId: string }) => e.userId === other).id}`)).status()).toBe(403);
+    // Someone else's entry is off limits, both to read and to touch.
+    const users = (await (await page.request.get("/api/users")).json()).data;
+    const other = users.find((u: { name: string }) => u.name === "Callum Brooks").id;
+    const csv = await (await page.request.get(`/api/export/csv?userId=${other}`)).text();
+    expect(csv).not.toContain("Callum Brooks");
   });
 
   test("accountants see everything except people management; admins see all", async ({ page }) => {

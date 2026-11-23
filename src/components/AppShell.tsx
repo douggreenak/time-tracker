@@ -14,16 +14,21 @@ import { UserMenu } from "./UserMenu";
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, loading, isManager, isAdmin } = useAuth();
 
+  // One wrapper that never changes between loading / signed-out / signed-in, so the menu bar is always
+  // the first row of it no matter how the page above was built or what the browser inserts into <body>.
+  const frame = "grid h-dvh w-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] print:block print:h-auto";
   if (loading)
     return (
-      <div className="row-span-2 flex h-dvh items-center justify-center text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className={frame}>
+        <div className="row-span-2 flex items-center justify-center text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
       </div>
     );
-  if (!user) return <div className="row-span-2 h-dvh overflow-y-auto"><LoginScreen /></div>;
+  if (!user) return <div className={frame}><div className="row-span-2 min-h-0 overflow-y-auto"><LoginScreen /></div></div>;
 
   return (
-    <>
+    <div className={frame}>
       <header className="z-40 row-start-1 shrink-0 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="flex h-14 w-full items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
           <Link href="/engineer" className="group flex shrink-0 items-center gap-2.5" aria-label="TimeTrack home">
@@ -47,7 +52,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         {isManager && <DemoBanner canClear={isAdmin} />}
         <main className="flex min-h-full flex-col">{children}</main>
       </div>
-    </>
+    </div>
   );
 }
 
