@@ -48,7 +48,7 @@ const money = (n: number) => n.toLocaleString(undefined, { style: "currency", cu
 
 function range(p: Period, from: string, to: string): [string | null, string | null] {
   const now = new Date();
-  const day = (now.getDay() + 6) % 7;
+  const day = now.getDay(); // weeks run Sunday–Saturday
   const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
   const add = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
   switch (p) {
@@ -264,7 +264,7 @@ function AccountantPage() {
     return Array.from(m.values()).sort((a, b) => b.total - a.total);
   }, [inPeriod, rate]);
 
-  // Pay weeks (Mon–Sun): per week, per person — hours, status, and the entries still waiting for approval.
+  // Pay weeks (Sun–Sat): per week, per person — hours, status, and the entries still waiting for approval.
   const byWeek = useMemo(() => {
     type P = { id: string; name: string; total: number; billable: number; n: number; flagged: number; approved: number; exported: number; submittedIds: string[] };
     const m = new Map<string, { total: number; billable: number; people: Map<string, P> }>();

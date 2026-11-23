@@ -1,9 +1,9 @@
-/** Pay weeks run Monday–Sunday. Dates are "YYYY-MM-DD" strings. */
+/** Pay weeks run Sunday–Saturday (weekends included). Dates are "YYYY-MM-DD" strings. */
 
-/** The Monday that starts the week containing `d`. */
+/** The Sunday that starts the week containing `d`. */
 export function weekStart(d: string): string {
   const dt = new Date(`${d}T00:00:00`);
-  dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
+  dt.setDate(dt.getDate() - dt.getDay());
   return dt.toLocaleDateString("en-CA");
 }
 

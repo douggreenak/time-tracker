@@ -885,7 +885,7 @@ function RowGroup({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Mon–Sun mini chart for the current week; the dashed line marks an 8h day. */
+/** Sun–Sat mini chart for the current week; the dashed line marks an 8h day. */
 function WeekBars({ entries }: { entries: TimeEntryItem[] }) {
   const days = useMemo(() => {
     const start = new Date(`${weekStart(today())}T00:00:00`);
