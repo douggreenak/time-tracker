@@ -93,8 +93,22 @@ async function upgradeLegacySample(db: Db) {
   await seedIfEmpty(db);
 }
 
+/** One-time: make sure the sample people can sign in with the documented sample password. */
+async function fixSamplePasswords(db: Db) {
+  if (storageMode() !== "neon" || process.env.ENABLE_DEMO_DATA === "false") return; // hosted only; local files are left alone
+  const meta = (k: string) => db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = ${k}`);
+  const [[demo], [done]] = await Promise.all([meta("demo"), meta("demo_pw_v1")]);
+  if (!demo || done) return;
+  const hash = await demoHash();
+  await db.update(schema.users).set({ passwordHash: hash });
+  await db.insert(schema.appMeta).values({ key: "demo_pw_v1", value: "true" }).onConflictDoNothing();
+}
+
 async function seedIfEmpty(db: Db) {
-  if (await isSeeded(db)) return upgradeLegacySample(db);
+  if (await isSeeded(db)) {
+    await upgradeLegacySample(db);
+    return fixSamplePasswords(db);
+  }
   await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`); // leftover from an earlier version
 
   if (process.env.ENABLE_DEMO_DATA !== "false") {
@@ -112,6 +126,7 @@ async function seedIfEmpty(db: Db) {
       ...demoSeedStatements(x, hash),
       x.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing(),
       x.insert(schema.appMeta).values({ key: "seeded", value: "true" }).onConflictDoNothing(),
+      x.insert(schema.appMeta).values({ key: "demo_pw_v1", value: "true" }).onConflictDoNothing(),
     ];
     if (storageMode() === "neon") {
       await (db as unknown as { batch: (q: unknown[]) => Promise<unknown> }).batch(build(db));

@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm";
 import { getDb, storageMode } from "@/db/client";
 import * as schema from "@/db/schema";
 import { seedId } from "@/db/seed";
+import { verifyPassword } from "@/lib/password";
+import { DEMO_PASSWORD } from "@/db/seed";
 import { initialUsers } from "@/db/mock-data";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +18,8 @@ export async function GET() {
     await db.execute(sql`select 1`);
     const meta = (await db.select().from(schema.appMeta)).map((m) => m.key).sort();
     const users = await db.select({ id: schema.users.id, hasPassword: schema.users.passwordHash }).from(schema.users);
+    const samplePasswordWorks = (await Promise.all(users.map((u) => verifyPassword(DEMO_PASSWORD, u.hasPassword)))).filter(Boolean).length;
+    const hashLengths = Array.from(new Set(users.map((u) => (u.hasPassword ?? "").length)));
     const ids = new Set(users.map((u) => u.id));
     return NextResponse.json({
       ok: true,
@@ -25,6 +29,8 @@ export async function GET() {
       setup: {
         meta,
         people: users.length,
+        samplePasswordWorks,
+        hashLengths,
         peopleWithPassword: users.filter((u) => u.hasPassword).length,
         samplePeopleInRepeatableForm: initialUsers.filter((u) => ids.has(seedId(u.id))).length,
         demoDisabled: process.env.ENABLE_DEMO_DATA === "false",
