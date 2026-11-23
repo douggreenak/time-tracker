@@ -90,7 +90,7 @@ function TeamPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+      <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
         <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-13rem)] min-h-[8rem] overflow-auto">
           <table className="stack-table w-full min-w-[64rem] border-separate border-spacing-0 text-left">
             <thead className="sticky top-0 z-10">

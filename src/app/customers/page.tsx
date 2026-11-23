@@ -98,7 +98,7 @@ function CustomersPage() {
 
       <div className="grid min-h-[calc(100dvh-13rem)] gap-4 lg:grid-cols-[22rem_1fr]">
         {/* Customers list */}
-        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-2xl lg:max-h-none border border-border/70 bg-card shadow-sm">
+        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-[14px] lg:max-h-none border border-border/70 bg-card shadow-sm">
           <div className="space-y-2 border-b border-border/70 p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -172,7 +172,7 @@ function CustomersPage() {
         </aside>
 
         {/* Customer detail */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
           {!selected ? (
             <div className="flex flex-1 items-center justify-center p-10 text-sm text-muted-foreground">Add a customer to get started.</div>
           ) : (

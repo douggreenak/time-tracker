@@ -282,3 +282,11 @@
   header, .print-hide { display: none !important; }
   body { background: white; }
 }
+
+/* Last-column buttons (Add, Approve, delete…) must never touch the rounded edge of their panel. */
+@media (min-width: 768px) {
+  .stack-table th:last-child,
+  .stack-table td:last-child { min-width: 3.5rem; }
+  .stack-table td:last-child { padding-right: 0.625rem; }
+  .stack-table td.actions-cell:last-child { padding-right: 0.875rem; }
+}

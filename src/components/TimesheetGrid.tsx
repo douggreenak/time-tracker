@@ -399,7 +399,7 @@ export function TimesheetGrid({
     new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+    <section className="relative overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
       {/* Summary + search */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border/70 px-4 py-3">
         <Stat label="Today" value={stats.day} />

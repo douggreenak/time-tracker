@@ -269,7 +269,7 @@ function AccountantPage() {
       aria-pressed={status === key}
       data-testid={`card-${key}`}
       className={cn(
-        "flex flex-col gap-1 rounded-2xl border p-3 text-left transition-all sm:p-4",
+        "flex flex-col gap-1 rounded-[14px] border p-3 text-left transition-all sm:p-4",
         status === key ? "border-primary bg-primary/5 shadow-sm" : "border-border/70 bg-card hover:border-outline"
       )}
     >
@@ -306,7 +306,7 @@ function AccountantPage() {
       </div>
 
       {/* Filters */}
-      <div className="print-hide space-y-3 rounded-2xl border border-border/70 bg-card p-3 shadow-sm">
+      <div className="print-hide space-y-3 rounded-[14px] border border-border/70 bg-card p-3 shadow-sm">
         <div className="m3-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Period">
           {PERIODS.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)} aria-pressed={period === p.id} className={chip(period === p.id)}>{p.label}</button>
@@ -341,7 +341,7 @@ function AccountantPage() {
         {card("flagged", "Edited / flagged", stats.flagged.n, stats.flagged.m, "text-destructive", <Flag className="h-3.5 w-3.5" />)}
         {card("approved", "Approved", stats.approved.n, stats.approved.m, "text-tertiary", <BadgeCheck className="h-3.5 w-3.5" />)}
         {card("exported", "Exported", stats.exported.n, stats.exported.m, "text-secondary", <CheckCircle2 className="h-3.5 w-3.5" />)}
-        <div className="col-span-2 flex flex-col gap-1 rounded-2xl border border-border/70 bg-card p-3 sm:p-4 lg:col-span-1">
+        <div className="col-span-2 flex flex-col gap-1 rounded-[14px] border border-border/70 bg-card p-3 sm:p-4 lg:col-span-1">
           <span className="m3-label">Billable value</span>
           <span className="m3-metric text-2xl leading-none">{money(stats.amount)}</span>
           <span className="text-xs text-muted-foreground">
@@ -352,7 +352,7 @@ function AccountantPage() {
 
       {/* Needs attention */}
       {issueCounts.any > 0 && (
-        <section className="rounded-2xl border border-warning/40 bg-warning-container/30 p-3 sm:p-4" aria-label="Needs attention">
+        <section className="rounded-[14px] border border-warning/40 bg-warning-container/30 p-3 sm:p-4" aria-label="Needs attention">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-warning" />
             <h2 className="text-sm font-semibold">Worth a second look</h2>
@@ -377,7 +377,7 @@ function AccountantPage() {
 
       {/* Quick approve */}
       {cleanReady.length > 0 && (
-        <div className="print-hide flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-tertiary/30 bg-tertiary-container/30 px-4 py-3">
+        <div className="print-hide flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-tertiary/30 bg-tertiary-container/30 px-4 py-3">
           <p className="text-sm"><span className="font-semibold">{cleanReady.length}</span> submitted {cleanReady.length === 1 ? "entry has" : "entries have"} no issues and {cleanReady.length === 1 ? "is" : "are"} ready to approve.</p>
           <button onClick={() => setStatusFor(cleanReady.map((e) => e.id), "approved", `Approved ${cleanReady.length} clean ${cleanReady.length === 1 ? "entry" : "entries"}.`)} data-testid="approve-clean" className="inline-flex h-9 items-center gap-2 rounded-full bg-tertiary px-4 text-xs font-semibold text-tertiary-foreground transition hover:brightness-110">
             <CheckCheck className="h-4 w-4" />Approve all clean
@@ -393,9 +393,9 @@ function AccountantPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 animate-pulse rounded-2xl border border-border/70 bg-surface-low" />
+        <div className="h-64 animate-pulse rounded-[14px] border border-border/70 bg-surface-low" />
       ) : view === "entries" ? (
-        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
           <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-14rem)] min-h-[12rem] overflow-auto">
             <table className="stack-table w-full min-w-[64rem] border-separate border-spacing-0 text-left text-[13px]">
               <thead className="sticky top-0 z-10">
@@ -452,7 +452,7 @@ function AccountantPage() {
                         )}
                         <div className="flex justify-end gap-1">
                           {queryFor !== e.id && (
-                            <button onClick={() => { setQueryFor(e.id); setQueryText(""); }} title="Ask the engineer a question about this entry" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><Flag className="h-3.5 w-3.5" />Query</button>
+                            <button onClick={() => { setQueryFor(e.id); setQueryText(""); }} title="Ask the engineer a question about this entry" aria-label="Query" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><Flag className="h-3.5 w-3.5" /><span className="hidden max-md:inline 2xl:inline">Query</span></button>
                           )}
                           {open ? (
                             <button onClick={() => setStatusFor([e.id], "approved", "Approved.")} className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"><CheckCircle2 className="h-3.5 w-3.5" />Approve</button>
@@ -475,7 +475,7 @@ function AccountantPage() {
           </div>
         </section>
       ) : (
-        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+        <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
           <div className="stack-table-wrap m3-scroll overflow-auto">
             <table className="stack-table w-full min-w-[40rem] border-separate border-spacing-0 text-left text-[13px]">
               <thead>
