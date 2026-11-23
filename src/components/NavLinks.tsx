@@ -5,20 +5,20 @@ import { usePathname } from "next/navigation";
 import { BarChart3, Building2, Clock, ListChecks, Users } from "lucide-react";
 import { cn } from "@/components/ui";
 
+// Everyone sees every tab; what they can change on each depends on their role.
 const NAV_ITEMS = [
-  { href: "/engineer", label: "Timesheet", icon: Clock, manager: false },
-  { href: "/accountant", label: "Review & export", icon: BarChart3, manager: false },
-  { href: "/customers", label: "Customers", icon: Building2, manager: true },
-  { href: "/tasks", label: "Tasks", icon: ListChecks, manager: true },
-  { href: "/team", label: "Team", icon: Users, manager: true, admin: true },
+  { href: "/engineer", label: "Timesheet", icon: Clock },
+  { href: "/accountant", label: "Review & export", icon: BarChart3 },
+  { href: "/customers", label: "Customers", icon: Building2 },
+  { href: "/tasks", label: "Tasks", icon: ListChecks },
+  { href: "/team", label: "Team", icon: Users },
 ];
 
-export function NavLinks({ isManager, isAdmin = false }: { isManager: boolean; isAdmin?: boolean }) {
+export function NavLinks() {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter((i) => (isManager || !i.manager) && (isAdmin || !i.admin));
   return (
     <nav aria-label="Main" className="flex min-w-0 items-center gap-0.5 rounded-full bg-surface-container p-1">
-      {items.map(({ href, label, icon: Icon }) => {
+      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link

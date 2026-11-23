@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Check, Copy, KeyRound, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Copy, KeyRound, Plus, Search, Trash2, X } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
 import { Dropdown } from "@/components/ui/dropdown";
 import { TextCell, cellBase } from "@/components/ui/cell";
 import { DataBackup } from "@/components/DataBackup";
-import { RequireAdmin } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
 import { MIN_PASSWORD } from "@/lib/validate";
@@ -23,6 +23,8 @@ function TeamPage() {
   const [pwKey, setPwKey] = useState(0);
   const [temp, setTemp] = useState<{ name: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
 
   /** A readable one-time password (no look-alike characters). Shown once; the person should change it after signing in. */
   const makeTemp = () => {
@@ -40,6 +42,11 @@ function TeamPage() {
     entries.forEach((e) => m.set(e.userId, (m.get(e.userId) ?? 0) + e.durationMinutes));
     return m;
   }, [entries]);
+
+  const shownUsers = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return dir.users.filter((u) => (roleFilter === "all" || u.role === roleFilter) && (!s || u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s)));
+  }, [dir.users, q, roleFilter]);
 
   const run = async (p: Promise<{ ok: boolean; error?: string }>) => {
     const r = await p;
@@ -92,7 +99,15 @@ function TeamPage() {
         </div>
       )}
 
-      <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
+      <div role="group" aria-label="Team filters" className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[14rem] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" aria-label="Search team" className="h-9 w-full rounded-full border border-outline-variant bg-surface-low pl-8 pr-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
+        </div>
+        <div className="w-44"><Dropdown aria-label="Filter role" value={roleFilter} onChange={setRoleFilter} options={[{ value: "all", label: "All roles" }, ...ROLES.map((r) => ({ value: r, label: r }))]} /></div>
+      </div>
+
+      <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
         <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-13rem)] min-h-[8rem] overflow-auto">
           <table className="stack-table w-full min-w-[64rem] border-separate border-spacing-0 text-left">
             <thead className="sticky top-0 z-10">
@@ -126,7 +141,7 @@ function TeamPage() {
                   </button>
                 </td>
               </tr>
-              {dir.users.map((u) => (
+              {shownUsers.map((u) => (
                 <tr key={u.id} className="group bg-card hover:bg-surface-low">
                   <td data-label="Name" className="span-2"><TextCell aria-label="Name" value={u.name} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { name: v.trim() }))} /></td>
                   <td data-label="Email" className="span-2"><TextCell aria-label="Email" type="text" value={u.email} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { email: v.trim() }))} /></td>
@@ -183,10 +198,54 @@ function TeamPage() {
   );
 }
 
-export default function Page() {
+/** Everyone else gets a read-only directory of the team (no emails' editing, rates or passwords). */
+function TeamDirectory() {
+  const dir = useDirectory();
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const shown = dir.users
+    .filter((u) => (roleFilter === "all" || u.role === roleFilter) && (!q.trim() || `${u.name} ${u.email}`.toLowerCase().includes(q.trim().toLowerCase())))
+    .sort((a, b) => a.name.localeCompare(b.name));
   return (
-    <RequireAdmin>
-      <TeamPage />
-    </RequireAdmin>
+    <div className="flex w-full flex-col gap-4 px-4 py-5 sm:px-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Team</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">Everyone who uses TimeTrack. Only admins can add people, change roles or reset passwords.</p>
+      </div>
+      <div role="group" aria-label="Team filters" className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[14rem] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or email…" aria-label="Search team" className="h-9 w-full rounded-full border border-outline-variant bg-surface-low pl-8 pr-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
+        </div>
+        <div className="w-44"><Dropdown aria-label="Filter role" value={roleFilter} onChange={setRoleFilter} options={[{ value: "all", label: "All roles" }, ...ROLES.map((r) => ({ value: r, label: r }))]} /></div>
+      </div>
+      <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
+        <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-13rem)] min-h-[8rem] overflow-auto">
+          <table className="stack-table w-full border-separate border-spacing-0 text-left">
+            <thead className="sticky top-0 z-10">
+              <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-3 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground">
+                <th>Name</th>
+                <th>Email</th>
+                <th className="w-36">Role</th>
+              </tr>
+            </thead>
+            <tbody className="[&_td]:border-b [&_td]:border-border/70">
+              {shown.map((u) => (
+                <tr key={u.id} className="bg-card hover:bg-surface-low">
+                  <td data-label="Name" className="px-3 py-2.5 text-sm font-medium">{u.name}</td>
+                  <td data-label="Email" className="px-3 py-2.5 text-sm text-muted-foreground">{u.email}</td>
+                  <td data-label="Role" className="px-3 py-2.5 text-sm capitalize">{u.role}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   );
+}
+
+export default function Page() {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <TeamPage /> : <TeamDirectory />;
 }

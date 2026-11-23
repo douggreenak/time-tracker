@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Archive, ArchiveRestore, Building2, FolderKanban, Plus, Search, Trash2, AlertCircle, X } from "lucide-react";
 import type { CustomerItem, TimeEntryItem } from "@/db/mock-data";
 import { TextCell, cellBase } from "@/components/ui/cell";
-import { RequireManager } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
 
@@ -12,6 +12,8 @@ const hours = (min: number) => (min / 60).toFixed(2);
 
 function CustomersPage() {
   const dir = useDirectory();
+  const { isManager } = useAuth();
+  const canEdit = isManager; // everyone can add; renaming, archiving and deleting are for accountants/admins
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [query, setQuery] = useState("");
@@ -98,7 +100,7 @@ function CustomersPage() {
 
       <div className="grid min-h-[calc(100dvh-13rem)] gap-4 lg:grid-cols-[22rem_1fr]">
         {/* Customers list */}
-        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-[14px] lg:max-h-none border border-border/70 bg-card shadow-sm">
+        <aside className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-[22px] lg:max-h-none border border-border/70 bg-card shadow-sm">
           <div className="space-y-2 border-b border-border/70 p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -172,7 +174,7 @@ function CustomersPage() {
         </aside>
 
         {/* Customer detail */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
           {!selected ? (
             <div className="flex flex-1 items-center justify-center p-10 text-sm text-muted-foreground">Add a customer to get started.</div>
           ) : (
@@ -181,16 +183,16 @@ function CustomersPage() {
                 <div className="min-w-[14rem] flex-1">
                   <div className="m3-label mb-1">Customer name</div>
                   <div className="rounded-lg border border-outline-variant bg-surface-low focus-within:border-primary">
-                    <TextCell aria-label="Customer name" value={selected.name} onCommit={(v) => v.trim() && run(dir.updateCustomer(selected.id, { name: v.trim() }))} className="h-10 text-sm font-semibold" />
+                    <TextCell aria-label="Customer name" disabled={!canEdit} value={selected.name} onCommit={(v) => v.trim() && run(dir.updateCustomer(selected.id, { name: v.trim() }))} className="h-10 text-sm font-semibold" />
                   </div>
                 </div>
                 <div className="min-w-[14rem] flex-1">
                   <div className="m3-label mb-1">QuickBooks name</div>
                   <div className="rounded-lg border border-outline-variant bg-surface-low focus-within:border-primary">
-                    <TextCell aria-label="QuickBooks name" value={selected.qbName} onCommit={(v) => v.trim() && run(dir.updateCustomer(selected.id, { qbName: v.trim() }))} className="h-10 font-mono text-xs" />
+                    <TextCell aria-label="QuickBooks name" disabled={!canEdit} value={selected.qbName} onCommit={(v) => v.trim() && run(dir.updateCustomer(selected.id, { qbName: v.trim() }))} className="h-10 font-mono text-xs" />
                   </div>
                 </div>
-                <div className="flex gap-2">
+                {canEdit && <div className="flex gap-2">
                   <button
                     onClick={() => run(dir.updateCustomer(selected.id, { isActive: !selected.isActive }))}
                     className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition-colors hover:bg-foreground/[0.05]"
@@ -203,7 +205,7 @@ function CustomersPage() {
                   >
                     <Trash2 className="h-3.5 w-3.5" />Delete
                   </button>
-                </div>
+                </div>}
               </div>
 
               <div className="stack-table-wrap m3-scroll min-h-0 flex-1 overflow-auto">
@@ -241,11 +243,12 @@ function CustomersPage() {
                     </tr>
                     {selected.jobs.map((j) => (
                       <tr key={j.id} className={cn("group bg-card hover:bg-surface-low", !j.isActive && "opacity-60")}>
-                        <td data-label="Project" className="span-2"><TextCell aria-label="Project name" value={j.name} onCommit={(v) => v.trim() && run(dir.updateJob(j.id, { name: v.trim() }))} /></td>
+                        <td data-label="Project" className="span-2"><TextCell aria-label="Project name" disabled={!canEdit} value={j.name} onCommit={(v) => v.trim() && run(dir.updateJob(j.id, { name: v.trim() }))} /></td>
                         <td data-label="QuickBooks job" className="px-2 font-mono text-[11px] text-muted-foreground span-2 text-xs">{j.fullQbJobName}</td>
                         <td data-label="Hours" className="px-2 text-right font-mono text-[13px] tabular-nums">{hours(minutesBy.byJob.get(j.id) ?? 0)}</td>
                         <td data-label="Status" className="px-2">
                           <button
+                            disabled={!canEdit}
                             onClick={() => run(dir.updateJob(j.id, { isActive: !j.isActive }))}
                             className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium", j.isActive ? "bg-tertiary-container text-tertiary-on-container" : "bg-surface-high text-muted-foreground")}
                           >
@@ -253,13 +256,13 @@ function CustomersPage() {
                           </button>
                         </td>
                         <td className="text-center actions-cell">
-                          <button
+                          {canEdit && <button
                             onClick={() => confirmDelete(`“${j.name}”`, () => run(dir.deleteJob(j.id)))}
                             aria-label={`Delete ${j.name}`}
                             className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </button>}
                         </td>
                       </tr>
                     ))}
@@ -270,7 +273,7 @@ function CustomersPage() {
                 </table>
               </div>
               <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">
-                Customers or projects with logged time can&apos;t be deleted — archive them to hide them from the timesheet dropdowns. Edits save when you leave a cell.
+                Customers or projects with logged time can&apos;t be deleted — archive them to hide them from the timesheet dropdowns. {canEdit ? "Edits save when you leave a cell." : "You can add customers and projects; accountants and admins can rename, archive or delete them."}
               </div>
             </>
           )}
@@ -281,9 +284,5 @@ function CustomersPage() {
 }
 
 export default function Page() {
-  return (
-    <RequireManager>
-      <CustomersPage />
-    </RequireManager>
-  );
+  return <CustomersPage />;
 }

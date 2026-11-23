@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
-import { requireUser } from "@/lib/auth";
+import { isManager, requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import { MIN_PASSWORD } from "@/lib/validate";
 
@@ -10,7 +10,10 @@ export async function GET() {
   const g = await requireUser();
   if (!g.ok) return g.res;
   try {
-    return NextResponse.json({ success: true, data: await dataStore.getUsers() });
+    const users = await dataStore.getUsers();
+    // Pay rates are for accountants and admins only.
+    const data = isManager(g.user) ? users : users.map((u) => ({ ...u, defaultHourlyRate: 0 }));
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error("Failed to load users:", error);
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });

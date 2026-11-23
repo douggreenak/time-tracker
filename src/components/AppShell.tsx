@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock } from "lucide-react";
+import { Loader } from "./ui/loader";
 import { AuthProvider, useAuth } from "./AuthProvider";
 import { LoginScreen } from "./LoginScreen";
 import { NavLinks } from "./NavLinks";
@@ -20,8 +21,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   if (loading)
     return (
       <div className={frame}>
-        <div className="row-span-2 flex items-center justify-center text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
+        <div className="row-span-2 flex items-center justify-center">
+          <Loader size={56} label="Loading TimeTrack…" />
         </div>
       </div>
     );
@@ -38,7 +39,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="hidden text-[15px] font-semibold tracking-tight lg:block">TimeTrack</span>
           </Link>
-          <NavLinks isManager={isManager} isAdmin={isAdmin} />
+          <NavLinks />
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <SaveIndicator />
             <ThemeToggle />

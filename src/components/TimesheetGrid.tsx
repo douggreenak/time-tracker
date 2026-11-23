@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Copy, Download, Flag, Lock, Plus, Search, Send, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Download, Flag, FoldVertical, Lock, Plus, Search, Send, SlidersHorizontal, Trash2, Undo2, UnfoldVertical } from "lucide-react";
+import { FilterPanel } from "@/components/FilterPanel";
+import { type EntryFilters, NO_FILTERS, activeFilterCount, matchesFilters } from "@/lib/filters";
 import type { CustomerItem, ServiceItem, TimeEntryItem } from "@/db/mock-data";
 import { cn } from "@/components/ui";
 import { weekRangeLabel, weekStart, weekTag as weekTagOf } from "@/lib/weeks";
@@ -81,6 +83,9 @@ export function TimesheetGrid({
   onCreateService,
 }: Props) {
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<EntryFilters>(NO_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterCount = activeFilterCount(filters);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const [draft, setDraft] = useState({
@@ -156,15 +161,16 @@ export function TimesheetGrid({
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter((e) =>
+    const base = filterCount ? sorted.filter((e) => matchesFilters(e, filters)) : sorted;
+    if (!q) return base;
+    return base.filter((e) =>
       [e.date, e.customerName, e.jobName, e.serviceItemName, e.notes, e.locationType, e.status]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(q)
     );
-  }, [sorted, query]);
+  }, [sorted, query, filters, filterCount]);
 
   const stats = useMemo(() => {
     const t = today();
@@ -484,7 +490,7 @@ export function TimesheetGrid({
       return next;
     });
   /** The current week starts open and older weeks start closed; filtering opens everything that matches. */
-  const isWeekOpen = (wk: string) => (query.trim() ? true : weekOverride[wk] ?? wk === thisWeek);
+  const isWeekOpen = (wk: string) => (query.trim() || filterCount ? true : weekOverride[wk] ?? wk === thisWeek);
 
   const weeks = useMemo(() => {
     const m = new Map<string, { minutes: number; billable: number; count: number; approved: number; exported: number; submitted: number; draft: number; draftIds: string[]; flagged: number }>();
@@ -518,7 +524,7 @@ export function TimesheetGrid({
     });
 
   // Rows you can actually see (rows in a collapsed week are hidden); arrow-key navigation uses these.
-  const rendered = useMemo(() => visible.filter((e) => isWeekOpen(weekStart(e.date))), [visible, weekOverride, query]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rendered = useMemo(() => visible.filter((e) => isWeekOpen(weekStart(e.date))), [visible, weekOverride, query, filterCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dayGroups = useMemo(() => {
     const totals = new Map<string, number>();
@@ -530,7 +536,7 @@ export function TimesheetGrid({
     new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <section className="relative overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
+    <section className="relative overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
       {/* Summary + search */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border/70 px-4 py-3">
         <Stat label="Today" value={stats.day} />
@@ -567,7 +573,7 @@ export function TimesheetGrid({
             data-testid="weeks-toggle-all"
             className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05] hover:text-foreground"
           >
-            {anyClosed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {anyClosed ? <UnfoldVertical className="h-3.5 w-3.5" /> : <FoldVertical className="h-3.5 w-3.5" />}
             {anyClosed ? "Expand all weeks" : "Collapse all weeks"}
           </button>
         )}
@@ -580,6 +586,18 @@ export function TimesheetGrid({
           <Download className="h-3.5 w-3.5" />Export CSV
         </a>
         </div>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          aria-expanded={filtersOpen}
+          data-testid="filters-toggle"
+          className={cn(
+            "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition",
+            filtersOpen || filterCount ? "border-primary/40 bg-primary/10 text-primary" : "border-outline-variant text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground"
+          )}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />Filters{filterCount > 0 && ` (${filterCount})`}
+        </button>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -592,7 +610,13 @@ export function TimesheetGrid({
         </div>
       </div>
 
-      <div ref={gridRef} onKeyDown={onGridKeyDown} className="stack-table-wrap m3-scroll h-[calc(100dvh-21.5rem)] min-h-[16rem] overflow-auto">
+      {filtersOpen && (
+        <div className="border-b border-border/70 bg-surface-low px-4 py-3">
+          <FilterPanel entries={entries} value={filters} onChange={setFilters} fields={["customer", "project", "task", "status", "billable", "location", "from", "to"]} label="Timesheet filters" />
+        </div>
+      )}
+
+      <div ref={gridRef} onKeyDown={onGridKeyDown} className={cn("stack-table-wrap m3-scroll min-h-[16rem] overflow-auto", filtersOpen ? "h-[calc(100dvh-29rem)]" : "h-[calc(100dvh-21.5rem)]")}>
         <table className="stack-table w-full min-w-[70rem] border-separate border-spacing-0 text-left">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -751,7 +775,7 @@ export function TimesheetGrid({
               const w = weeks.get(wk)!;
               const weekHeader = firstOfWeek && (
                 <tr className="group-row week-row" data-week={wk}>
-                  <td colSpan={COLUMNS.length} className="border-y border-border bg-surface-container p-0">
+                  <td colSpan={COLUMNS.length} className="border-y border-border border-l-4 border-l-primary bg-primary/[0.13] p-0">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-2 max-md:flex-col max-md:items-stretch">
                       <button
                         type="button"
@@ -797,7 +821,7 @@ export function TimesheetGrid({
                     <tr className="group-row day-row">
                       <td
                         colSpan={COLUMNS.length}
-                        className="border-l-[3px] border-l-primary/30 bg-surface-low py-1.5 pl-7 pr-2 text-[11px] font-semibold text-muted-foreground"
+                        className="border-l-[3px] border-l-primary/50 bg-primary/[0.055] py-1.5 pl-7 pr-2 text-[11px] font-semibold text-foreground/70"
                       >
                         {fmtDay(e.date)}
                         <span className="ml-2 font-mono font-medium tabular-nums">
@@ -807,7 +831,7 @@ export function TimesheetGrid({
                     </tr>
                   )}
                   <tr className={cn("entry-row group bg-card hover:bg-surface-low", e.flagged && "bg-destructive/[0.04]", e.id.startsWith(PENDING) && "opacity-70")}>
-                    <td data-label="Date" className="border-l-[3px] border-l-primary/30 pl-4 max-md:order-1">
+                    <td data-label="Date" className="border-l-[3px] border-l-primary/15 pl-4 max-md:order-1">
                       <TextCell
                         type="date"
                         aria-label="Date"
@@ -913,26 +937,32 @@ export function TimesheetGrid({
                       />
                     </td>
                     <td data-label="Status" className="px-2  max-md:order-9">
-                      {e.flagged ? (
-                        <button
-                          type="button"
-                          onClick={() => setFlagOpen(e)}
-                          title="Click to read the message"
-                          aria-label={`Flagged — read the message for ${e.date}`}
-                          data-testid="flag-badge"
-                          className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive transition hover:bg-destructive/20"
-                        >
-                          <Flag className="h-3 w-3" />Flagged
-                        </button>
-                      ) : (
-                        <span
-                          title={locked ? "You can still edit this — your accountant will be flagged to re-check it." : undefined}
-                          className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}
-                        >
-                          {locked && <Lock className="h-3 w-3" />}
-                          {e.status}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1">
+                        {(e.flagged || (e.flagHistory?.length ?? 0) > 0) && (
+                          <button
+                            type="button"
+                            onClick={() => setFlagOpen(e)}
+                            title={e.flagged ? "Click to read the message" : "Resolved — click to see the notes"}
+                            aria-label={e.flagged ? `Flagged — read the message for ${e.date}` : `Flag history for ${e.date}`}
+                            data-testid={e.flagged ? "flag-badge" : "flag-badge-resolved"}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition",
+                              e.flagged ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted text-muted-foreground hover:bg-foreground/10"
+                            )}
+                          >
+                            <Flag className="h-3 w-3" />Flagged
+                          </button>
+                        )}
+                        {!e.flagged && (
+                          <span
+                            title={locked ? "You can still edit this — your accountant will be flagged to re-check it." : undefined}
+                            className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}
+                          >
+                            {locked && <Lock className="h-3 w-3" />}
+                            {e.status}
+                          </span>
+                        )}
+                      </div>
                       {e.status === "draft" && (
                         <input
                           type="checkbox"
@@ -1006,6 +1036,8 @@ export function TimesheetGrid({
         const fe = entries.find((x) => x.id === flagOpen.id) ?? flagOpen;
         const asks = (fe.flagReason ?? "").startsWith("Accountant asks:");
         const text = (fe.flagReason ?? "").replace(/^Accountant asks:\s*/, "") || "This entry was edited after it was approved, so your accountant has been asked to check it again.";
+        const history = [...(fe.flagHistory ?? [])].reverse();
+        const KIND: Record<string, string> = { question: "Question", edit: "Edited", withdrawn: "Withdrawn", cleared: "Resolved" };
         return (
           <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onClick={() => setFlagOpen(null)}>
             <div
@@ -1014,21 +1046,41 @@ export function TimesheetGrid({
               aria-label="Message about this entry"
               onClick={(ev) => ev.stopPropagation()}
               onKeyDown={(ev) => ev.key === "Escape" && setFlagOpen(null)}
-              className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl"
+              className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-2xl"
             >
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Flag className="h-4 w-4" /></span>
+                <span className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full", fe.flagged ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}><Flag className="h-4 w-4" /></span>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold">{asks ? "Your accountant has a question" : "Flagged for your accountant"}</h3>
+                  <h3 className="text-sm font-semibold">{!fe.flagged ? "Resolved — flag history" : asks ? "Your accountant has a question" : "Flagged for your accountant"}</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {fmtDay(fe.date)} · {fmtHours(fe.durationMinutes)} h{fe.customerName ? ` · ${fe.customerName}` : ""}{fe.jobName ? ` · ${fe.jobName}` : ""}{fe.serviceItemName ? ` · ${fe.serviceItemName}` : ""}
                   </p>
                 </div>
               </div>
-              <p data-testid="flag-message" className="mt-4 whitespace-pre-wrap break-words rounded-xl bg-surface-low px-3 py-2.5 text-sm">{text}</p>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {asks ? "Fix the entry if needed (hours, notes, customer…). The flag clears when your accountant approves it again." : "The flag clears when your accountant approves it again."}
-              </p>
+              {fe.flagged && (
+                <>
+                  <p data-testid="flag-message" className="mt-4 whitespace-pre-wrap break-words rounded-xl bg-surface-low px-3 py-2.5 text-sm">{text}</p>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {asks ? "Fix the entry if needed (hours, notes, customer…). The flag clears when your accountant approves it again or withdraws the question." : "The flag clears when your accountant approves it again."}
+                  </p>
+                </>
+              )}
+              {history.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="m3-label">All notes</h4>
+                  <ul data-testid="flag-history" className="mt-2 space-y-2">
+                    {history.map((h, i) => (
+                      <li key={i} className="rounded-xl border border-border/70 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span className="font-semibold text-foreground">{KIND[h.kind] ?? h.kind} · {h.by}</span>
+                          <span>{new Date(h.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-sm">{h.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="mt-4 flex justify-end">
                 <button autoFocus onClick={() => setFlagOpen(null)} className="h-9 rounded-full bg-primary px-5 text-xs font-semibold text-primary-foreground transition hover:brightness-110">Close</button>
               </div>

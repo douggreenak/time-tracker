@@ -21,17 +21,36 @@ test.describe("sign in", () => {
     expect((await page.request.get("/api/time-entries")).status()).toBe(401);
   });
 
-  test("engineers get Review & export (without pay values) but not the manager pages", async ({ page }) => {
+  test("engineers see every tab; pay values, editing others' setup and admin tools stay hidden", async ({ page }) => {
     await loginAs(page, ENGINEER);
-    await expect(page.getByRole("link", { name: "Review & export" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Customers" })).toHaveCount(0);
+    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
+      await expect(page.getByRole("link", { name })).toBeVisible();
+    }
     await page.goto("/accountant");
     await expect(page.getByRole("heading", { name: "Review & export" })).toBeVisible();
     await expect(page.getByText("Billable value")).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Value" })).toHaveCount(0);
+    // Customers & Tasks: can look and add, but not rename / archive / delete.
     await page.goto("/customers");
-    await expect(page.getByText("This page is for accountants and admins.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Customers & projects" })).toBeVisible();
+    await expect(page.getByLabel("New customer name")).toBeVisible();
+    await expect(page.getByLabel("Customer name", { exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0);
+    await page.goto("/tasks");
+    await expect(page.getByLabel("New task name")).toBeVisible();
+    await expect(page.getByLabel("Task name", { exact: true }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    // Team: a read-only directory with no rates.
+    await page.goto("/team");
+    await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
+    await expect(page.getByLabel("New person name")).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: /Rate/ })).toHaveCount(0);
+    const seenByEngineer = (await (await page.request.get("/api/users")).json()).data;
+    expect(seenByEngineer.every((u: { defaultHourlyRate: number }) => u.defaultHourlyRate === 0)).toBe(true);
     expect((await page.request.get("/api/admin/backup")).status()).toBe(403);
+    const cust = (await (await page.request.get("/api/customers")).json()).data[0];
+    expect((await page.request.put(`/api/customers/${cust.id}`, { data: { name: "Renamed" } })).status()).toBe(403);
+    expect((await page.request.delete(`/api/customers/${cust.id}`)).status()).toBe(403);
   });
 
   test("engineers' Review page opens on themselves; they can't see others' time or approve their own", async ({ page }) => {
@@ -57,12 +76,16 @@ test.describe("sign in", () => {
     expect(csv).not.toContain("Callum Brooks");
   });
 
-  test("accountants see everything except people management; admins see all", async ({ page }) => {
+  test("accountants can edit customers and tasks but only read the team; admins manage everyone", async ({ page }) => {
     await loginAs(page, ACCOUNTANT);
-    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks"]) {
+    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
-    await expect(page.getByRole("link", { name: "Team" })).toHaveCount(0);
+    await page.goto("/customers");
+    await expect(page.getByLabel("Customer name", { exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();
+    await page.goto("/team");
+    await expect(page.getByLabel("New person name")).toHaveCount(0);
     await page.request.post("/api/auth/logout");
     await loginAs(page, ADMIN);
     for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
@@ -96,7 +119,7 @@ test.describe("editing past entries & accountant review", () => {
     await page.getByRole("button", { name: "All time" }).click();
     await expect(page.getByTestId("card-flagged")).toContainText("1");
     await page.getByTestId("card-flagged").click();
-    await expect(page.getByText(/Edited after approved: hours .* → 9\.00/)).toBeVisible();
+    await expect(page.getByText(/Edited after approved: hours .* → 9\.00/).first()).toBeVisible();
 
     await page.getByRole("button", { name: "Approve" }).first().click();
     await expect(page.getByTestId("card-flagged")).toContainText("0");

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 import { getDb } from "./client";
 import * as t from "./schema";
-import type { CustomerItem, JobItem, ServiceItem, TimeEntryItem, UserItem } from "./mock-data";
+import type { CustomerItem, FlagNote, JobItem, ServiceItem, TimeEntryItem, UserItem } from "./mock-data";
 
 export type DeleteResult = "ok" | "not_found" | "in_use";
 
@@ -41,12 +41,23 @@ const entrySelect = {
   status: t.timeEntries.status,
   flagged: t.timeEntries.flagged,
   flagReason: t.timeEntries.flagReason,
+  flagHistory: t.timeEntries.flagHistory,
   createdAt: t.timeEntries.createdAt,
 };
 
 type EntryRow = Awaited<ReturnType<typeof entryQuery>>[number];
 
 // Customer, project and task are optional: "" means none.
+function parseHistory(raw: string | null | undefined): FlagNote[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 const entryOf = (r: EntryRow): TimeEntryItem => ({
   ...r,
   customerId: r.customerId ?? "",
@@ -59,6 +70,7 @@ const entryOf = (r: EntryRow): TimeEntryItem => ({
   latitude: num(r.latitude),
   longitude: num(r.longitude),
   status: r.status as TimeEntryItem["status"],
+  flagHistory: parseHistory(r.flagHistory),
   createdAt: r.createdAt.toISOString(),
 });
 
@@ -336,7 +348,7 @@ export const dataStore = {
    * A content edit to an entry that was already approved or exported puts it back in the review
    * queue: status → submitted, flagged, with a plain-English note of what changed.
    */
-  updateTimeEntry: async (id: string, u: Partial<TimeEntryItem>): Promise<TimeEntryItem | null> => {
+  updateTimeEntry: async (id: string, u: Partial<TimeEntryItem>, actor = "System"): Promise<TimeEntryItem | null> => {
     if (!isUuid(id)) return null;
     const db = await getDb();
     const before = await dataStore.getTimeEntryById(id);
@@ -365,6 +377,14 @@ export const dataStore = {
     }
     if (u.flagged !== undefined) set.flagged = u.flagged;
     if (u.flagReason !== undefined) set.flagReason = u.flagReason;
+    // Withdrawing a question clears the flag; the note stays in the history.
+    if (u.flagged === false && u.status === undefined) set.flagReason = null;
+
+    const notes: FlagNote[] = [];
+    const note = (kind: FlagNote["kind"], text: string) => notes.push({ at: new Date().toISOString(), by: actor, kind, text: text.slice(0, 500) });
+    if (u.flagged === true && u.flagReason) note("question", u.flagReason.replace(/^Accountant asks:\s*/, ""));
+    if (u.flagged === false && u.status === undefined && before.flagged) note("withdrawn", "Question withdrawn — flag cleared");
+    if ((u.status === "approved" || u.status === "exported") && before.flagged) note("cleared", `Marked ${u.status} — flag cleared`);
 
     const r = await db.update(t.timeEntries).set(set).where(eq(t.timeEntries.id, id)).returning({ id: t.timeEntries.id });
     if (!r.length) return null;
@@ -374,20 +394,29 @@ export const dataStore = {
     if (after && wasLocked && u.status === undefined) {
       const changes = describeChanges(before, after);
       if (changes.length) {
-        const note = `Edited after ${before.status}: ${changes.join("; ")}`;
+        const text = `Edited after ${before.status}: ${changes.join("; ")}`;
+        note("edit", text);
         await db
           .update(t.timeEntries)
-          .set({ status: "submitted", flagged: true, flagReason: note.slice(0, 500) })
+          .set({ status: "submitted", flagged: true, flagReason: text.slice(0, 500) })
           .where(eq(t.timeEntries.id, id));
         after = (await dataStore.getTimeEntryById(id)) ?? null;
       }
     } else if (after?.flagged && u.status === undefined && u.flagged === undefined) {
       const changes = describeChanges(before, after);
       if (changes.length) {
-        const note = `${before.flagReason ?? ""}${before.flagReason ? " · " : ""}then: ${changes.join("; ")}`;
-        await db.update(t.timeEntries).set({ flagReason: note.slice(0, 500) }).where(eq(t.timeEntries.id, id));
+        const text = `${before.flagReason ?? ""}${before.flagReason ? " · " : ""}then: ${changes.join("; ")}`;
+        note("edit", `Then edited: ${changes.join("; ")}`);
+        await db.update(t.timeEntries).set({ flagReason: text.slice(0, 500) }).where(eq(t.timeEntries.id, id));
         after = (await dataStore.getTimeEntryById(id)) ?? null;
       }
+    }
+    if (notes.length) {
+      await db
+        .update(t.timeEntries)
+        .set({ flagHistory: JSON.stringify([...(before.flagHistory ?? []), ...notes]) })
+        .where(eq(t.timeEntries.id, id));
+      after = (await dataStore.getTimeEntryById(id)) ?? null;
     }
     return after;
   },

@@ -60,7 +60,7 @@ export function DataBackup() {
   };
 
   return (
-    <section aria-label="Data backup and restore" className="rounded-[14px] border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+    <section aria-label="Data backup and restore" className="rounded-[22px] border border-border/70 bg-card p-4 shadow-sm sm:p-5">
       <h2 className="text-base font-semibold">Data export &amp; import</h2>
       <p className="mt-0.5 text-sm text-muted-foreground">
         Save everything in the app (people, customers, projects, tasks and all time entries) to one file, or restore it from a file saved earlier.

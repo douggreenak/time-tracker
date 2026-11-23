@@ -93,7 +93,13 @@ test("admin can change their own password too", async ({ page, browser }) => {
 
 test("only admins can manage people; accountants are blocked", async ({ page }) => {
   await loginAs(page, ACCOUNTANT, "/team");
-  await expect(page.getByText("This page is for admins.")).toBeVisible();
+  // Everyone else gets a read-only directory: no way to add people, set passwords or see rates.
+  await expect(page.getByRole("heading", { name: "Team" })).toBeVisible();
+  await expect(page.getByLabel("New person name")).toHaveCount(0);
+  await expect(page.getByLabel(/Set password for/)).toHaveCount(0);
+  // (accountants may see pay rates; engineers may not)
+  const seen = (await (await page.request.get("/api/users")).json()).data;
+  expect(seen.some((u: { defaultHourlyRate: number }) => u.defaultHourlyRate > 0)).toBe(true);
   expect((await page.request.post("/api/users", { data: { name: "X", email: "x@example.com", password: "longenough1" } })).status()).toBe(403);
   const users = (await (await page.request.get("/api/users")).json()).data;
   const someone = users.find((u: { role: string }) => u.role === "engineer");

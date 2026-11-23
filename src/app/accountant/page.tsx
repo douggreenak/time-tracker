@@ -2,18 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, ChevronDown, ChevronRight, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, X,
+  AlertTriangle, ChevronDown, ChevronRight, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, Undo2, X,
 } from "lucide-react";
 import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
 import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
 import { Dropdown } from "@/components/ui/dropdown";
+import { FilterPanel } from "@/components/FilterPanel";
+import { type EntryFilters, NO_FILTERS, matchesFilters } from "@/lib/filters";
+import { PersonTimeReport, ProjectReport } from "@/components/Reports";
 import { ExcelExport } from "@/components/ExcelExport";
 import { weekRangeLabel, weekStart, weekTag } from "@/lib/weeks";
 
 type Period = "today" | "this_week" | "last_week" | "this_month" | "last_month" | "quarter" | "ytd" | "all" | "custom";
 type StatusFilter = "all" | "review" | "approved" | "exported" | "flagged";
-type View = "entries" | "weeks" | "people" | "customers";
+type View = "entries" | "weeks" | "people" | "customers" | "projects" | "grid";
 type Issue = "edited" | "missing" | "long_day" | "weekend" | "no_notes" | "duplicate" | "future";
 
 const PERIODS: { id: Period; label: string }[] = [
@@ -81,6 +84,7 @@ function AccountantPage() {
   const [period, setPeriod] = useState<Period>("this_month");
   const [from, setFrom] = useState(() => iso(new Date(Date.now() - 30 * 864e5)));
   const [to, setTo] = useState(() => iso(new Date()));
+  const [extra, setExtra] = useState<EntryFilters>(NO_FILTERS);
   const [personPick, setPerson] = useState("all");
   const person = isManager ? personPick : me?.id ?? "none";
   const [customer, setCustomer] = useState("all");
@@ -152,9 +156,9 @@ function AccountantPage() {
   const inPeriod = useMemo(
     () =>
       entries.filter(
-        (e) => (!start || e.date >= start) && (!end || e.date <= end) && (person === "all" || e.userId === person) && (customer === "all" || e.customerId === customer)
+        (e) => (!start || e.date >= start) && (!end || e.date <= end) && (person === "all" || e.userId === person) && (customer === "all" || e.customerId === customer) && matchesFilters(e, extra)
       ),
-    [entries, start, end, person, customer]
+    [entries, start, end, person, customer, extra]
   );
 
   const visible = useMemo(() => {
@@ -221,6 +225,17 @@ function AccountantPage() {
     setQueryText("");
     await load();
     setToast({ text: res.ok ? "Sent back with your note — it's flagged on their timesheet." : "Couldn't send that back." });
+  };
+
+  /** Un-ask: withdraw a question / clear the flag. The notes stay in the entry's history. */
+  const withdraw = async (id: string) => {
+    const res = await fetch(`/api/time-entries/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flagged: false }),
+    });
+    await load();
+    setToast({ text: res.ok ? "Question withdrawn — the flag is cleared (the notes are kept)." : "Couldn't withdraw that." });
   };
 
   const setStatusFor = async (wanted: string[], next: TimeEntryItem["status"], text?: string) => {
@@ -323,7 +338,7 @@ function AccountantPage() {
       aria-pressed={status === key}
       data-testid={`card-${key}`}
       className={cn(
-        "flex flex-col gap-1 rounded-[14px] border p-3 text-left transition-all sm:p-4",
+        "flex flex-col gap-1 rounded-[22px] border p-3 text-left transition-all sm:p-4",
         status === key ? "border-primary bg-primary/5 shadow-sm" : "border-border/70 bg-card hover:border-outline"
       )}
     >
@@ -360,7 +375,7 @@ function AccountantPage() {
       </div>
 
       {/* Filters */}
-      <div className="print-hide space-y-3 rounded-[14px] border border-border/70 bg-card p-3 shadow-sm">
+      <div className="print-hide space-y-3 rounded-[22px] border border-border/70 bg-card p-3 shadow-sm">
         <div className="m3-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="group" aria-label="Period">
           {PERIODS.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)} aria-pressed={period === p.id} className={chip(period === p.id)}>{p.label}</button>
@@ -384,7 +399,7 @@ function AccountantPage() {
           <Dropdown
             aria-label="Customer"
             value={customer}
-            onChange={setCustomer}
+            onChange={(v) => { setCustomer(v); setExtra((x) => ({ ...x, project: "" })); }}
             options={[{ value: "all", label: "All customers" }, ...customers.map((c) => ({ value: c.id, label: c.name }))]}
           />
           <div className="relative col-span-2 lg:col-span-1">
@@ -392,6 +407,7 @@ function AccountantPage() {
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, customers, notes…" aria-label="Search entries" className="h-9 w-full rounded-full border border-outline-variant bg-surface-low pl-8 pr-3 text-xs outline-none hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25" />
           </div>
         </div>
+        <FilterPanel entries={entries} value={extra} onChange={setExtra} fields={["project", "task", "billable", "location"]} customerId={customer === "all" ? "" : customer} label="More filters" />
       </div>
 
       {/* Pipeline */}
@@ -400,7 +416,7 @@ function AccountantPage() {
         {card("flagged", "Edited / flagged", stats.flagged.n, stats.flagged.m, "text-destructive", <Flag className="h-3.5 w-3.5" />)}
         {card("approved", "Approved", stats.approved.n, stats.approved.m, "text-tertiary", <BadgeCheck className="h-3.5 w-3.5" />)}
         {card("exported", "Exported", stats.exported.n, stats.exported.m, "text-secondary", <CheckCircle2 className="h-3.5 w-3.5" />)}
-        <div className="col-span-2 flex flex-col gap-1 rounded-[14px] border border-border/70 bg-card p-3 sm:p-4 lg:col-span-1">
+        <div className="col-span-2 flex flex-col gap-1 rounded-[22px] border border-border/70 bg-card p-3 sm:p-4 lg:col-span-1">
           <span className="m3-label">{isManager ? "Billable value" : "Billable hours"}</span>
           <span className="m3-metric text-2xl leading-none">{isManager ? money(stats.amount) : `${hrs(stats.billable)} h`}</span>
           <span className="text-xs text-muted-foreground">
@@ -411,7 +427,7 @@ function AccountantPage() {
 
       {/* Needs attention */}
       {issueCounts.any > 0 && (
-        <section className="rounded-[14px] border border-warning/40 bg-warning-container/30 p-3 sm:p-4" aria-label="Needs attention">
+        <section className="rounded-[22px] border border-warning/40 bg-warning-container/30 p-3 sm:p-4" aria-label="Needs attention">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-warning" />
             <h2 className="text-sm font-semibold">Worth a second look</h2>
@@ -436,7 +452,7 @@ function AccountantPage() {
 
       {/* Quick approve */}
       {cleanReady.length > 0 && (
-        <div className="print-hide flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-tertiary/30 bg-tertiary-container/30 px-4 py-3">
+        <div className="print-hide flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-tertiary/30 bg-tertiary-container/30 px-4 py-3">
           <p className="text-sm"><span className="font-semibold">{cleanReady.length}</span> submitted {cleanReady.length === 1 ? "entry has" : "entries have"} no issues and {cleanReady.length === 1 ? "is" : "are"} ready to approve.</p>
           <button onClick={() => setStatusFor(cleanReady.map((e) => e.id), "approved", `Approved ${cleanReady.length} clean ${cleanReady.length === 1 ? "entry" : "entries"}.`)} data-testid="approve-clean" className="inline-flex h-9 items-center gap-2 rounded-full bg-tertiary px-4 text-xs font-semibold text-tertiary-foreground transition hover:brightness-110">
             <CheckCheck className="h-4 w-4" />Approve all clean
@@ -464,15 +480,15 @@ function AccountantPage() {
 
       {/* View tabs */}
       <div className="print-hide flex gap-1 self-start rounded-full bg-surface-container p-1" role="tablist">
-        {([["entries", `Entries (${visible.length})`], ["weeks", "By week"], ["people", "By person"], ["customers", "By customer"]] as [View, string][]).map(([v, l]) => (
+        {([["entries", `Entries (${visible.length})`], ["weeks", "By week"], ["people", "By person"], ["customers", "By customer"], ["projects", "By project"], ["grid", "Person × time"]] as [View, string][]).map(([v, l]) => (
           <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cn("rounded-full px-4 py-1.5 text-xs font-semibold transition", view === v ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>{l}</button>
         ))}
       </div>
 
       {loading ? (
-        <div className="h-64 animate-pulse rounded-[14px] border border-border/70 bg-surface-low" />
+        <div className="h-64 animate-pulse rounded-[22px] border border-border/70 bg-surface-low" />
       ) : view === "entries" ? (
-        <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
+        <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
           <div className="stack-table-wrap m3-scroll max-h-[calc(100dvh-14rem)] min-h-[12rem] overflow-auto">
             <table className="stack-table w-full min-w-[64rem] border-separate border-spacing-0 text-left text-[13px]">
               <thead className="sticky top-0 z-10">
@@ -506,6 +522,16 @@ function AccountantPage() {
                           </div>
                         )}
                         {e.flagged && e.flagReason && <div className="mt-1 text-[11px] leading-snug text-destructive">{e.flagReason}</div>}
+                        {(e.flagHistory?.length ?? 0) > 0 && (
+                          <details className="mt-1 text-[11px] text-muted-foreground">
+                            <summary className="cursor-pointer select-none">{e.flagHistory!.length} flag {e.flagHistory!.length === 1 ? "note" : "notes"}</summary>
+                            <ul className="mt-1 space-y-1">
+                              {[...e.flagHistory!].reverse().map((h, i) => (
+                                <li key={i}><span className="font-semibold text-foreground">{h.by}</span> · {new Date(h.at).toLocaleDateString([], { month: "short", day: "numeric" })} — {h.text}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                       </td>
                       <td className="actions-cell px-2 py-2">
                         {queryFor === e.id && (
@@ -532,6 +558,9 @@ function AccountantPage() {
                           {!isOwn(e) && queryFor !== e.id && (
                             <button onClick={() => { setQueryFor(e.id); setQueryText(""); }} title="Ask the engineer a question about this entry" aria-label="Query" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><Flag className="h-3.5 w-3.5" /><span className="hidden max-md:inline 2xl:inline">Query</span></button>
                           )}
+                          {!isOwn(e) && e.flagged && queryFor !== e.id && (
+                            <button onClick={() => withdraw(e.id)} title="Withdraw the question and clear the flag (the notes are kept)" aria-label="Withdraw question" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.06]"><Undo2 className="h-3.5 w-3.5" />Withdraw</button>
+                          )}
                           {isOwn(e) ? null : open ? (
                             <button onClick={() => setStatusFor([e.id], "approved", "Approved.")} className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"><CheckCircle2 className="h-3.5 w-3.5" />Approve</button>
                           ) : (
@@ -553,7 +582,7 @@ function AccountantPage() {
           </div>
         </section>
       ) : view === "weeks" ? (
-        <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm" aria-label="Hours by pay week">
+        <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm" aria-label="Hours by pay week">
           {byWeek.length === 0 && <div className="py-12 text-center text-sm text-muted-foreground">No time in this period.</div>}
           {byWeek.map((w, i) => {
             const open = isWeekOpen(w.wk, i);
@@ -621,8 +650,12 @@ function AccountantPage() {
             );
           })}
         </section>
+      ) : view === "projects" ? (
+        <ProjectReport entries={inPeriod} />
+      ) : view === "grid" ? (
+        <PersonTimeReport entries={inPeriod} />
       ) : (
-        <section className="overflow-hidden rounded-[14px] border border-border/70 bg-card shadow-sm">
+        <section className="overflow-hidden rounded-[22px] border border-border/70 bg-card shadow-sm">
           <div className="stack-table-wrap m3-scroll overflow-auto">
             <table className="stack-table w-full min-w-[40rem] border-separate border-spacing-0 text-left text-[13px]">
               <thead>

@@ -30,6 +30,13 @@ export interface UserItem {
   defaultHourlyRate: number;
 }
 
+export interface FlagNote {
+  at: string;
+  by: string;
+  kind: "question" | "edit" | "withdrawn" | "cleared";
+  text: string;
+}
+
 export interface TimeEntryItem {
   id: string;
   userId: string;
@@ -52,6 +59,8 @@ export interface TimeEntryItem {
   /** Edited after approval/export — the accountant should look again. */
   flagged?: boolean;
   flagReason?: string | null;
+  /** Every note ever attached to this entry (questions, post-approval edits, withdrawals), oldest first. */
+  flagHistory?: FlagNote[];
   createdAt: string;
 }
 

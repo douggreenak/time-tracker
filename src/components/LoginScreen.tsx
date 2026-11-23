@@ -5,6 +5,7 @@ import { Clock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
 import { MIN_PASSWORD } from "@/lib/validate";
+import { Loader } from "@/components/ui/loader";
 import { Dropdown } from "@/components/ui/dropdown";
 
 interface Person { id: string; name: string; role: string }
@@ -113,7 +114,7 @@ export function LoginScreen() {
         </div>
 
         {people === null ? (
-          error ? null : <div className="flex justify-center py-6 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          error ? null : <div className="flex justify-center py-6"><Loader size={40} /></div>
         ) : (
           <>
             {needsSetup ? (

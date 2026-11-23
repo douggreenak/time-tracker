@@ -63,7 +63,7 @@ export async function PUT(
       if (body.serviceItemId && !(await dataStore.getServiceItems()).some((s) => s.id === body.serviceItemId))
         return NextResponse.json({ success: false, error: "Unknown task." }, { status: 400 });
     }
-    const updated = await dataStore.updateTimeEntry(params.id, body);
+    const updated = await dataStore.updateTimeEntry(params.id, body, g.user.name);
     if (!updated) {
       return NextResponse.json({ success: false, error: "Time entry not found" }, { status: 404 });
     }
