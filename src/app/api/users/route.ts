@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 import { requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { MIN_PASSWORD } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,8 @@ export async function POST(request: Request) {
     if (role !== undefined && !["engineer", "accountant", "admin"].includes(role)) {
       return NextResponse.json({ success: false, error: "Unknown role." }, { status: 400 });
     }
-    if (typeof password !== "string" || password.length < 8) {
-      return NextResponse.json({ success: false, error: "Set a starting password of at least 8 characters." }, { status: 400 });
+    if (typeof password !== "string" || password.length < MIN_PASSWORD) {
+      return NextResponse.json({ success: false, error: `Set a starting password of at least ${MIN_PASSWORD} characters.` }, { status: 400 });
     }
     const users = await dataStore.getUsers();
     if (users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase())) {

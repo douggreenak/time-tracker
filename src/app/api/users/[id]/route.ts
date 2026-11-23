@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 import { requireUser } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import { MIN_PASSWORD } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (updates.name === "" || updates.email === "") {
       return NextResponse.json({ success: false, error: "Name and email can't be empty" }, { status: 400 });
     }
-    if (body.password !== undefined && (typeof body.password !== "string" || body.password.length < 8)) {
-      return NextResponse.json({ success: false, error: "Use a password of at least 8 characters." }, { status: 400 });
+    if (body.password !== undefined && (typeof body.password !== "string" || body.password.length < MIN_PASSWORD)) {
+      return NextResponse.json({ success: false, error: `Use a password of at least ${MIN_PASSWORD} characters.` }, { status: 400 });
     }
     if (body.role !== undefined && !["engineer", "accountant", "admin"].includes(body.role)) {
       return NextResponse.json({ success: false, error: "Unknown role." }, { status: 400 });

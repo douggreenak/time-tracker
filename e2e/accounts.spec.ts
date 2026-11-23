@@ -109,3 +109,10 @@ test("admin can't demote or remove themselves, and role values are validated", a
   expect((await page.request.delete(`/api/users/${me.id}`)).status()).toBe(400);
   expect((await page.request.put(`/api/users/${me.id}`, { data: { role: "superuser" } })).status()).toBe(400);
 });
+
+test("passwords only need 4 characters", async ({ page }) => {
+  await loginAs(page, ADMIN);
+  const mk = (pw: string, n: string) => page.request.post("/api/users", { data: { name: `Short ${n}`, email: `short${n}${Date.now()}@example.com`, password: pw } });
+  expect((await mk("abc", "a")).status()).toBe(400);
+  expect((await mk("abcd", "b")).status()).toBe(201);
+});

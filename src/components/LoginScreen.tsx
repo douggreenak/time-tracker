@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Clock, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
+import { MIN_PASSWORD } from "@/lib/validate";
 
 interface Person { id: string; name: string; role: string }
 
@@ -136,7 +137,7 @@ export function LoginScreen() {
             )}
 
             <label className="block space-y-1.5">
-              <span className="m3-label">{needsSetup ? "Choose a password (8+ characters)" : "Password"}</span>
+              <span className="m3-label">{needsSetup ? `Choose a password (${MIN_PASSWORD}+ characters)` : "Password"}</span>
               <div className="relative">
                 <input
                   aria-label="Password"

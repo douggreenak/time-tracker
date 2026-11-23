@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Eye, EyeOff, KeyRound, LogOut } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/lib/utils";
+import { MIN_PASSWORD } from "@/lib/validate";
 
 const field =
   "h-11 w-full rounded-xl border border-outline-variant bg-surface-low px-4 text-sm outline-none transition-colors hover:border-outline focus:border-primary focus:ring-2 focus:ring-primary/25";
@@ -22,7 +23,7 @@ export default function AccountPage() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
-    if (next.length < 8) return setMsg({ ok: false, text: "Use a new password of at least 8 characters." });
+    if (next.length < MIN_PASSWORD) return setMsg({ ok: false, text: `Use a new password of at least ${MIN_PASSWORD} characters.` });
     if (next !== again) return setMsg({ ok: false, text: "The two new passwords don't match." });
     if (next === cur) return setMsg({ ok: false, text: "Pick a password that's different from your current one." });
     setBusy(true);
@@ -66,7 +67,7 @@ export default function AccountPage() {
           </label>
           <label className="block space-y-1.5">
             <span className="m3-label">New password</span>
-            <input className={field} type={show ? "text" : "password"} value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" minLength={8} placeholder="At least 8 characters" required />
+            <input className={field} type={show ? "text" : "password"} value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" minLength={MIN_PASSWORD} placeholder={`At least ${MIN_PASSWORD} characters`} required />
           </label>
           <label className="block space-y-1.5">
             <span className="m3-label">Repeat new password</span>

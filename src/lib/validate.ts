@@ -24,3 +24,6 @@ export function checkNotes(n: unknown): string | null {
 }
 
 export const STATUSES = ["submitted", "approved", "exported"] as const;
+
+/** Shortest password we accept (kept low on purpose; people can pick longer). */
+export const MIN_PASSWORD = 4;

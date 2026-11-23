@@ -7,6 +7,7 @@ import { TextCell, cellBase } from "@/components/ui/cell";
 import { RequireAdmin } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
+import { MIN_PASSWORD } from "@/lib/validate";
 
 const ROLES = ["engineer", "accountant", "admin"] as const;
 const selectCell = cn(cellBase, "m3-select cursor-pointer appearance-none pr-7 capitalize [background-position:right_0.5rem_center] [background-size:12px_12px]");
@@ -52,7 +53,7 @@ function TeamPage() {
 
   const add = async () => {
     if (!draft.name.trim() || !draft.email.trim()) return setError("Enter a name and an email to add someone.");
-    if (draft.password.length < 8) return setError("Give them a starting password of at least 8 characters.");
+    if (draft.password.length < MIN_PASSWORD) return setError(`Give them a starting password of at least ${MIN_PASSWORD} characters.`);
     const rate = draft.rate.trim() === "" ? undefined : Number(draft.rate);
     if (rate !== undefined && !Number.isFinite(rate)) return setError("Hourly rate must be a number.");
     const r = await run(dir.createUser({ name: draft.name.trim(), email: draft.email.trim(), role: draft.role, defaultHourlyRate: rate, password: draft.password }));
@@ -117,7 +118,7 @@ function TeamPage() {
                 <td data-label="Rate / hr"><input aria-label="New person rate" inputMode="decimal" placeholder="125" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} onKeyDown={onEnter} className={cn(cellBase, "text-right font-mono tabular-nums")} /></td>
                 <td className="cell-hide-mobile" />
                 <td data-label="Starting password">
-                  <input aria-label="New person password" type="password" autoComplete="new-password" placeholder="8+ characters" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} onKeyDown={onEnter} className={cellBase} />
+                  <input aria-label="New person password" type="password" autoComplete="new-password" placeholder={`${MIN_PASSWORD}+ characters`} value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} onKeyDown={onEnter} className={cellBase} />
                 </td>
                 <td className="actions-cell px-2">
                   <button onClick={add} className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground transition hover:brightness-110">
@@ -148,7 +149,7 @@ function TeamPage() {
                       placeholder={pwDone === u.id ? "Password updated ✓" : "Set new password…"}
                       onCommit={async (v) => {
                         if (!v) return;
-                        if (v.length < 8) return setError("Passwords need at least 8 characters.");
+                        if (v.length < MIN_PASSWORD) return setError(`Passwords need at least ${MIN_PASSWORD} characters.`);
                         const r = await run(dir.updateUser(u.id, { password: v }));
                         if (r.ok) { setPwKey((k) => k + 1); setPwDone(u.id); setTimeout(() => setPwDone(null), 3000); }
                       }}
