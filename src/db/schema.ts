@@ -50,7 +50,7 @@ export const timeEntries = pgTable("time_entries", {
   longitude: numeric("longitude", { precision: 10, scale: 7 }),
   notes: text("notes"),
   isBillable: boolean("is_billable").default(true).notNull(),
-  status: varchar("status", { length: 50 }).default("submitted").notNull(), // 'draft', 'submitted', 'approved', 'exported'
+  status: varchar("status", { length: 50 }).default("draft").notNull(), // 'draft', 'submitted', 'approved', 'exported'
   flagged: boolean("flagged").default(false).notNull(), // edited after approval/export — needs accountant attention
   flagReason: text("flag_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

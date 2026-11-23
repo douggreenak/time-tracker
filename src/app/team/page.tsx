@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Check, Copy, KeyRound, Plus, Trash2, X } from "lucide-react";
 import type { TimeEntryItem } from "@/db/mock-data";
 import { TextCell, cellBase } from "@/components/ui/cell";
+import { DataBackup } from "@/components/DataBackup";
 import { RequireAdmin } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
 import { cn } from "@/components/ui";
@@ -180,6 +181,7 @@ function TeamPage() {
         </div>
         <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">Passwords are stored scrambled, so nobody — admins included — can read one back. Set a new one, or use the key button to generate a temporary one. People can only be removed while they have no time entries. Edits save as you leave a cell.</div>
       </section>
+      <DataBackup />
     </div>
   );
 }

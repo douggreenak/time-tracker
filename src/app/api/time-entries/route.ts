@@ -90,7 +90,10 @@ export async function POST(request: Request) {
     const bad = checkMinutes(durationMinutes) || checkDate(date) || checkNotes(notes);
     if (bad) return NextResponse.json({ success: false, error: bad }, { status: 400 });
     // Only an accountant/admin can create an entry that is already approved or exported.
-    const newStatus = isManager(g.user) && (STATUSES as readonly string[]).includes(status) ? status : "submitted";
+    // New time starts as a draft; the engineer submits it (selected rows or a whole week) when it's ready.
+    // Only managers can create already-approved/exported rows (e.g. when restoring a deleted one).
+    const allowed: readonly string[] = isManager(g.user) ? STATUSES : ["draft", "submitted"];
+    const newStatus = allowed.includes(status) ? status : "draft";
 
     const newEntry = await dataStore.createTimeEntry({
       userId,

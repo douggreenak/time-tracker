@@ -23,7 +23,7 @@ export function checkNotes(n: unknown): string | null {
   return null;
 }
 
-export const STATUSES = ["submitted", "approved", "exported"] as const;
+export const STATUSES = ["draft", "submitted", "approved", "exported"] as const;
 
 /** Shortest password we accept (kept low on purpose; people can pick longer). */
 export const MIN_PASSWORD = 4;

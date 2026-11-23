@@ -29,8 +29,6 @@ interface ActiveTimer {
 const LOCATION_OPTS: { id: LocationType; label: string }[] = [
   { id: "on_site", label: "On-site" },
   { id: "office", label: "Office" },
-  { id: "remote", label: "Remote" },
-  { id: "travel", label: "Travel" },
 ];
 
 const formatTime = (totalSeconds: number) => {

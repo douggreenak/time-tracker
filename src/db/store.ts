@@ -326,7 +326,7 @@ export const dataStore = {
         longitude: e.longitude != null ? String(e.longitude) : null,
         notes: e.notes ?? "",
         isBillable: e.isBillable ?? true,
-        status: e.status || "submitted",
+        status: e.status || "draft",
       })
       .returning({ id: t.timeEntries.id });
     return (await dataStore.getTimeEntryById(row.id))!;
@@ -487,7 +487,7 @@ export const dataStore = {
       locationType: cur.locationType,
       notes: cur.notes || "Recorded with stopwatch",
       isBillable: srv?.defaultBillable ?? true,
-      status: "submitted",
+      status: "draft",
     });
     await dataStore.discardTimer(userId);
     return entry;

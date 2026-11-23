@@ -24,7 +24,11 @@ export async function GET(request: Request) {
       status,
     });
 
-    const exportable: ExportableTimeEntry[] = entries.map((e) => ({
+    // QuickBooks needs both a customer/job and a service item on every TIMEACT line. Entries without them
+    // (customer and task are optional in this app) would import wrongly or fail, so they're left out.
+    const complete = entries.filter((e) => e.customerName && e.serviceItemName);
+    const skipped = entries.length - complete.length;
+    const exportable: ExportableTimeEntry[] = complete.map((e) => ({
       id: e.id,
       date: e.date,
       employeeName: e.userName,
@@ -49,6 +53,7 @@ export async function GET(request: Request) {
         "Content-Type": "text/plain; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-cache",
+        "X-Skipped-Entries": String(skipped),
       },
     });
   } catch (error) {

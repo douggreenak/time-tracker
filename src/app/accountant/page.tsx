@@ -7,12 +7,13 @@ import {
 import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
 import { RequireManager } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
+import { ExcelExport } from "@/components/ExcelExport";
 import { weekRangeLabel, weekStart, weekTag } from "@/lib/weeks";
 
 type Period = "today" | "this_week" | "last_week" | "this_month" | "last_month" | "quarter" | "ytd" | "all" | "custom";
 type StatusFilter = "all" | "review" | "approved" | "exported" | "flagged";
 type View = "entries" | "weeks" | "people" | "customers";
-type Issue = "edited" | "long_day" | "weekend" | "no_notes" | "duplicate" | "future";
+type Issue = "edited" | "missing" | "long_day" | "weekend" | "no_notes" | "duplicate" | "future";
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: "today", label: "Today" },
@@ -27,6 +28,7 @@ const PERIODS: { id: Period; label: string }[] = [
 ];
 
 const ISSUES: Record<Issue, { label: string; short: string; help: string; tone: string }> = {
+  missing: { label: "No customer or task", short: "Incomplete", help: "QuickBooks needs a customer and a task on every time entry, so these are left out of the QuickBooks .iif file until the engineer fills them in. Your spreadsheet (CSV) export still includes them.", tone: "bg-destructive/10 text-destructive" },
   edited: { label: "Edited after approval", short: "Edited", help: "The engineer changed an entry you had already approved or exported — check it again (and re-export if it was already in QuickBooks).", tone: "bg-destructive/10 text-destructive" },
   long_day: { label: "Over 12 hours in a day", short: ">12h day", help: "One person logged more than 12 hours on the same date — often a typo.", tone: "bg-warning-container text-foreground" },
   weekend: { label: "Weekend work", short: "Weekend", help: "Time logged on a Saturday or Sunday — confirm it's real, and whether overtime applies.", tone: "bg-secondary-container text-secondary-on-container" },
@@ -82,6 +84,8 @@ function AccountantPage() {
   const [view, setView] = useState<View>("entries");
   const [weekOpen, setWeekOpen] = useState<Record<string, boolean>>({});
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [draftCount, setDraftCount] = useState(0);
+  const [xlPerson, setXlPerson] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -92,7 +96,12 @@ function AccountantPage() {
       ]);
       if (c.success) setCustomers(c.data);
       if (u.success) setUsers(u.data);
-      if (e.success) setEntries(e.data);
+      if (e.success) {
+        // Time the engineer hasn't submitted yet isn't ready for review.
+        const all = e.data as TimeEntryItem[];
+        setEntries(all.filter((x) => x.status !== "draft"));
+        setDraftCount(all.filter((x) => x.status === "draft").length);
+      }
     } finally {
       setLoading(false);
     }
@@ -121,6 +130,7 @@ function AccountantPage() {
     for (const e of entries) {
       const list: Issue[] = [];
       if (e.flagged) list.push("edited");
+      if (!e.customerId || !e.serviceItemId) list.push("missing");
       if ((dayTotals.get(`${e.userId}|${e.date}`) ?? 0) > 12 * 60) list.push("long_day");
       const dow = new Date(`${e.date}T00:00:00`).getDay();
       if (dow === 0 || dow === 6) list.push("weekend");
@@ -172,7 +182,7 @@ function AccountantPage() {
   }, [inPeriod, rate]);
 
   const issueCounts = useMemo(() => {
-    const c: Record<Issue, number> = { edited: 0, long_day: 0, weekend: 0, no_notes: 0, duplicate: 0, future: 0 };
+    const c: Record<Issue, number> = { edited: 0, missing: 0, long_day: 0, weekend: 0, no_notes: 0, duplicate: 0, future: 0 };
     let any = 0;
     for (const e of inPeriod) {
       if (e.status === "approved" || e.status === "exported") { if (!e.flagged) continue; }
@@ -230,10 +240,15 @@ function AccountantPage() {
   const exportApproved = (kind: "iif" | "csv") => {
     const ids = inPeriod.filter((e) => e.status === "approved").map((e) => e.id);
     if (!ids.length) return setToast({ text: "Nothing approved to export in this view yet — approve entries first." });
+    // The QuickBooks file only carries entries that have both a customer and a task (otherwise QuickBooks rejects or mis-files them).
+    const sendable = kind === "iif" ? inPeriod.filter((e) => e.status === "approved" && e.customerId && e.serviceItemId) : inPeriod.filter((e) => e.status === "approved");
+    const sendIds = sendable.map((e) => e.id);
+    const left = ids.length - sendIds.length;
+    if (!sendIds.length) return setToast({ text: "None of the approved entries have both a customer and a task, so there's nothing to put in the QuickBooks file yet. Ask the engineers to fill those in." });
     window.location.href = `/api/export/${kind}?${params({ status: "approved" })}`;
     setToast({
-      text: `Downloading ${ids.length} approved ${ids.length === 1 ? "entry" : "entries"}. Once it’s imported into QuickBooks, mark them exported so they aren’t sent twice.`,
-      action: { label: "Mark as exported", run: () => setStatusFor(ids, "exported", `${ids.length} marked exported.`) },
+      text: `Downloading ${sendIds.length} approved ${sendIds.length === 1 ? "entry" : "entries"}.${left ? ` ${left} left out — no customer or task (see “No customer or task”).` : ""} Once it’s imported into QuickBooks, mark them exported so they aren’t sent twice.`,
+      action: { label: "Mark as exported", run: () => setStatusFor(sendIds, "exported", `${sendIds.length} marked exported.`) },
     });
   };
 
@@ -410,6 +425,18 @@ function AccountantPage() {
         </div>
       )}
 
+      {(draftCount > 0 || users.length > 0) && (
+        <div className="print-hide flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span>{draftCount > 0 ? `${draftCount} ${draftCount === 1 ? "entry is" : "entries are"} still a draft — engineers haven’t submitted ${draftCount === 1 ? "it" : "them"} yet.` : "All logged time has been submitted."}</span>
+          <ExcelExport
+            userId={xlPerson}
+            onPerson={setXlPerson}
+            people={users.map((u) => ({ id: u.id, name: u.name }))}
+            weeks={Array.from(new Set(entries.filter((e) => !xlPerson || e.userId === xlPerson).map((e) => weekStart(e.date))))}
+          />
+        </div>
+      )}
+
       {/* View tabs */}
       <div className="print-hide flex gap-1 self-start rounded-full bg-surface-container p-1" role="tablist">
         {([["entries", `Entries (${visible.length})`], ["weeks", "By week"], ["people", "By person"], ["customers", "By customer"]] as [View, string][]).map(([v, l]) => (
@@ -521,6 +548,16 @@ function AccountantPage() {
                   <span className="text-xs text-muted-foreground">{hrs(w.billable)} h billable · {w.people.length} {w.people.length === 1 ? "person" : "people"}</span>
                   {waiting > 0 && <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{waiting} to review</span>}
                 </button>
+                {waiting > 0 && (
+                  <div className="flex justify-end border-t border-border/70 bg-surface-container/60 px-3 py-1.5">
+                    <button
+                      onClick={() => setStatusFor(w.people.flatMap((p) => p.submittedIds), "approved", `Approved everyone’s week of ${weekRangeLabel(w.wk)} (${waiting} ${waiting === 1 ? "entry" : "entries"}).`)}
+                      aria-label={`Approve everyone’s week of ${weekRangeLabel(w.wk)}`}
+                      data-testid="approve-whole-week"
+                      className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"
+                    ><CheckCheck className="h-3.5 w-3.5" />Approve whole week ({waiting})</button>
+                  </div>
+                )}
                 {open && (
                   <div className="stack-table-wrap overflow-x-auto">
                     <table className="stack-table w-full min-w-[36rem] border-separate border-spacing-0 text-left text-[13px]">

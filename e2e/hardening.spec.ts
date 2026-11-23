@@ -17,7 +17,7 @@ test("engineers can't create pre-approved entries and bad input is rejected", as
   await loginAs(page, ENGINEER);
   const b = await base(page);
   const ok = await page.request.post("/api/time-entries", { data: { ...b, date: "2026-01-05", durationMinutes: 60, status: "approved" } });
-  expect((await ok.json()).data.status).toBe("submitted");
+  expect((await ok.json()).data.status).toBe("draft"); // new time starts as a draft; engineers can't self-approve
 
   for (const bad of [
     { date: "2026-13-40", durationMinutes: 60 },
@@ -50,6 +50,7 @@ test("accountant can send an entry back with a note the engineer sees", async ({
   await loginAs(page, ENGINEER);
   const b = await base(page);
   const id = (await (await page.request.post("/api/time-entries", { data: { ...b, date: "2026-01-07", durationMinutes: 45, notes: "query-me" } })).json()).data.id;
+  await page.request.put(`/api/time-entries/${id}`, { data: { status: "submitted" } }); // engineers submit their own time
   await page.request.post("/api/auth/logout");
 
   await loginAs(page, ACCOUNTANT, "/accountant");

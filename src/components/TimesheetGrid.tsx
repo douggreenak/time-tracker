@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Copy, Download, Flag, Lock, Plus, Search, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Download, Flag, Lock, Plus, Search, Send, Trash2, Undo2 } from "lucide-react";
 import type { CustomerItem, ServiceItem, TimeEntryItem } from "@/db/mock-data";
 import { cn } from "@/components/ui";
 import { weekRangeLabel, weekStart, weekTag as weekTagOf } from "@/lib/weeks";
+import { ExcelExport } from "@/components/ExcelExport";
 import { Combobox, type ComboOption } from "@/components/ui/combobox";
 import { cellBase, TextCell } from "@/components/ui/cell";
 
@@ -14,8 +15,6 @@ type Status = TimeEntryItem["status"];
 const LOCATIONS: { id: LocationType; label: string }[] = [
   { id: "on_site", label: "On-site" },
   { id: "office", label: "Office" },
-  { id: "remote", label: "Remote" },
-  { id: "travel", label: "Travel" },
 ];
 
 const STATUS_STYLE: Record<Status, string> = {
@@ -32,7 +31,7 @@ const COLUMNS = [
   { key: "service", label: "Task", width: "w-[12rem]" },
   { key: "location", label: "Location", width: "w-[7.5rem]" },
   { key: "hours", label: "Hours", width: "w-[6.5rem]", numeric: true },
-  { key: "billable", label: "Bill", width: "w-[3.5rem]", center: true },
+  { key: "billable", label: "Billable", width: "w-[5rem]", center: true },
   { key: "notes", label: "Notes", width: "min-w-[16rem]" },
   { key: "status", label: "Status", width: "w-[6.5rem]" },
   { key: "actions", label: "", width: "w-[5.75rem]" },
@@ -107,6 +106,8 @@ export function TimesheetGrid({
 
   const draftKey = `tt-draft-v1:${userId}`;
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
   const [undo, setUndo] = useState<{ entry: TimeEntryItem } | null>(null);
 
   // The entry row autosaves locally, so a half-typed row survives a refresh or a stray navigation.
@@ -188,7 +189,11 @@ export function TimesheetGrid({
     label: x.name,
     hint: x.defaultBillable ? undefined : "non-billable",
   }));
-  const locationOptions: ComboOption[] = LOCATIONS.map((l) => ({ id: l.id, label: l.label }));
+  // Older rows may still say Remote/Travel: keep showing them, but they're no longer offered for new choices.
+  const locationOptions = (current?: string): ComboOption[] => [
+    ...LOCATIONS.map((l) => ({ id: l.id, label: l.label })),
+    ...(current && !LOCATIONS.some((l) => l.id === current) ? [{ id: current, label: current === "travel" ? "Travel" : current === "remote" ? "Remote" : current }] : []),
+  ];
 
   const lookupJobs = (customerId: string) => customers.find((c) => c.id === customerId)?.jobs ?? [];
 
@@ -283,6 +288,42 @@ export function TimesheetGrid({
       notes: e.notes ?? "",
     });
     setTimeout(() => focusCell("new", "hours"), 0);
+  };
+
+  // ---- submitting time (selected rows, or a whole week) --------------------------------
+  const draftIdsInView = useMemo(() => new Set(entries.filter((e) => e.status === "draft").map((e) => e.id)), [entries]);
+  const pickedDrafts = Array.from(picked).filter((id) => draftIdsInView.has(id));
+  const togglePick = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  const submitEntries = async (ids: string[], what: string) => {
+    if (!ids.length || submitting) return;
+    setSubmitting(true);
+    try {
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/time-entries/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "submitted" }) })
+            .then((r) => r.json())
+            .then((j) => (j.success ? (j.data as TimeEntryItem) : null))
+            .catch(() => null)
+        )
+      );
+      const done = results.filter((x): x is TimeEntryItem => !!x);
+      setEntries((prev) => prev.map((e) => done.find((d) => d.id === e.id) ?? e));
+      setPicked(new Set());
+      const failed = ids.length - done.length;
+      onMessage(
+        failed
+          ? { type: "error", text: `${failed} of ${ids.length} couldn't be submitted. Try again.` }
+          : { type: "success", text: `Submitted ${what} to your accountant (${done.length} ${done.length === 1 ? "entry" : "entries"}).` }
+      );
+      onChanged();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ---- the entry row ---------------------------------------------------------
@@ -395,16 +436,17 @@ export function TimesheetGrid({
   const isWeekOpen = (wk: string) => (query.trim() ? true : weekOverride[wk] ?? wk === thisWeek);
 
   const weeks = useMemo(() => {
-    const m = new Map<string, { minutes: number; billable: number; count: number; approved: number; exported: number; open: number; flagged: number }>();
+    const m = new Map<string, { minutes: number; billable: number; count: number; approved: number; exported: number; submitted: number; draft: number; draftIds: string[]; flagged: number }>();
     visible.forEach((e) => {
       const wk = weekStart(e.date);
-      const w = m.get(wk) ?? { minutes: 0, billable: 0, count: 0, approved: 0, exported: 0, open: 0, flagged: 0 };
+      const w = m.get(wk) ?? { minutes: 0, billable: 0, count: 0, approved: 0, exported: 0, submitted: 0, draft: 0, draftIds: [], flagged: 0 };
       w.minutes += e.durationMinutes;
       if (e.isBillable) w.billable += e.durationMinutes;
       w.count += 1;
       if (e.status === "approved") w.approved += 1;
       else if (e.status === "exported") w.exported += 1;
-      else w.open += 1;
+      else if (e.status === "draft") { w.draft += 1; w.draftIds.push(e.id); }
+      else w.submitted += 1;
       if (e.flagged) w.flagged += 1;
       m.set(wk, w);
     });
@@ -446,6 +488,28 @@ export function TimesheetGrid({
         <Stat label="All logged" value={stats.total} />
         <WeekBars entries={entries} />
         <div className="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0">
+        {draftIdsInView.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setPicked(pickedDrafts.length === draftIdsInView.size ? new Set() : new Set(draftIdsInView))}
+            data-testid="select-drafts"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05] hover:text-foreground"
+          >
+            {pickedDrafts.length === draftIdsInView.size ? "Clear selection" : `Select drafts (${draftIdsInView.size})`}
+          </button>
+        )}
+        {pickedDrafts.length > 0 && (
+          <button
+            type="button"
+            onClick={() => submitEntries(pickedDrafts, "the selected time")}
+            disabled={submitting}
+            data-testid="submit-selected"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50"
+          >
+            <Send className="h-3.5 w-3.5" />Submit selected ({pickedDrafts.length})
+          </button>
+        )}
+        <ExcelExport userId={userId} weeks={Array.from(new Set(entries.map((e) => weekStart(e.date))))} />
         {allWeeks.length > 0 && (
           <button
             type="button"
@@ -574,7 +638,7 @@ export function TimesheetGrid({
                   data-r="new"
                   data-c="location"
                   value={draft.locationType}
-                  options={locationOptions}
+                  options={locationOptions()}
                   onSelect={(id) => setDraft({ ...draft, locationType: id as LocationType })}
                 />
               </td>
@@ -608,7 +672,7 @@ export function TimesheetGrid({
                   aria-label="New entry notes"
                   data-r="new"
                   data-c="notes"
-                  placeholder="Notes — press Enter to add"
+                  placeholder="Notes"
                   value={draft.notes}
                   onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
                   className={cellBase}
@@ -639,26 +703,41 @@ export function TimesheetGrid({
               const weekHeader = firstOfWeek && (
                 <tr className="group-row week-row" data-week={wk}>
                   <td colSpan={COLUMNS.length} className="border-y border-border bg-surface-container p-0">
-                    <button
-                      type="button"
-                      onClick={() => setWeekOpen(wk, !weekOpen)}
-                      aria-expanded={weekOpen}
-                      aria-label={`${weekOpen ? "Collapse" : "Expand"} week of ${weekLabel(wk)}`}
-                      data-testid="week-toggle"
-                      className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-foreground/[0.04]"
-                    >
-                      {weekOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                      <span className="text-[13px] font-semibold">{weekLabel(wk)}</span>
-                      {weekTag(wk) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{weekTag(wk)}</span>}
-                      <span className="font-mono text-[13px] font-semibold tabular-nums" data-testid="week-hours">{fmtHours(w.minutes)} h</span>
-                      <span className="text-[11px] text-muted-foreground">{fmtHours(w.billable)} h billable · {w.count} {w.count === 1 ? "entry" : "entries"}</span>
-                      <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
-                        {w.flagged > 0 && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-destructive">{w.flagged} flagged</span>}
-                        {w.open > 0 && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{w.open} submitted</span>}
-                        {w.approved > 0 && <span className="rounded-full bg-tertiary-container px-2 py-0.5 text-tertiary-on-container">{w.approved} approved</span>}
-                        {w.exported > 0 && <span className="rounded-full bg-surface-high px-2 py-0.5 text-muted-foreground">{w.exported} exported</span>}
-                      </span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-2 max-md:flex-col max-md:items-stretch">
+                      <button
+                        type="button"
+                        onClick={() => setWeekOpen(wk, !weekOpen)}
+                        aria-expanded={weekOpen}
+                        aria-label={`${weekOpen ? "Collapse" : "Expand"} week of ${weekLabel(wk)}`}
+                        data-testid="week-toggle"
+                        className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-foreground/[0.04]"
+                      >
+                        {weekOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                        <span className="text-[13px] font-semibold">{weekLabel(wk)}</span>
+                        {weekTag(wk) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{weekTag(wk)}</span>}
+                        <span className="font-mono text-[13px] font-semibold tabular-nums" data-testid="week-hours">{fmtHours(w.minutes)} h</span>
+                        <span className="text-[11px] text-muted-foreground">{fmtHours(w.billable)} h billable · {w.count} {w.count === 1 ? "entry" : "entries"}</span>
+                        <span className="ml-auto flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+                          {w.flagged > 0 && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-destructive">{w.flagged} flagged</span>}
+                          {w.draft > 0 && <span className="rounded-full bg-surface-high px-2 py-0.5 text-muted-foreground">{w.draft} draft</span>}
+                          {w.submitted > 0 && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">{w.submitted} submitted</span>}
+                          {w.approved > 0 && <span className="rounded-full bg-tertiary-container px-2 py-0.5 text-tertiary-on-container">{w.approved} approved</span>}
+                          {w.exported > 0 && <span className="rounded-full bg-surface-high px-2 py-0.5 text-muted-foreground">{w.exported} exported</span>}
+                        </span>
+                      </button>
+                      {w.draft > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => submitEntries(w.draftIds, `the week of ${weekLabel(wk)}`)}
+                          disabled={submitting}
+                          data-testid="submit-week"
+                          aria-label={`Submit week of ${weekLabel(wk)}`}
+                          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50 max-md:mx-3 max-md:mb-2 max-md:justify-center"
+                        >
+                          <Send className="h-3.5 w-3.5" />Submit week ({w.draft})
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -748,7 +827,7 @@ export function TimesheetGrid({
                         data-r={e.id}
                         data-c="location"
                                                 value={e.locationType}
-                        options={locationOptions}
+                        options={locationOptions(e.locationType)}
                         onSelect={(id) => patchEntry(e, { locationType: id as LocationType })}
                       />
                     </td>
@@ -801,6 +880,16 @@ export function TimesheetGrid({
                           {locked && <Lock className="h-3 w-3" />}
                           {e.status}
                         </span>
+                      )}
+                      {e.status === "draft" && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${e.date} entry to submit`}
+                          checked={picked.has(e.id)}
+                          onChange={() => togglePick(e.id)}
+                          className="ml-2 h-4 w-4 cursor-pointer align-middle accent-[hsl(var(--primary))]"
+                          title="Select to submit"
+                        />
                       )}
                     </td>
                     <td className="px-1 actions-cell max-md:order-10">

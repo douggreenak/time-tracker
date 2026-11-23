@@ -40,7 +40,11 @@ export async function PUT(
     const body = await request.json();
     if (!isManager(g.user)) {
       // Review state is the accountant's; engineers just edit their own details.
+      // The one exception: moving your own time between draft and submitted, until the accountant has acted on it.
+      const wanted = body.status;
+      const mayToggle = (wanted === "draft" || wanted === "submitted") && (current?.status === "draft" || current?.status === "submitted");
       for (const k of ["status", "flagged", "flagReason", "userId"]) delete body[k];
+      if (mayToggle) body.status = wanted;
     }
     const bad =
       (body.durationMinutes !== undefined && checkMinutes(body.durationMinutes)) ||
