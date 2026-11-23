@@ -38,7 +38,7 @@ test("clearing sample data leads to first-run setup and clean empty screens", as
   await page.getByTestId("clear-demo").click();
 
   // Everyone is gone, so the app asks for a first admin.
-  await expect(page.getByRole("heading", { name: "Set up TimeTrack" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create the first admin account" })).toBeVisible();
   await shot(page, "x-setup");
   await page.getByLabel("Your name").fill("Pat Owner");
   await page.getByLabel("Email").fill("pat@example.com");
