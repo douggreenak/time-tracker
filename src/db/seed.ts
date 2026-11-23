@@ -12,13 +12,17 @@ export function seedId(old: string): string {
 
 export const DEMO_PASSWORD = "demo1234";
 
-/** Loads the sample data from mock-data.ts into an empty database (ids become real UUIDs). */
-export async function seedDemoData(db: Db) {
-  // Fixed ids (derived from the sample ids) make seeding safe to repeat or run from two servers at once.
-  const id = seedId;
+// Any drizzle executor (a db or a transaction); we only build statements and let the caller run them.
+type Exec = Pick<Db, "insert" | "delete">;
 
-  const demoHash = await hashPassword(DEMO_PASSWORD);
-  await db.insert(schema.users).values(
+/**
+ * The statements that load the sample data. They are returned un-run so the caller can execute them
+ * all-or-nothing (Neon batch / PGlite transaction). Fixed ids + "do nothing on conflict" make them repeatable.
+ */
+export function demoSeedStatements(db: Exec, demoHash: string) {
+  const id = seedId;
+  const out: PromiseLike<unknown>[] = [];
+  out.push(db.insert(schema.users).values(
     initialUsers.map((u) => ({
       passwordHash: demoHash,
       id: id(u.id),
@@ -28,13 +32,13 @@ export async function seedDemoData(db: Db) {
       qbEmployeeName: u.qbEmployeeName,
       defaultHourlyRate: String(u.defaultHourlyRate),
     }))
-  ).onConflictDoNothing();
-  await db.insert(schema.customers).values(
+  ).onConflictDoNothing());
+  out.push(db.insert(schema.customers).values(
     initialCustomers.map((c) => ({ id: id(c.id), name: c.name, qbName: c.qbName, isActive: c.isActive }))
-  ).onConflictDoNothing();
+  ).onConflictDoNothing());
   const jobs = initialCustomers.flatMap((c) => c.jobs);
   if (jobs.length)
-    await db.insert(schema.jobs).values(
+    out.push(db.insert(schema.jobs).values(
       jobs.map((j) => ({
         id: id(j.id),
         customerId: id(j.customerId),
@@ -42,12 +46,12 @@ export async function seedDemoData(db: Db) {
         fullQbJobName: j.fullQbJobName,
         isActive: j.isActive,
       }))
-    ).onConflictDoNothing();
-  await db.insert(schema.serviceItems).values(
+    ).onConflictDoNothing());
+  out.push(db.insert(schema.serviceItems).values(
     initialServiceItems.map((s) => ({ id: id(s.id), name: s.name, qbItemName: s.qbItemName, defaultBillable: s.defaultBillable }))
-  ).onConflictDoNothing();
+  ).onConflictDoNothing());
   if (initialTimeEntries.length)
-    await db.insert(schema.timeEntries).values(
+    out.push(db.insert(schema.timeEntries).values(
       initialTimeEntries.map((e) => ({
         id: id(e.id),
         userId: id(e.userId),
@@ -65,5 +69,9 @@ export async function seedDemoData(db: Db) {
         status: e.status,
         createdAt: new Date(e.createdAt),
       }))
-    ).onConflictDoNothing();
+    ).onConflictDoNothing());
+  return out;
 }
+
+/** Hash for the sample people's shared password. */
+export const demoHash = () => hashPassword(DEMO_PASSWORD);

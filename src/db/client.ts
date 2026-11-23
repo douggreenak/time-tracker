@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 import { DDL } from "./ddl";
-import { seedDemoData, seedId } from "./seed";
+import { demoHash, demoSeedStatements, seedId } from "./seed";
 import { initialUsers } from "./mock-data";
 
 export type Db = PgliteDatabase<typeof schema>;
@@ -86,13 +86,26 @@ async function seedIfEmpty(db: Db) {
     const users = await db.select({ id: schema.users.id }).from(schema.users);
     const have = new Set(users.map((u) => u.id));
     const complete = initialUsers.every((u) => have.has(seedId(u.id)));
-    if (users.length > 0 && !complete) {
-      // Some people exist but not the full sample set: an interrupted earlier setup. Nobody could sign in, so start clean.
-      for (const tbl of [schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users])
-        await db.delete(tbl);
+    const wipe = users.length > 0 && !complete; // an interrupted earlier setup: nobody could sign in, so start clean
+    const hash = await demoHash();
+
+    // Everything in ONE all-or-nothing step, so a crash or a second server can never leave half a seed behind.
+    const build = (x: Pick<Db, "insert" | "delete">) => [
+      ...(wipe
+        ? [schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users].map((t) => x.delete(t))
+        : []),
+      ...demoSeedStatements(x, hash),
+      x.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing(),
+      x.insert(schema.appMeta).values({ key: "seeded", value: "true" }).onConflictDoNothing(),
+    ];
+    if (storageMode() === "neon") {
+      await (db as unknown as { batch: (q: unknown[]) => Promise<unknown> }).batch(build(db));
+    } else {
+      await db.transaction(async (tx) => {
+        for (const q of build(tx as unknown as Db)) await q;
+      });
     }
-    await seedDemoData(db);
-    await db.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing();
+    return;
   }
   await db.insert(schema.appMeta).values({ key: "seeded", value: "true" }).onConflictDoNothing();
 }
