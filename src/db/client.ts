@@ -78,8 +78,23 @@ const isSeeded = async (db: Db) => (await db.select().from(schema.appMeta).where
  * Loads the sample data once. Seeding uses fixed ids and skips rows that already exist, so it is safe
  * to repeat and safe if two server instances do it at the same moment (no lock to get stuck on).
  */
+/**
+ * Early hosted deployments ended up with a sample set whose people have random ids (and sign-in
+ * didn't work). Sample-only data on hosted Postgres is reloaded once in the current, repeatable form.
+ */
+async function upgradeLegacySample(db: Db) {
+  if (storageMode() !== "neon" || process.env.ENABLE_DEMO_DATA === "false") return;
+  const [demo] = await db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = 'demo'`);
+  if (!demo) return; // real data: never touch
+  const users = await db.select({ id: schema.users.id }).from(schema.users);
+  const have = new Set(users.map((u) => u.id));
+  if (users.length === 0 || initialUsers.every((u) => have.has(seedId(u.id)))) return;
+  await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seeded'`);
+  await seedIfEmpty(db);
+}
+
 async function seedIfEmpty(db: Db) {
-  if (await isSeeded(db)) return;
+  if (await isSeeded(db)) return upgradeLegacySample(db);
   await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`); // leftover from an earlier version
 
   if (process.env.ENABLE_DEMO_DATA !== "false") {
