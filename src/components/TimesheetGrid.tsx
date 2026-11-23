@@ -25,7 +25,7 @@ const STATUS_STYLE: Record<Status, string> = {
 };
 
 const COLUMNS = [
-  { key: "date", label: "Date", width: "w-[9.5rem]" },
+  { key: "date", label: "Date", width: "w-[10.75rem]" },
   { key: "customer", label: "Customer", width: "w-[13rem]" },
   { key: "job", label: "Job", width: "w-[11rem]" },
   { key: "service", label: "Task", width: "w-[12rem]" },
@@ -81,7 +81,6 @@ export function TimesheetGrid({
   onCreateService,
 }: Props) {
   const [query, setQuery] = useState("");
-  const [saving, setSaving] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const [draft, setDraft] = useState({
@@ -104,10 +103,15 @@ export function TimesheetGrid({
     return p;
   };
 
+  // Rows added a moment ago are shown at once and saved in the background; until saved they carry a temporary id.
+  const PENDING = "pending-";
+  const pendingEdits = useRef(new Map<string, Partial<TimeEntryItem>>());
+  const cancelled = useRef(new Set<string>());
+
   const draftKey = `tt-draft-v1:${userId}`;
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [flagOpen, setFlagOpen] = useState<TimeEntryItem | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
   const [undo, setUndo] = useState<{ entry: TimeEntryItem } | null>(null);
 
   // The entry row autosaves locally, so a half-typed row survives a refresh or a stray navigation.
@@ -200,6 +204,11 @@ export function TimesheetGrid({
   // ---- editing existing rows -------------------------------------------------
   const patchEntry = async (entry: TimeEntryItem, patch: Partial<TimeEntryItem>) => {
     setEntries((prev) => prev.map((e) => (e.id === entry.id ? { ...e, ...patch } : e)));
+    if (entry.id.startsWith(PENDING)) {
+      // Still being created in the background: remember the edit and send it once the row exists.
+      pendingEdits.current.set(entry.id, { ...pendingEdits.current.get(entry.id), ...patch });
+      return;
+    }
     try {
       const res = await fetch(`/api/time-entries/${entry.id}`, {
         method: "PUT",
@@ -247,6 +256,10 @@ export function TimesheetGrid({
 
   const deleteEntry = async (entry: TimeEntryItem) => {
     setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+    if (entry.id.startsWith(PENDING)) {
+      cancelled.current.add(entry.id); // removed again as soon as it finishes saving
+      return;
+    }
     try {
       const res = await fetch(`/api/time-entries/${entry.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Delete failed");
@@ -300,30 +313,28 @@ export function TimesheetGrid({
       return n;
     });
   const submitEntries = async (ids: string[], what: string) => {
-    if (!ids.length || submitting) return;
-    setSubmitting(true);
-    try {
-      const results = await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/time-entries/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "submitted" }) })
-            .then((r) => r.json())
-            .then((j) => (j.success ? (j.data as TimeEntryItem) : null))
-            .catch(() => null)
-        )
-      );
-      const done = results.filter((x): x is TimeEntryItem => !!x);
-      setEntries((prev) => prev.map((e) => done.find((d) => d.id === e.id) ?? e));
-      setPicked(new Set());
-      const failed = ids.length - done.length;
-      onMessage(
-        failed
-          ? { type: "error", text: `${failed} of ${ids.length} couldn't be submitted. Try again.` }
-          : { type: "success", text: `Submitted ${what} to your accountant (${done.length} ${done.length === 1 ? "entry" : "entries"}).` }
-      );
-      onChanged();
-    } finally {
-      setSubmitting(false);
-    }
+    const real = ids.filter((id) => !id.startsWith(PENDING));
+    if (!real.length) return;
+    // Mark them submitted right away; put back any that fail.
+    const idSet = new Set(real);
+    setEntries((prev) => prev.map((e) => (idSet.has(e.id) ? { ...e, status: "submitted" } : e)));
+    setPicked(new Set());
+    const results = await Promise.all(
+      real.map((id) =>
+        fetch(`/api/time-entries/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "submitted" }) })
+          .then((r) => r.json())
+          .then((j) => (j.success ? (j.data as TimeEntryItem) : null))
+          .catch(() => null)
+      )
+    );
+    const done = results.filter((x): x is TimeEntryItem => !!x);
+    const failedIds = new Set(real.filter((id) => !done.some((d) => d.id === id)));
+    setEntries((prev) => prev.map((e) => done.find((d) => d.id === e.id) ?? (failedIds.has(e.id) ? { ...e, status: "draft" } : e)));
+    onMessage(
+      failedIds.size
+        ? { type: "error", text: `${failedIds.size} of ${real.length} couldn't be submitted. Try again.` }
+        : { type: "success", text: `Submitted ${what} to your accountant (${done.length} ${done.length === 1 ? "entry" : "entries"}).` }
+    );
   };
 
   // ---- the entry row ---------------------------------------------------------
@@ -342,36 +353,76 @@ export function TimesheetGrid({
     const customerId = cust?.id ?? "";
     const jobId = cust?.jobs.some((j) => j.id === draft.jobId) ? draft.jobId : "";
     const serviceItemId = serviceItems.some((x) => x.id === draft.serviceItemId) ? draft.serviceItemId : "";
-    setSaving(true);
-    try {
-      const res = await fetch("/api/time-entries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          customerId,
-          jobId: jobId || null,
-          serviceItemId,
-          date: draft.date,
-          durationMinutes: min,
-          locationType: draft.locationType,
-          notes: draft.notes,
-          isBillable: draft.isBillable,
-          status: "submitted",
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to add entry");
-      // Keep customer/job/service/date so repeat entries are just "hours + Enter".
-      setDraft((d) => ({ ...d, hours: "", notes: "" }));
-      setWeekOpen(weekStart(draft.date), true); // make sure the week you just added to is open
-      onChanged();
-      setTimeout(() => focusCell("new", "hours"), 0);
-    } catch (err) {
-      onMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to add entry" });
-    } finally {
-      setSaving(false);
-    }
+    // Show the row immediately and clear the entry row so the next one can be typed right away;
+    // the save happens in the background and the row is swapped for the saved copy when it finishes.
+    const job = cust?.jobs.find((j) => j.id === jobId);
+    const svc = serviceItems.find((x) => x.id === serviceItemId);
+    const tempId = `${PENDING}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const temp: TimeEntryItem = {
+      id: tempId,
+      userId,
+      userName,
+      customerId,
+      customerName: cust?.name ?? "",
+      jobId: jobId || undefined,
+      jobName: job?.name ?? undefined,
+      serviceItemId,
+      serviceItemName: svc?.name ?? "",
+      date: draft.date,
+      durationMinutes: min,
+      locationType: draft.locationType,
+      notes: draft.notes,
+      isBillable: draft.isBillable,
+      status: "draft",
+      flagged: false,
+      createdAt: new Date().toISOString(),
+    } as TimeEntryItem;
+    const keep = { hours: draft.hours, notes: draft.notes };
+    setEntries((prev) => [temp, ...prev]);
+    setWeekOpen(weekStart(draft.date), true);
+    setDraft((d) => ({ ...d, hours: "", notes: "" }));
+    setTimeout(() => focusCell("new", "hours"), 0);
+
+    const drop = () => setEntries((prev) => prev.filter((e) => e.id !== tempId));
+    (async () => {
+      try {
+        const res = await fetch("/api/time-entries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            customerId,
+            jobId: jobId || null,
+            serviceItemId,
+            date: draft.date,
+            durationMinutes: min,
+            locationType: draft.locationType,
+            notes: draft.notes,
+            isBillable: draft.isBillable,
+            status: "draft",
+          }),
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "Failed to add entry");
+        const saved = json.data as TimeEntryItem;
+        if (cancelled.current.delete(tempId)) {
+          pendingEdits.current.delete(tempId);
+          fetch(`/api/time-entries/${saved.id}`, { method: "DELETE" }).catch(() => {});
+          return;
+        }
+        setEntries((prev) => prev.map((e) => (e.id === tempId ? saved : e)));
+        const edits = pendingEdits.current.get(tempId);
+        if (edits) {
+          pendingEdits.current.delete(tempId);
+          patchEntry(saved, edits);
+        }
+      } catch (err) {
+        drop();
+        // Give the typed values back so nothing is lost.
+        setDraft((d) => (d.hours || d.notes ? d : { ...d, hours: keep.hours, notes: keep.notes }));
+        onMessage({ type: "error", text: `Couldn't save that entry (${err instanceof Error ? err.message : "network problem"}). It's back in the entry row — press Enter to retry.` });
+      }
+    })();
   };
 
   // ---- keyboard navigation (Enter / ↑ / ↓ move between rows, like a sheet) ------
@@ -502,7 +553,6 @@ export function TimesheetGrid({
           <button
             type="button"
             onClick={() => submitEntries(pickedDrafts, "the selected time")}
-            disabled={submitting}
             data-testid="submit-selected"
             className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50"
           >
@@ -683,7 +733,6 @@ export function TimesheetGrid({
                 <button
                   type="button"
                   onClick={addEntry}
-                  disabled={saving}
                   title="Add entry (Enter)"
                   aria-label="Add entry"
                   className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-40"
@@ -729,10 +778,9 @@ export function TimesheetGrid({
                         <button
                           type="button"
                           onClick={() => submitEntries(w.draftIds, `the week of ${weekLabel(wk)}`)}
-                          disabled={submitting}
                           data-testid="submit-week"
                           aria-label={`Submit week of ${weekLabel(wk)}`}
-                          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50 max-md:mx-3 max-md:mb-2 max-md:justify-center"
+                          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground shadow-sm transition hover:brightness-110 max-md:mx-3 max-md:mb-2 max-md:justify-center"
                         >
                           <Send className="h-3.5 w-3.5" />Submit week ({w.draft})
                         </button>
@@ -746,10 +794,10 @@ export function TimesheetGrid({
                 <RowGroup key={e.id}>
                   {weekHeader}
                   {firstOfDay && (
-                    <tr className="group-row">
+                    <tr className="group-row day-row">
                       <td
                         colSpan={COLUMNS.length}
-                        className="bg-surface-low px-2 py-1 text-[11px] font-semibold text-muted-foreground"
+                        className="border-l-[3px] border-l-primary/30 bg-surface-low py-1.5 pl-7 pr-2 text-[11px] font-semibold text-muted-foreground"
                       >
                         {fmtDay(e.date)}
                         <span className="ml-2 font-mono font-medium tabular-nums">
@@ -758,8 +806,8 @@ export function TimesheetGrid({
                       </td>
                     </tr>
                   )}
-                  <tr className={cn("group bg-card hover:bg-surface-low", e.flagged && "bg-destructive/[0.04]")}>
-                    <td data-label="Date" className="max-md:order-1">
+                  <tr className={cn("entry-row group bg-card hover:bg-surface-low", e.flagged && "bg-destructive/[0.04]", e.id.startsWith(PENDING) && "opacity-70")}>
+                    <td data-label="Date" className="border-l-[3px] border-l-primary/30 pl-4 max-md:order-1">
                       <TextCell
                         type="date"
                         aria-label="Date"
@@ -866,12 +914,16 @@ export function TimesheetGrid({
                     </td>
                     <td data-label="Status" className="px-2  max-md:order-9">
                       {e.flagged ? (
-                        <span
-                          title={e.flagReason ?? "Edited after approval — waiting for your accountant"}
-                          className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive"
+                        <button
+                          type="button"
+                          onClick={() => setFlagOpen(e)}
+                          title="Click to read the message"
+                          aria-label={`Flagged — read the message for ${e.date}`}
+                          data-testid="flag-badge"
+                          className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive transition hover:bg-destructive/20"
                         >
                           <Flag className="h-3 w-3" />Flagged
-                        </span>
+                        </button>
                       ) : (
                         <span
                           title={locked ? "You can still edit this — your accountant will be flagged to re-check it." : undefined}
@@ -939,7 +991,7 @@ export function TimesheetGrid({
           <tfoot className="sticky bottom-0 z-10 max-md:static">
             <tr className="[&_td]:border-t [&_td]:border-border [&_td]:bg-surface-container">
               <td colSpan={5} className="span-2 h-9 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {query ? `${visible.length} of ${entries.length} rows` : `${entries.length} rows`} · {userName}
+                Total
               </td>
               <td className="px-2 text-right font-mono text-[13px] font-semibold tabular-nums">{fmtHours(shownMinutes)}</td>
               <td colSpan={4} className="span-2 px-2 text-[11px] text-muted-foreground">
@@ -949,6 +1001,41 @@ export function TimesheetGrid({
           </tfoot>
         </table>
       </div>
+
+      {flagOpen && (() => {
+        const fe = entries.find((x) => x.id === flagOpen.id) ?? flagOpen;
+        const asks = (fe.flagReason ?? "").startsWith("Accountant asks:");
+        const text = (fe.flagReason ?? "").replace(/^Accountant asks:\s*/, "") || "This entry was edited after it was approved, so your accountant has been asked to check it again.";
+        return (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onClick={() => setFlagOpen(null)}>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Message about this entry"
+              onClick={(ev) => ev.stopPropagation()}
+              onKeyDown={(ev) => ev.key === "Escape" && setFlagOpen(null)}
+              className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl"
+            >
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Flag className="h-4 w-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold">{asks ? "Your accountant has a question" : "Flagged for your accountant"}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {fmtDay(fe.date)} · {fmtHours(fe.durationMinutes)} h{fe.customerName ? ` · ${fe.customerName}` : ""}{fe.jobName ? ` · ${fe.jobName}` : ""}{fe.serviceItemName ? ` · ${fe.serviceItemName}` : ""}
+                  </p>
+                </div>
+              </div>
+              <p data-testid="flag-message" className="mt-4 whitespace-pre-wrap break-words rounded-xl bg-surface-low px-3 py-2.5 text-sm">{text}</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {asks ? "Fix the entry if needed (hours, notes, customer…). The flag clears when your accountant approves it again." : "The flag clears when your accountant approves it again."}
+              </p>
+              <div className="mt-4 flex justify-end">
+                <button autoFocus onClick={() => setFlagOpen(null)} className="h-9 rounded-full bg-primary px-5 text-xs font-semibold text-primary-foreground transition hover:brightness-110">Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {undo && (
         <div role="status" className="absolute bottom-12 left-1/2 z-30 flex -translate-x-1/2 animate-m3-rise items-center gap-3 rounded-full bg-foreground py-2 pl-4 pr-2 text-xs font-medium text-background shadow-xl">

@@ -21,14 +21,43 @@ test.describe("sign in", () => {
     expect((await page.request.get("/api/time-entries")).status()).toBe(401);
   });
 
-  test("engineers can't reach manager pages or other people's data", async ({ page }) => {
+  test("engineers get Review & export (without pay values) but not the manager pages", async ({ page }) => {
     await loginAs(page, ENGINEER);
-    await expect(page.getByRole("link", { name: "Review & export" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Review & export" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Customers" })).toHaveCount(0);
     await page.goto("/accountant");
+    await expect(page.getByRole("heading", { name: "Review & export" })).toBeVisible();
+    await expect(page.getByText("Billable value")).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Value" })).toHaveCount(0);
+    await page.goto("/customers");
     await expect(page.getByText("This page is for accountants and admins.")).toBeVisible();
-    expect((await page.request.get("/api/export/iif")).status()).toBe(403);
-    const mine = await (await page.request.get("/api/time-entries?userId=someone-else")).json();
-    expect(new Set(mine.data.map((e: { userName: string }) => e.userName))).toEqual(new Set([ENGINEER]));
+    expect((await page.request.get("/api/admin/backup")).status()).toBe(403);
+  });
+
+  test("an engineer can approve a colleague's time but never their own", async ({ page }) => {
+    await loginAs(page, ENGINEER);
+    const users = (await (await page.request.get("/api/auth/users")).json()).data.users;
+    const me = users.find((u: { name: string }) => u.name === ENGINEER).id;
+    const other = users.find((u: { name: string }) => u.name !== ENGINEER && u.name !== ACCOUNTANT && u.name !== ADMIN).id;
+    const mk = async (uid: string) => {
+      const r = await page.request.post("/api/time-entries", { data: { userId: uid, date: "2026-02-10", durationMinutes: 60, status: "submitted" } });
+      return r;
+    };
+    expect((await mk(other)).status()).toBe(403); // can't log time for someone else
+    const mine = (await (await mk(me)).json()).data;
+    await page.request.put(`/api/time-entries/${mine.id}`, { data: { status: "submitted" } });
+    const own = await (await page.request.put(`/api/time-entries/${mine.id}`, { data: { status: "approved" } })).json();
+    expect(own.data.status).toBe("submitted");
+    // A colleague's submitted entry: approving works, editing their details does not.
+    const all = (await (await page.request.get("/api/time-entries")).json()).data;
+    const theirs = all.find((e: { userId: string; status: string }) => e.userId === other && e.status === "submitted");
+    if (theirs) {
+      const r = await (await page.request.put(`/api/time-entries/${theirs.id}`, { data: { status: "approved", durationMinutes: 1, notes: "hacked" } })).json();
+      expect(r.data.status).toBe("approved");
+      expect(r.data.durationMinutes).toBe(theirs.durationMinutes);
+      expect(r.data.notes).not.toBe("hacked");
+    }
+    expect((await page.request.delete(`/api/time-entries/${all.find((e: { userId: string }) => e.userId === other).id}`)).status()).toBe(403);
   });
 
   test("accountants see everything except people management; admins see all", async ({ page }) => {
@@ -79,6 +108,7 @@ test.describe("editing past entries & accountant review", () => {
   test("engineers can't delete approved entries, and can't self-approve", async ({ page }) => {
     await loginAs(page, ENGINEER);
     const list = await (await page.request.get("/api/time-entries")).json();
+    list.data = list.data.filter((e: { userName: string }) => e.userName === ENGINEER);
     const approved = list.data.find((e: { status: string }) => e.status === "approved");
     expect((await page.request.delete(`/api/time-entries/${approved.id}`)).status()).toBe(409);
     const draft = list.data.find((e: { status: string }) => e.status === "submitted");

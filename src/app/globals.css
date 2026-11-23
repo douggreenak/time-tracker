@@ -254,6 +254,10 @@
     position: static !important;
   }
   .stack-table tr.group-row { display: block; margin: 0.75rem 0.75rem 0; border: 0; border-radius: 0; background: none; }
+  /* Rows inside a week are indented under the week header, with a guide line down the left. */
+  .stack-table tr.day-row { margin-left: 1.25rem; }
+  .stack-table tr.entry-row { margin-left: 1.25rem; border-left: 3px solid hsl(var(--primary) / 0.3); }
+  .stack-table tr.entry-row > td:first-child { padding-left: 0.5rem; }
   .stack-table td {
     display: block;
     min-width: 0;

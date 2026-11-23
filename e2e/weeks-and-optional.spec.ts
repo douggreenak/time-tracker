@@ -30,10 +30,7 @@ test.describe("collapsible pay weeks", () => {
 test.describe("customer, project and task are optional", () => {
   test("an entry with only hours can be added, edited and exported", async ({ page }) => {
     await loginAs(page, ENGINEER);
-    await page.getByLabel("New entry customer").click();
-    await page.getByRole("option", { name: "— no customer —" }).click();
-    await page.getByLabel("New entry task").click();
-    await page.getByRole("option", { name: "— no task —" }).click();
+    // Nothing chosen = no customer / task (the boxes start empty).
     await page.getByLabel("New entry hours").fill("1.25");
     await page.getByLabel("New entry hours").press("Enter");
     await expect(page.locator('input[aria-label="Hours"]').first()).toHaveValue(/1\.25|1:15/);
@@ -192,5 +189,52 @@ test.describe("admin data export & import", () => {
     // Same people can still sign in (password hashes were restored).
     await page.request.post("/api/auth/logout");
     await loginAs(page, ENGINEER);
+  });
+});
+
+test.describe("flag message, instant saves, layout", () => {
+  test("clicking Flagged shows what the accountant asked", async ({ page }) => {
+    await loginAs(page, ENGINEER);
+    const users = (await (await page.request.get("/api/auth/users")).json()).data.users;
+    const uid = users.find((u: { name: string }) => u.name === ENGINEER).id;
+    const id = (await (await page.request.post("/api/time-entries", { data: { userId: uid, date: "2026-03-17", durationMinutes: 60, notes: "flagme", status: "submitted" } })).json()).data.id;
+    await page.request.post("/api/auth/logout");
+    await loginAs(page, ACCOUNTANT);
+    await page.request.put(`/api/time-entries/${id}`, { data: { status: "submitted", flagged: true, flagReason: "Accountant asks: Was this on site?" } });
+    await page.request.post("/api/auth/logout");
+
+    await loginAs(page, ENGINEER);
+    await expandAllWeeks(page);
+    await page.locator('tr:has(input[value="flagme"])').getByTestId("flag-badge").click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByTestId("flag-message")).toHaveText("Was this on site?");
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("a new row appears instantly and the entry row is free again while it saves", async ({ page }) => {
+    await loginAs(page, ENGINEER);
+    // Make the save slow: the row must still show up straight away.
+    await page.route("**/api/time-entries", async (route) => {
+      if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 1500));
+      await route.continue();
+    });
+    const hours = page.getByLabel("New entry hours");
+    await hours.fill("3.25");
+    await hours.press("Enter");
+    await expect(hours).toHaveValue("", { timeout: 500 });
+    await expect(page.locator('input[aria-label="Hours"]').first()).toHaveValue(/3\.25|3:15/, { timeout: 500 });
+    await hours.fill("0.5"); // can keep typing while the first one saves
+    await expect(hours).toHaveValue("0.5");
+  });
+
+  test("the menu bar is the first thing on the page, right after signing in", async ({ page }) => {
+    await page.goto("/engineer");
+    await page.getByLabel("Who are you?").selectOption({ label: "Priya Nair · engineer" });
+    await page.getByRole("textbox", { name: "Password" }).fill("demo1234");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.waitForSelector("header");
+    const top = await page.evaluate(() => document.querySelector("header")!.getBoundingClientRect().top);
+    expect(top).toBe(0);
   });
 });

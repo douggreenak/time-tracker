@@ -5,7 +5,7 @@ import {
   AlertTriangle, ChevronDown, ChevronRight, BadgeCheck, CheckCheck, CheckCircle2, Download, FileSpreadsheet, Flag, Printer, RotateCcw, Search, Send, X,
 } from "lucide-react";
 import type { CustomerItem, TimeEntryItem, UserItem } from "@/db/mock-data";
-import { RequireManager } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { cn } from "@/components/ui";
 import { ExcelExport } from "@/components/ExcelExport";
 import { weekRangeLabel, weekStart, weekTag } from "@/lib/weeks";
@@ -67,6 +67,10 @@ function range(p: Period, from: string, to: string): [string | null, string | nu
 }
 
 function AccountantPage() {
+  // Everyone can open this page. Engineers can review colleagues' time but never approve their own,
+  // and they don't see pay rates / dollar values.
+  const { user: me, isManager } = useAuth();
+  const isOwn = (e: { userId: string }) => !isManager && e.userId === me?.id;
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -194,8 +198,9 @@ function AccountantPage() {
   }, [inPeriod, issues]);
 
   const cleanReady = useMemo(
-    () => inPeriod.filter((e) => (e.status === "submitted" || e.status === "draft") && !(issues.get(e.id) ?? []).some((i) => i !== "weekend")),
-    [inPeriod, issues]
+    () => inPeriod.filter((e) => (e.status === "submitted" || e.status === "draft") && !isOwn(e) && !(issues.get(e.id) ?? []).some((i) => i !== "weekend")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inPeriod, issues, isManager, me?.id]
   );
 
   const [queryFor, setQueryFor] = useState<string | null>(null);
@@ -216,7 +221,14 @@ function AccountantPage() {
     setToast({ text: res.ok ? "Sent back with your note — it's flagged on their timesheet." : "Couldn't send that back." });
   };
 
-  const setStatusFor = async (ids: string[], next: TimeEntryItem["status"], text?: string) => {
+  const setStatusFor = async (wanted: string[], next: TimeEntryItem["status"], text?: string) => {
+    // Nobody but an accountant/admin can act on their own time.
+    const mine = new Set(entries.filter(isOwn).map((e) => e.id));
+    const ids = wanted.filter((id) => !mine.has(id));
+    if (ids.length < wanted.length) {
+      setToast({ text: ids.length ? `${wanted.length - ids.length} of your own ${wanted.length - ids.length === 1 ? "entry was" : "entries were"} skipped — someone else has to approve your time.` : "You can't approve your own time — someone else has to." });
+      if (!ids.length) return;
+    }
     if (!ids.length) return;
     const results = await Promise.all(
       ids.map((id) => fetch(`/api/time-entries/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: next }) }).then((r) => r.ok))
@@ -290,7 +302,7 @@ function AccountantPage() {
       p.total += e.durationMinutes; p.n++;
       if (e.isBillable) { p.billable += e.durationMinutes; w.billable += e.durationMinutes; }
       if (e.flagged) p.flagged++;
-      if (e.status === "approved") p.approved++; else if (e.status === "exported") p.exported++; else p.submittedIds.push(e.id);
+      if (e.status === "approved") p.approved++; else if (e.status === "exported") p.exported++; else if (!isOwn(e)) p.submittedIds.push(e.id);
       w.total += e.durationMinutes;
       w.people.set(e.userId, p);
       m.set(wk, w);
@@ -382,8 +394,8 @@ function AccountantPage() {
         {card("approved", "Approved", stats.approved.n, stats.approved.m, "text-tertiary", <BadgeCheck className="h-3.5 w-3.5" />)}
         {card("exported", "Exported", stats.exported.n, stats.exported.m, "text-secondary", <CheckCircle2 className="h-3.5 w-3.5" />)}
         <div className="col-span-2 flex flex-col gap-1 rounded-[14px] border border-border/70 bg-card p-3 sm:p-4 lg:col-span-1">
-          <span className="m3-label">Billable value</span>
-          <span className="m3-metric text-2xl leading-none">{money(stats.amount)}</span>
+          <span className="m3-label">{isManager ? "Billable value" : "Billable hours"}</span>
+          <span className="m3-metric text-2xl leading-none">{isManager ? money(stats.amount) : `${hrs(stats.billable)} h`}</span>
           <span className="text-xs text-muted-foreground">
             {hrs(stats.billable)} of {hrs(stats.total)} h billable{stats.total ? ` · ${Math.round((stats.billable / stats.total) * 100)}%` : ""}
           </span>
@@ -454,7 +466,7 @@ function AccountantPage() {
                 <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-r [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-2 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground [&_th:last-child]:border-r-0">
                   <th className="w-10 text-center"><input type="checkbox" aria-label="Select all" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(visible.map((e) => e.id)))} className="h-4 w-4 accent-[hsl(var(--primary))]" /></th>
                   <th className="w-28">Date</th><th className="w-36">Person</th><th>Customer · project</th><th className="w-44">Task</th>
-                  <th className="w-20 text-right">Hours</th><th className="w-24 text-right">Value</th><th className="w-28">Status</th><th className="w-48">Issues</th><th className="w-28" />
+                  <th className="w-24 text-right">Hours</th>{isManager && <th className="w-24 text-right">Value</th>}<th className="w-28">Status</th><th className="w-48">Issues</th><th className="w-28" />
                 </tr>
               </thead>
               <tbody className="[&_td]:border-b [&_td]:border-border/70">
@@ -471,8 +483,8 @@ function AccountantPage() {
                         {e.notes && <div className="max-w-md truncate text-xs text-muted-foreground">{e.notes}</div>}
                       </td>
                       <td data-label="Task" className="px-2 py-2 text-muted-foreground">{e.serviceItemName || "—"}</td>
-                      <td data-label="Hours" className="px-2 py-2 text-right font-mono tabular-nums">{hrs(e.durationMinutes)}{!e.isBillable && <span className="ml-1 text-[10px] text-muted-foreground">non-bill</span>}</td>
-                      <td data-label="Value" className="px-2 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">{e.isBillable ? money((e.durationMinutes / 60) * (rate.get(e.userId) ?? 0)) : "—"}</td>
+                      <td data-label="Hours" className="px-2 py-2 text-right font-mono tabular-nums">{hrs(e.durationMinutes)}{!e.isBillable && <span className="block whitespace-nowrap font-sans text-[10px] leading-3 text-muted-foreground">non-billable</span>}</td>
+                      {isManager && <td data-label="Value" className="px-2 py-2 text-right font-mono text-xs tabular-nums text-muted-foreground">{e.isBillable ? money((e.durationMinutes / 60) * (rate.get(e.userId) ?? 0)) : "—"}</td>}
                       <td data-label="Status" className="px-2 py-2"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", STATUS_STYLE[e.status])}>{e.status}</span></td>
                       <td data-label="Issues" className="span-2 px-2 py-2">
                         {list.length === 0 ? <span className="text-xs text-muted-foreground/60">—</span> : (
@@ -503,10 +515,11 @@ function AccountantPage() {
                           </form>
                         )}
                         <div className="flex justify-end gap-1">
-                          {queryFor !== e.id && (
+                          {isOwn(e) && <span className="self-center text-[11px] text-muted-foreground">Your own time</span>}
+                          {!isOwn(e) && queryFor !== e.id && (
                             <button onClick={() => { setQueryFor(e.id); setQueryText(""); }} title="Ask the engineer a question about this entry" aria-label="Query" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><Flag className="h-3.5 w-3.5" /><span className="hidden max-md:inline 2xl:inline">Query</span></button>
                           )}
-                          {open ? (
+                          {isOwn(e) ? null : open ? (
                             <button onClick={() => setStatusFor([e.id], "approved", "Approved.")} className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"><CheckCircle2 className="h-3.5 w-3.5" />Approve</button>
                           ) : (
                             <button onClick={() => setStatusFor([e.id], "submitted", "Sent back for review.")} title="Reopen — sends it back to submitted" className="inline-flex h-8 items-center gap-1 rounded-full border border-outline-variant px-3 text-xs font-semibold text-muted-foreground transition hover:bg-foreground/[0.05]"><RotateCcw className="h-3.5 w-3.5" />Reopen</button>
@@ -599,7 +612,7 @@ function AccountantPage() {
             <table className="stack-table w-full min-w-[40rem] border-separate border-spacing-0 text-left text-[13px]">
               <thead>
                 <tr className="[&_th]:h-9 [&_th]:border-b [&_th]:border-border [&_th]:bg-surface-container [&_th]:px-3 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-[0.06em] [&_th]:text-muted-foreground">
-                  <th>{view === "people" ? "Person" : "Customer"}</th><th className="text-right">Hours</th><th className="text-right">Billable</th><th className="text-right">Value</th>
+                  <th>{view === "people" ? "Person" : "Customer"}</th><th className="text-right">Hours</th><th className="text-right">Billable</th>{isManager && <th className="text-right">Value</th>}
                   <th>{view === "people" ? "Entries" : "Projects"}</th>
                 </tr>
               </thead>
@@ -610,7 +623,7 @@ function AccountantPage() {
                         <td data-label="Person" className="span-2 px-3 py-2.5 font-medium">{r.name}</td>
                         <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.total)}</td>
                         <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.billable)}</td>
-                        <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>
+                        {isManager && <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>}
                         <td data-label="Entries" className="px-3 py-2.5 text-xs text-muted-foreground">{r.n}{r.flagged > 0 && <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">{r.flagged} flagged</span>}</td>
                       </tr>
                     ))
@@ -619,7 +632,7 @@ function AccountantPage() {
                         <td data-label="Customer" className="span-2 px-3 py-2.5 font-medium">{r.name}</td>
                         <td data-label="Hours" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.total)}</td>
                         <td data-label="Billable" className="px-3 py-2.5 text-right font-mono tabular-nums">{hrs(r.billable)}</td>
-                        <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>
+                        {isManager && <td data-label="Value" className="px-3 py-2.5 text-right font-mono tabular-nums">{money(r.amount)}</td>}
                         <td data-label="Projects" className="span-2 px-3 py-2.5 text-xs text-muted-foreground">{Array.from(r.jobs).map(([j, m]) => `${j} ${hrs(m)}h`).join(" · ")}</td>
                       </tr>
                     ))}
@@ -656,8 +669,6 @@ function AccountantPage() {
 
 export default function Page() {
   return (
-    <RequireManager>
-      <AccountantPage />
-    </RequireManager>
+    <AccountantPage />
   );
 }

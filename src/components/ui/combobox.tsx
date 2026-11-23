@@ -61,12 +61,13 @@ export function Combobox({
     const q = norm(query ?? "");
     const base = q ? options.filter((o) => norm(o.label).includes(q) || norm(o.hint ?? "").includes(q)) : options;
     const list: { key: string; kind: "opt" | "empty" | "create"; opt?: ComboOption; label: string }[] = [];
-    if (emptyLabel && !q) list.push({ key: "__empty", kind: "empty", label: emptyLabel });
+    // "None" is only offered as a way to clear a choice; with nothing chosen it would just repeat the empty box.
+    if (emptyLabel && !q && value) list.push({ key: "__empty", kind: "empty", label: emptyLabel });
     base.forEach((o) => list.push({ key: o.id, kind: "opt", opt: o, label: o.label }));
     const exact = options.some((o) => norm(o.label) === q);
     if (onCreate && q && !exact) list.push({ key: "__create", kind: "create", label: (query ?? "").trim() });
     return list;
-  }, [options, query, emptyLabel, onCreate]);
+  }, [options, query, emptyLabel, onCreate, value]);
 
   const measure = React.useCallback(() => {
     if (inputRef.current) setRect(inputRef.current.getBoundingClientRect());
@@ -142,7 +143,7 @@ export function Combobox({
 
   const below = rect ? window.innerHeight - rect.bottom : 0;
   const flip = rect ? below < 240 && rect.top > below : false;
-  const width = rect ? Math.max(rect.width, 240) : 240;
+  const width = rect ? Math.min(Math.max(rect.width, 224), 352) : 224;
   const left = rect ? Math.min(rect.left, window.innerWidth - width - 8) : 0;
 
   return (
@@ -207,7 +208,7 @@ export function Combobox({
               width,
               ...(flip ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
             }}
-            className="m3-scroll z-[100] max-h-60 animate-m3-in overflow-auto rounded-xl border border-border bg-card p-1 text-[13px] shadow-xl"
+            className="m3-scroll z-[100] max-h-60 animate-m3-in overflow-auto rounded-lg border border-border bg-card py-1 text-[13px] shadow-lg ring-1 ring-black/5"
           >
             {items.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">No matches</li>}
             {items.map((it, i) => {
@@ -221,10 +222,11 @@ export function Combobox({
                   onMouseEnter={() => setActive(i)}
                   onClick={() => choose(it)}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5",
-                    i === active ? "bg-primary/10 text-foreground" : "text-foreground/90",
+                    "mx-1 flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5",
+                    i === active ? "bg-foreground/[0.07] text-foreground" : "text-foreground/90",
+                    isSel && "font-medium",
                     it.kind === "create" && "font-medium text-primary",
-                    it.kind === "empty" && "text-muted-foreground"
+                    it.kind === "empty" && "text-muted-foreground italic"
                   )}
                 >
                   {it.kind === "create" ? (

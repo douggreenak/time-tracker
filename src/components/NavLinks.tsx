@@ -7,7 +7,7 @@ import { cn } from "@/components/ui";
 
 const NAV_ITEMS = [
   { href: "/engineer", label: "Timesheet", icon: Clock, manager: false },
-  { href: "/accountant", label: "Review & export", icon: BarChart3, manager: true },
+  { href: "/accountant", label: "Review & export", icon: BarChart3, manager: false },
   { href: "/customers", label: "Customers", icon: Building2, manager: true },
   { href: "/tasks", label: "Tasks", icon: ListChecks, manager: true },
   { href: "/team", label: "Team", icon: Users, manager: true, admin: true },

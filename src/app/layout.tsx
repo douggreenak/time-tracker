@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="flex h-dvh flex-col overflow-hidden bg-background text-foreground print:block print:h-auto print:overflow-visible">
+      <body className="grid h-dvh grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background text-foreground print:block print:h-auto print:overflow-visible">
         <AppShell>{children}</AppShell>
       </body>
     </html>

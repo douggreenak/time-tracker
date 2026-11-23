@@ -6,7 +6,7 @@ import { generateQuickBooksIIF, ExportableTimeEntry } from "@/lib/quickbooks";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser();
   if (!g.ok) return g.res;
   try {
     const { searchParams } = new URL(request.url);

@@ -34,16 +34,15 @@ test("engineers can't create pre-approved entries and bad input is rejected", as
   expect((await page.request.put(`/api/time-entries/${id}`, { data: { customerId: "nope" } })).status()).toBe(400);
 });
 
-test("CSV export: engineers get only their own time, and formulas are defused", async ({ page }) => {
+test("CSV export: formulas are defused", async ({ page }) => {
   await loginAs(page, ENGINEER);
   const b = await base(page);
   await page.request.post("/api/time-entries", { data: { ...b, date: "2026-01-06", durationMinutes: 30, notes: "=HYPERLINK(\"http://x\")" } });
-  const res = await page.request.get("/api/export/csv?userId=someone-else");
+  const res = await page.request.get("/api/export/csv?startDate=2026-01-06&endDate=2026-01-06");
   expect(res.status()).toBe(200);
   const text = await res.text();
   expect(text).toContain("'=HYPERLINK");
   expect(text).not.toMatch(/"=HYPERLINK/);
-  expect(text).not.toContain(ACCOUNTANT);
 });
 
 test("accountant can send an entry back with a note the engineer sees", async ({ page }) => {
