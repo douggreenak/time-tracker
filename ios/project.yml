@@ -28,3 +28,31 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
+  TimeTrackerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [TimeTrackerTests]
+    dependencies:
+      - target: TimeTracker
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ak.apexengineering.timetracker.tests
+  TimeTrackerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [TimeTrackerUITests]
+    dependencies:
+      - target: TimeTracker
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ak.apexengineering.timetracker.uitests
+        TEST_TARGET_NAME: TimeTracker
+schemes:
+  TimeTracker:
+    build:
+      targets:
+        TimeTracker: all
+    test:
+      targets: [TimeTrackerTests, TimeTrackerUITests]

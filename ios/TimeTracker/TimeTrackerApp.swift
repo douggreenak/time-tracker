@@ -9,6 +9,9 @@ struct TimeTrackerApp: App {
             RootView()
                 .environment(app)
                 .task {
+                    #if DEBUG
+                    if UserDefaults.standard.bool(forKey: "resetSession") { APIClient.shared.clearSession() }
+                    #endif
                     await app.bootstrap()
                     #if DEBUG
                     // Test hook: -debugUser "Priya Nair" -debugPassword demo1234
