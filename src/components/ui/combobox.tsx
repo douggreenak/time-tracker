@@ -208,7 +208,7 @@ export function Combobox({
               width,
               ...(flip ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
             }}
-            className="m3-scroll z-[100] max-h-60 animate-m3-in overflow-auto rounded-lg border border-border bg-card py-1 text-[13px] shadow-lg ring-1 ring-black/5"
+            className={cn("m3-scroll z-[100] max-h-60 animate-m3-pop overflow-auto rounded-lg border border-border bg-card py-1 text-[13px] shadow-lg ring-1 ring-black/5", flip ? "origin-bottom" : "origin-top")}
           >
             {items.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">No matches</li>}
             {items.map((it, i) => {

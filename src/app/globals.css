@@ -244,11 +244,14 @@
   }
 
   /* ── Expressive touches: springy press feedback ── */
+  /* Colors fade plainly; only the press (transform) gets the springy curve. */
   button:not(:disabled), [role="button"], a.rounded-full {
-    transition-property: color, background-color, border-color, box-shadow, transform, filter, opacity;
-    transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+    transition-property: color, background-color, border-color, box-shadow, filter, opacity, transform;
+    transition-duration: 150ms, 150ms, 150ms, 150ms, 150ms, 150ms, 250ms;
+    transition-timing-function: ease-out, ease-out, ease-out, ease-out, ease-out, ease-out, cubic-bezier(0.34, 1.4, 0.64, 1);
   }
-  button:active:not(:disabled) { transform: scale(0.96); }
+  /* Press-shrink suits compact buttons, not full-width rows, list items or menu entries. */
+  button:active:not(:disabled):not(.w-full):not([role="option"]):not([role="menuitem"]) { transform: scale(0.96); }
   h1 { font-family: "Google Sans Display", "Google Sans", system-ui, sans-serif; letter-spacing: -0.025em; }
 
   /* ── Pulse ring (active timer) ── */
@@ -259,6 +262,15 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(1.08); }
   }
+}
+
+/* Respect the system "reduce motion" setting for everything except the loading spinner. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .pulse-ring, [class*="animate-m3-"] { animation: none !important; }
 }
 
 /* ───────── Responsive tables ─────────

@@ -41,7 +41,7 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <div role="menu" className="absolute right-0 top-11 z-50 w-72 max-w-[calc(100vw-1.5rem)] animate-m3-in rounded-2xl border border-border bg-card p-2 shadow-xl">
+        <div role="menu" className="absolute right-0 top-11 z-50 w-72 max-w-[calc(100vw-1.5rem)] origin-top-right animate-m3-pop rounded-2xl border border-border bg-card p-2 shadow-xl">
           <div className="px-3 py-2">
             <div className="truncate text-sm font-semibold">{user.name}</div>
             <div className="truncate text-xs capitalize text-muted-foreground">{user.role} · {user.email}</div>

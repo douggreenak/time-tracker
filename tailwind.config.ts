@@ -113,6 +113,10 @@ const config: Config = {
           from: { opacity: "0", transform: "scale(0.96) translateY(10px)" },
           to: { opacity: "1", transform: "none" },
         },
+        "m3-pop": {
+          from: { opacity: "0", transform: "scale(0.97) translateY(-4px)" },
+          to: { opacity: "1", transform: "none" },
+        },
         "m3-fade": {
           from: { opacity: "0" },
           to: { opacity: "1" },
@@ -124,7 +128,8 @@ const config: Config = {
       },
       animation: {
         "m3-in": "m3-in 0.28s cubic-bezier(0.2, 0, 0, 1) both",
-        "m3-fade": "m3-fade 0.2s ease-out both",
+        "m3-pop": "m3-pop 0.14s cubic-bezier(0.2, 0, 0, 1) both",
+        "m3-fade": "m3-fade 0.18s ease-out both",
         "m3-rise": "m3-rise 0.35s cubic-bezier(0.2, 0, 0, 1) both",
       },
     },

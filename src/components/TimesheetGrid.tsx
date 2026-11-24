@@ -1137,7 +1137,7 @@ function WeekBars({ entries }: { entries: TimeEntryItem[] }) {
           <div key={d.key} className="flex h-full w-4 flex-col items-center justify-end gap-0.5" title={`${d.key}: ${fmtHours(d.minutes)}h`}>
             <div
               className={cn(
-                "w-full rounded-t-[3px] transition-all duration-500 ease-expressive",
+                "w-full rounded-t-[3px] transition-[height,background-color] duration-300 ease-expressive",
                 d.isToday ? "bg-primary" : d.minutes ? "bg-primary/45" : "bg-surface-high"
               )}
               style={{ height: `${Math.max(d.minutes ? 8 : 3, (d.minutes / scale) * 100)}%` }}
