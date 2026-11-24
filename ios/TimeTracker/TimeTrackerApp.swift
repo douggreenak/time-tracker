@@ -49,7 +49,10 @@ struct RootView: View {
                     .glassCard().padding()
                 }
             case .signedIn:
-                MainTabs()
+                ZStack {
+                    AuroraBackground()
+                    MainTabs().frame(maxWidth: 760)
+                }
             }
         }
         .animation(.smooth, value: phaseKey)

@@ -69,7 +69,7 @@ struct LoginView: View {
                                     .frame(maxWidth: .infinity).padding(.vertical, 6)
                             }
                             .buttonStyle(.glassProminent)
-                            .disabled(userId.isEmpty || password.isEmpty || busy)
+                            .disabled(busy)
                             .controlSize(.large)
                         }
                     }
@@ -119,7 +119,9 @@ struct LoginView: View {
     }
 
     private func signIn() async {
-        guard !userId.isEmpty, !password.isEmpty, !busy else { return }
+        guard !busy else { return }
+        if userId.isEmpty { error = "Choose your name first."; return }
+        if password.isEmpty { error = "Enter your password."; return }
         busy = true; error = nil
         defer { busy = false }
         do {

@@ -73,6 +73,13 @@ struct TimesheetView: View {
                 }
             }
             .sheet(item: $editing) { d in EntryEditor(draft: d) }
+            #if DEBUG
+            .onAppear {
+                if UserDefaults.standard.string(forKey: "debugSheet") == "editor", editing == nil {
+                    editing = app.myEntries.first.map { EntryDraft($0) } ?? EntryDraft(userId: app.me?.id ?? "")
+                }
+            }
+            #endif
         }
     }
 
@@ -82,7 +89,7 @@ struct TimesheetView: View {
         let billable = thisWeek?.billable ?? 0
         let pct = wk > 0 ? Int((Double(billable) / Double(wk) * 100).rounded()) : 0
         return GlassEffectContainer(spacing: 12) {
-            HStack(spacing: 12) {
+            AdaptiveStack {
                 stat("Today", Fmt.duration(today), "sun.max")
                 stat("This week", Fmt.duration(wk), "calendar")
                 stat("Billable", "\(pct)%", "dollarsign.circle")
@@ -102,12 +109,12 @@ struct TimesheetView: View {
     }
 
     private func weekHeader(_ w: WeekGroup) -> some View {
-        HStack(alignment: .firstTextBaseline) {
+        AdaptiveStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Fmt.weekTag(w.start) ?? Fmt.weekLabel(w.start)).font(.headline).foregroundStyle(.primary)
                 if Fmt.weekTag(w.start) != nil { Text(Fmt.weekLabel(w.start)).font(.caption).foregroundStyle(.secondary) }
             }
-            Spacer()
+            Spacer(minLength: 0)
             Text(Fmt.duration(w.minutes)).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
             if !w.drafts.isEmpty {
                 Button { submit(w.drafts) } label: { Label("Submit \(w.drafts.count)", systemImage: "paperplane.fill").font(.caption.weight(.semibold)) }

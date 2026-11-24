@@ -111,7 +111,22 @@ struct Option: Identifiable, Hashable {
 }
 
 /// A glass row showing "Title … current value ⌄" that opens a menu.
+/// Lays children out in a row, or a column at accessibility text sizes so nothing gets squeezed.
+struct AdaptiveStack<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var size
+    var spacing: CGFloat = 12
+    var alignment: HorizontalAlignment = .leading
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        let layout = size.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: alignment, spacing: spacing))
+            : AnyLayout(HStackLayout(spacing: spacing))
+        layout { content() }
+    }
+}
+
 struct OptionMenu: View {
+    @Environment(\.dynamicTypeSize) private var size
     let title: String
     let icon: String
     @Binding var selection: String
@@ -132,13 +147,22 @@ struct OptionMenu: View {
                 Button { selection = o.id } label: { if selection == o.id { Label(o.label, systemImage: "checkmark") } else { Text(o.label) } }
             }
         } label: {
+            let big = size.isAccessibilitySize
             HStack(spacing: 12) {
                 Image(systemName: icon).frame(width: 22).foregroundStyle(.tint)
-                Text(title).foregroundStyle(.primary)
-                Spacer(minLength: 8)
-                Text(current)
-                    .foregroundStyle(selection.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
+                if big {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).foregroundStyle(.primary)
+                        Text(current).foregroundStyle(selection.isEmpty ? .secondary : .primary)
+                    }
+                    Spacer(minLength: 8)
+                } else {
+                    Text(title).foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    Text(current)
+                        .foregroundStyle(selection.isEmpty ? .secondary : .primary)
+                        .lineLimit(1)
+                }
                 Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.tertiary)
             }
             .contentShape(Rectangle())

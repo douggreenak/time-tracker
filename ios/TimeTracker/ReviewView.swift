@@ -78,6 +78,11 @@ struct ReviewView: View {
             .refreshable { await app.refresh() }
             .navigationTitle("Review")
             .sheet(item: $detail) { e in ReviewDetail(entryId: e.id) }
+            #if DEBUG
+            .onAppear {
+                if UserDefaults.standard.string(forKey: "debugSheet") == "detail", detail == nil { detail = visible.first }
+            }
+            #endif
         }
     }
 
@@ -87,7 +92,7 @@ struct ReviewView: View {
         let people = Set(pending.map(\.userId)).count
         let flagged = app.entries.filter(\.isFlagged).count
         return GlassEffectContainer(spacing: 12) {
-            HStack(spacing: 12) {
+            AdaptiveStack {
                 tile("Awaiting", Fmt.duration(minutes), "hourglass")
                 tile("People", "\(people)", "person.2")
                 tile("Questions", "\(flagged)", "questionmark.bubble")
@@ -107,10 +112,10 @@ struct ReviewView: View {
 
     private func personHeader(_ name: String, _ entries: [TimeEntry]) -> some View {
         let submitted = entries.filter { $0.status == "submitted" }
-        return HStack {
+        return AdaptiveStack(spacing: 8) {
             Text(name).font(.headline).foregroundStyle(.primary)
             Text(Fmt.duration(entries.reduce(0) { $0 + $1.durationMinutes })).font(.subheadline).foregroundStyle(.secondary)
-            Spacer()
+            Spacer(minLength: 0)
             if !submitted.isEmpty {
                 Button {
                     Task {

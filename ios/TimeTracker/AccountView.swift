@@ -59,6 +59,9 @@ struct AccountView: View {
             .screenBackground()
             .navigationTitle("Account")
             .sheet(isPresented: $changingPassword) { PasswordSheet() }
+            #if DEBUG
+            .onAppear { if UserDefaults.standard.string(forKey: "debugSheet") == "password" { changingPassword = true } }
+            #endif
             .confirmationDialog("Sign out of Time Tracker?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { Task { await app.signOut() } }
             }

@@ -80,7 +80,7 @@ struct TimerView: View {
 
     private var controls: some View {
         GlassEffectContainer(spacing: 14) {
-            HStack(spacing: 14) {
+            AdaptiveStack(spacing: 14) {
                 if !hasTimer {
                     Button { run { try await app.startTimer(customerId: customerId, jobId: jobId, serviceId: serviceId, location: location, notes: notes) } } label: {
                         Label("Start", systemImage: "play.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
