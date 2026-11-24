@@ -20,14 +20,13 @@ struct TimesheetView: View {
     @State private var editing: EntryDraft?
     @State private var error: String?
 
-    private var weeks: [WeekGroup] { groupByWeek(app.myEntries) }
-    private var thisWeek: WeekGroup? { weeks.first { $0.start == Fmt.weekStart(Fmt.today) } }
-
     var body: some View {
-        NavigationStack {
+        let weeks = groupByWeek(app.myEntries)
+        let thisWeek = weeks.first { $0.start == Fmt.weekStart(Fmt.today) }
+        return NavigationStack {
             List {
                 Section {
-                    summary
+                    summary(thisWeek)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
@@ -77,7 +76,7 @@ struct TimesheetView: View {
         }
     }
 
-    private var summary: some View {
+    private func summary(_ thisWeek: WeekGroup?) -> some View {
         let today = app.myEntries.filter { $0.date == Fmt.today }.reduce(0) { $0 + $1.durationMinutes }
         let wk = thisWeek?.minutes ?? 0
         let billable = thisWeek?.billable ?? 0
@@ -170,6 +169,6 @@ struct EntryRow: View {
         }
         .contentShape(Rectangle())
 
-        if compact { row } else { row.glassCard(radius: 20, padding: 12) }
+        if compact { row } else { row.rowCard() }
     }
 }

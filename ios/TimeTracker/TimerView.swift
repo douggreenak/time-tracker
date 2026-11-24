@@ -64,13 +64,9 @@ struct TimerView: View {
 
     private var clockCard: some View {
         VStack(spacing: 6) {
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                Text(Fmt.clock(app.elapsedSeconds(at: ctx.date)))
-                    .font(.system(size: 64, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .minimumScaleFactor(0.6).lineLimit(1)
-            }
+            ClockText(running: running)
+                .font(.system(size: 64, weight: .semibold, design: .rounded))
+                .minimumScaleFactor(0.6).lineLimit(1)
             HStack(spacing: 6) {
                 Circle().fill(running ? .green : (hasTimer ? .orange : .gray)).frame(width: 8, height: 8)
                 Text(running ? "Running" : (hasTimer ? "Paused" : "Ready")).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
@@ -193,12 +189,31 @@ struct TimerAccessory: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: app.timer?.isRunning == true ? "timer" : "pause.circle").foregroundStyle(.tint)
-            TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                Text(Fmt.clock(app.elapsedSeconds(at: ctx.date))).monospacedDigit().font(.headline)
-            }
+            ClockText(running: app.timer?.isRunning == true).font(.headline)
             Spacer()
             Text(app.timer?.isRunning == true ? "Running" : "Paused").font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16)
+    }
+}
+
+/// The elapsed-time readout. It only schedules once-a-second redraws while the timer is actually running;
+/// paused or idle it is a plain static Text, so the screen can sleep and the CPU stays idle.
+struct ClockText: View {
+    @Environment(AppState.self) private var app
+    let running: Bool
+
+    var body: some View {
+        Group {
+            if running {
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    Text(Fmt.clock(app.elapsedSeconds(at: ctx.date)))
+                }
+            } else {
+                Text(Fmt.clock(app.elapsedSeconds()))
+            }
+        }
+        .monospacedDigit()
+        .contentTransition(.numericText())
     }
 }

@@ -94,8 +94,12 @@ final class AppState {
 
     // MARK: Loading
 
-    func refresh() async {
-        guard me != nil else { return }
+    private var lastRefresh = Date.distantPast
+
+    /// Reloads everything. Skipped when data is under `minAge` seconds old (so quick app switches don't wake the radio).
+    func refresh(minAge: TimeInterval = 0) async {
+        guard me != nil, Date().timeIntervalSince(lastRefresh) >= minAge else { return }
+        lastRefresh = Date()
         loadingEntries = true
         defer { loadingEntries = false }
         async let c: [Customer]? = try? api.get("api/customers")
@@ -112,7 +116,7 @@ final class AppState {
     }
 
     private func loadEntries() async -> [TimeEntry]? {
-        let cutoff = Calendar.current.date(byAdding: .day, value: -400, to: Date()) ?? Date()
+        let cutoff = Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date()
         do { return try await api.get("api/time-entries", query: ["startDate": Fmt.string(cutoff)]) }
         catch { await handle(error); return nil }
     }

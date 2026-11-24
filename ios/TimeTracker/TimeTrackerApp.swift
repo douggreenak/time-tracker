@@ -54,7 +54,7 @@ struct RootView: View {
         }
         .animation(.smooth, value: phaseKey)
         .onChange(of: scenePhase) { _, new in
-            if new == .active, case .signedIn = app.phase { Task { await app.refresh() } }
+            if new == .active, case .signedIn = app.phase { Task { await app.refresh(minAge: 60) } }
         }
     }
 

@@ -24,14 +24,15 @@ struct ReviewView: View {
         }
     }
 
-    private var byPerson: [(name: String, entries: [TimeEntry])] {
+    private func grouped(_ visible: [TimeEntry]) -> [(name: String, entries: [TimeEntry])] {
         Dictionary(grouping: visible) { $0.userName ?? "Unknown" }
             .map { (name: $0.key, entries: $0.value.sorted { $0.date > $1.date }) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     var body: some View {
-        NavigationStack {
+        let byPerson = grouped(visible)
+        return NavigationStack {
             List {
                 Section {
                     VStack(spacing: 14) {

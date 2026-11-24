@@ -54,6 +54,15 @@ extension View {
         self.listRowBackground(Rectangle().fill(.ultraThinMaterial))
     }
 
+    /// A light-weight card for rows that repeat in long lists. Real Liquid Glass is reserved for chrome and
+    /// hero elements: dozens of live glass layers while scrolling is the main GPU/battery cost.
+    func rowCard(radius: CGFloat = 20, padding: CGFloat = 12) -> some View {
+        self.padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+    }
+
     func screenBackground() -> some View {
         self.scrollContentBackground(.hidden).background { AuroraBackground() }
     }
@@ -80,7 +89,7 @@ struct StatusChip: View {
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 9).padding(.vertical, 4)
             .foregroundStyle(color)
-            .glassEffect(.regular.tint(color.opacity(0.22)), in: .capsule)
+            .background(color.opacity(0.18), in: Capsule())
     }
 }
 
@@ -90,7 +99,7 @@ struct RoleChip: View {
         Text(role.capitalized)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 9).padding(.vertical, 4)
-            .glassEffect(.regular, in: .capsule)
+            .background(.fill.tertiary, in: Capsule())
     }
 }
 

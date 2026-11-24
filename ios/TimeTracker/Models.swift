@@ -168,25 +168,37 @@ enum Fmt {
         return f
     }()
 
+    private static let gregorian: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.firstWeekday = 1
+        return c
+    }()
+    private static let shortDay: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMM d"); return f
+    }()
+    private static let weekdayNumber: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("EEE d"); return f
+    }()
+    private static var weekStartCache: [String: String] = [:]
+
     static func date(_ s: String) -> Date { ymd.date(from: s) ?? Date() }
     static func string(_ d: Date) -> String { ymd.string(from: d) }
     static var today: String { string(Date()) }
 
     /// Pay weeks run Sunday–Saturday, like the web app.
     static func weekStart(_ s: String) -> String {
-        var cal = Calendar(identifier: .gregorian)
-        cal.firstWeekday = 1
+        if let hit = weekStartCache[s] { return hit }
         let d = date(s)
-        let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)) ?? d
-        return string(start)
+        let start = gregorian.date(from: gregorian.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)) ?? d
+        let result = string(start)
+        weekStartCache[s] = result
+        return result
     }
 
     static func weekLabel(_ start: String) -> String {
         let a = date(start)
         let b = Calendar.current.date(byAdding: .day, value: 6, to: a) ?? a
-        let f = DateFormatter()
-        f.setLocalizedDateFormatFromTemplate("MMM d")
-        return "\(f.string(from: a)) – \(f.string(from: b))"
+        return "\(shortDay.string(from: a)) – \(shortDay.string(from: b))"
     }
 
     static func weekTag(_ start: String) -> String? {
@@ -197,9 +209,7 @@ enum Fmt {
     }
 
     static func dayLabel(_ s: String) -> String {
-        let f = DateFormatter()
-        f.setLocalizedDateFormatFromTemplate("EEE d")
-        return f.string(from: date(s))
+        return weekdayNumber.string(from: date(s))
     }
 
     static func longDay(_ s: String) -> String {
