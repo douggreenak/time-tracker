@@ -475,20 +475,14 @@ export function TimesheetGrid({
 
   // ---- collapsible weeks (pay is weekly) -----------------------------------------
   const thisWeek = weekStart(today());
+  // Open/closed choices last only for this visit: every load starts with just the current week open.
   const [weekOverride, setWeekOverrideState] = useState<Record<string, boolean>>({});
   useEffect(() => {
     try {
-      setWeekOverrideState(JSON.parse(localStorage.getItem("tt-weeks-v1") ?? "{}"));
+      localStorage.removeItem("tt-weeks-v1"); // older versions remembered these between visits
     } catch {}
   }, []);
-  const setWeekOpen = (wk: string, open: boolean) =>
-    setWeekOverrideState((prev) => {
-      const next = { ...prev, [wk]: open };
-      try {
-        localStorage.setItem("tt-weeks-v1", JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+  const setWeekOpen = (wk: string, open: boolean) => setWeekOverrideState((prev) => ({ ...prev, [wk]: open }));
   /** The current week starts open and older weeks start closed; filtering opens everything that matches. */
   const isWeekOpen = (wk: string) => (query.trim() || filterCount ? true : weekOverride[wk] ?? wk === thisWeek);
 
@@ -515,13 +509,7 @@ export function TimesheetGrid({
   const allWeeks = Array.from(weeks.keys());
   const anyClosed = allWeeks.some((w) => !isWeekOpen(w));
   const setAllWeeks = (open: boolean) =>
-    setWeekOverrideState(() => {
-      const next = Object.fromEntries(allWeeks.map((w) => [w, open]));
-      try {
-        localStorage.setItem("tt-weeks-v1", JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+    setWeekOverrideState(() => Object.fromEntries(allWeeks.map((w) => [w, open])));
 
   // Rows you can actually see (rows in a collapsed week are hidden); arrow-key navigation uses these.
   const rendered = useMemo(() => visible.filter((e) => isWeekOpen(weekStart(e.date))), [visible, weekOverride, query, filterCount]); // eslint-disable-line react-hooks/exhaustive-deps

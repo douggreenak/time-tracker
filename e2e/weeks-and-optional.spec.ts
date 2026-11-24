@@ -296,3 +296,11 @@ test.describe("login, emails, filters, stopwatch, tooltip", () => {
     await expect(page.getByRole("combobox", { name: "Stopwatch location" })).toBeInViewport({ ratio: 1 });
   });
 });
+
+test("weeks start collapsed on every visit except the current one", async ({ page }) => {
+  await loginAs(page, ENGINEER, "/engineer");
+  await expandAllWeeks(page);
+  await expect(page.getByTestId("weeks-toggle-all")).toContainText(/collapse/i);
+  await page.reload();
+  await expect(page.getByTestId("weeks-toggle-all")).toContainText(/expand/i); // older weeks closed again
+});
