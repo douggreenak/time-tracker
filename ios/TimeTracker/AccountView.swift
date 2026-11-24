@@ -3,7 +3,9 @@ import SwiftUI
 struct AccountView: View {
     @Environment(AppState.self) private var app
     @State private var changingPassword = false
+    @Environment(LocationTracker.self) private var tracker
     @State private var confirmSignOut = false
+    @State private var showPlaces = false
 
     private var initials: String {
         (app.me?.name ?? "?").split(separator: " ").prefix(2).compactMap { $0.first }.map(String.init).joined()
@@ -30,13 +32,23 @@ struct AccountView: View {
                     Button { changingPassword = true } label: { Label("Change password", systemImage: "key") }.glassRow()
                 }
 
+                Section("Location") {
+                    Button { showPlaces = true } label: {
+                        HStack {
+                            Label("Places & suggestions", systemImage: "location")
+                            Spacer()
+                            Text(tracker.isRunning ? "On" : "Off").foregroundStyle(.secondary)
+                        }
+                    }.glassRow()
+                }
+
                 if app.isManager {
                     Section("Team") {
                         ForEach(app.users) { u in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(u.name)
-                                    Text(u.email).font(.caption).foregroundStyle(.secondary)
+                                    Text(u.email).font(.footnote).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 RoleChip(role: u.role)
@@ -59,11 +71,12 @@ struct AccountView: View {
             .screenBackground()
             .navigationTitle("Account")
             .sheet(isPresented: $changingPassword) { PasswordSheet() }
+            .sheet(isPresented: $showPlaces) { PlacesView() }
             #if DEBUG
             .onAppear { if UserDefaults.standard.string(forKey: "debugSheet") == "password" { changingPassword = true } }
             #endif
             .confirmationDialog("Sign out of Time Tracker?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) { Task { await app.signOut() } }
+                Button("Sign out", role: .destructive) { tracker.disable(); tracker.eraseHistory(); Task { await app.signOut() } }
             }
         }
     }

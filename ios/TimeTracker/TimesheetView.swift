@@ -17,8 +17,10 @@ func groupByWeek(_ entries: [TimeEntry]) -> [WeekGroup] {
 
 struct TimesheetView: View {
     @Environment(AppState.self) private var app
+    @Environment(LocationTracker.self) private var tracker
     @State private var editing: EntryDraft?
     @State private var error: String?
+    @State private var showPlaces = false
 
     var body: some View {
         let weeks = groupByWeek(app.myEntries)
@@ -33,6 +35,26 @@ struct TimesheetView: View {
                 }
                 if let error {
                     Section { ErrorBanner(text: error).listRowBackground(Color.clear) }
+                }
+                let suggested = tracker.enabled ? tracker.suggestions(entries: app.myEntries).count : 0
+                if suggested > 0 {
+                    Section {
+                        Button { showPlaces = true } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkles").foregroundStyle(.tint)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(suggested) suggested work \(suggested == 1 ? "session" : "sessions")").font(.headline)
+                                    Text("Based on where you've been. Review and add.").font(.subheadline).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                            .rowCard()
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                    }
                 }
                 if weeks.isEmpty && !app.loadingEntries {
                     EmptyState(icon: "calendar.badge.plus", title: "No time yet",
@@ -68,13 +90,18 @@ struct TimesheetView: View {
             .refreshable { await app.refresh() }
             .navigationTitle("Timesheet")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showPlaces = true } label: { Label("Places", systemImage: tracker.isRunning ? "location.fill" : "location") }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { editing = EntryDraft(userId: app.me?.id ?? "") } label: { Label("Add time", systemImage: "plus") }
                 }
             }
             .sheet(item: $editing) { d in EntryEditor(draft: d) }
+            .sheet(isPresented: $showPlaces) { PlacesView() }
             #if DEBUG
             .onAppear {
+                if UserDefaults.standard.string(forKey: "debugSheet") == "places" { showPlaces = true }
                 if UserDefaults.standard.string(forKey: "debugSheet") == "editor", editing == nil {
                     editing = app.myEntries.first.map { EntryDraft($0) } ?? EntryDraft(userId: app.me?.id ?? "")
                 }
@@ -101,7 +128,7 @@ struct TimesheetView: View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: icon).font(.subheadline).foregroundStyle(.tint)
             Text(value).font(.title3.weight(.semibold)).minimumScaleFactor(0.7).lineLimit(1)
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(.footnote).foregroundStyle(.secondary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -111,11 +138,11 @@ struct TimesheetView: View {
     private func weekHeader(_ w: WeekGroup) -> some View {
         AdaptiveStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(Fmt.weekTag(w.start) ?? Fmt.weekLabel(w.start)).font(.headline).foregroundStyle(.primary)
-                if Fmt.weekTag(w.start) != nil { Text(Fmt.weekLabel(w.start)).font(.caption).foregroundStyle(.secondary) }
+                Text(Fmt.weekTag(w.start) ?? Fmt.weekLabel(w.start)).font(.headline).foregroundStyle(Color.primary)
+                if Fmt.weekTag(w.start) != nil { Text(Fmt.weekLabel(w.start)).font(.footnote).foregroundStyle(Color.primary.opacity(0.72)) }
             }
             Spacer(minLength: 0)
-            Text(Fmt.duration(w.minutes)).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+            Text(Fmt.duration(w.minutes)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
             if !w.drafts.isEmpty {
                 Button { submit(w.drafts) } label: { Label("Submit \(w.drafts.count)", systemImage: "paperplane.fill").font(.caption.weight(.semibold)) }
                     .buttonStyle(.glassProminent).controlSize(.small)
@@ -161,7 +188,7 @@ struct EntryRow: View {
                 Text(showUser ? "\(entry.userName ?? "") · \(entry.subtitle)" : entry.subtitle)
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 if let n = entry.notes, !n.isEmpty, n != "Recorded with stopwatch" {
-                    Text(n).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                    Text(n).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 6)

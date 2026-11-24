@@ -64,7 +64,7 @@ struct EntryEditor: View {
                         ForEach(history.reversed(), id: \.at) { n in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(n.text).font(.callout)
-                                Text("\(n.by) · \(n.kind)").font(.caption2).foregroundStyle(.secondary)
+                                Text("\(n.by) · \(n.kind)").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }

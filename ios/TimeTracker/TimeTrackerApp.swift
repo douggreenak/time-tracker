@@ -3,12 +3,18 @@ import SwiftUI
 @main
 struct TimeTrackerApp: App {
     @State private var app = AppState()
+    @State private var tracker = LocationTracker()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(app)
+                .environment(tracker)
                 .task {
+                    #if DEBUG
+                    if UserDefaults.standard.bool(forKey: "seedPlaces") { tracker.seedDemo(); tracker.enable() }
+                    #endif
+                    tracker.resumeIfNeeded()
                     #if DEBUG
                     if UserDefaults.standard.bool(forKey: "resetSession") { APIClient.shared.clearSession() }
                     #endif
@@ -31,6 +37,7 @@ struct TimeTrackerApp: App {
 struct RootView: View {
     @Environment(AppState.self) private var app
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(LocationTracker.self) private var tracker
 
     var body: some View {
         Group {
@@ -57,6 +64,8 @@ struct RootView: View {
         }
         .animation(.smooth, value: phaseKey)
         .onChange(of: scenePhase) { _, new in
+            if new == .active { tracker.resumeIfNeeded() }
+            if new == .background { tracker.flush() }
             if new == .active, case .signedIn = app.phase { Task { await app.refresh(minAge: 60) } }
         }
     }

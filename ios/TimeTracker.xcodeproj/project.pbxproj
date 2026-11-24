@@ -16,6 +16,8 @@
 		A80784532C70ED2BF833C866 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEA5BBEBD1E26B9FC4E0282 /* Models.swift */; };
 		C27303A2982A6C867EEAD012 /* DataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984E81521A64BAD9F29FE3EF /* DataView.swift */; };
 		C71233508351BF9C35D35D76 /* TimesheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 618B568C6F5D3C745789C846 /* TimesheetView.swift */; };
+		DD7D1A80CC7406FDFAC18862 /* PlacesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA6E19AA570E21949D27B63B /* PlacesView.swift */; };
+		DF3A4D159FBF6C8FF3D01229 /* LocationTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40581EDDBE31FB6FAF8E77C2 /* LocationTracker.swift */; };
 		E2172988A1DAA497D9753001 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2772F3DF70979B47B3EBB8 /* AppState.swift */; };
 		EC18C23DA070C34FF26F02E4 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DF99A0740CA610C763A2C2B /* LoginView.swift */; };
 		ED0CD3B09DB0CF5AB40932D3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 943B4D377432DA396308BDAB /* Assets.xcassets */; };
@@ -49,6 +51,7 @@
 		2B2772F3DF70979B47B3EBB8 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		3AA877B5A9854E0BD952C4FA /* EntryEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditor.swift; sourceTree = "<group>"; };
 		3F4E296AB9BD1FDE415B96DF /* ReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewView.swift; sourceTree = "<group>"; };
+		40581EDDBE31FB6FAF8E77C2 /* LocationTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationTracker.swift; sourceTree = "<group>"; };
 		41CB146E394ED374F34A394C /* TimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerView.swift; sourceTree = "<group>"; };
 		618B568C6F5D3C745789C846 /* TimesheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimesheetView.swift; sourceTree = "<group>"; };
 		86588C0C9267E6B07E1245B5 /* LogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogicTests.swift; sourceTree = "<group>"; };
@@ -61,6 +64,7 @@
 		B36087BE875BB46A22969FF7 /* TimeTrackerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TimeTrackerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8565D8802565CD358FFF88E /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		BED8D81C75EA9B30FE428D1E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		CA6E19AA570E21949D27B63B /* PlacesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -84,8 +88,10 @@
 				984E81521A64BAD9F29FE3EF /* DataView.swift */,
 				3AA877B5A9854E0BD952C4FA /* EntryEditor.swift */,
 				12E31815FE137361F4855933 /* Info.plist */,
+				40581EDDBE31FB6FAF8E77C2 /* LocationTracker.swift */,
 				0DF99A0740CA610C763A2C2B /* LoginView.swift */,
 				1AEA5BBEBD1E26B9FC4E0282 /* Models.swift */,
+				CA6E19AA570E21949D27B63B /* PlacesView.swift */,
 				3F4E296AB9BD1FDE415B96DF /* ReviewView.swift */,
 				BED8D81C75EA9B30FE428D1E /* Theme.swift */,
 				41CB146E394ED374F34A394C /* TimerView.swift */,
@@ -245,8 +251,10 @@
 				E2172988A1DAA497D9753001 /* AppState.swift in Sources */,
 				C27303A2982A6C867EEAD012 /* DataView.swift in Sources */,
 				7C2543707CAF1D2087C2A670 /* EntryEditor.swift in Sources */,
+				DF3A4D159FBF6C8FF3D01229 /* LocationTracker.swift in Sources */,
 				EC18C23DA070C34FF26F02E4 /* LoginView.swift in Sources */,
 				A80784532C70ED2BF833C866 /* Models.swift in Sources */,
+				DD7D1A80CC7406FDFAC18862 /* PlacesView.swift in Sources */,
 				EDEC35EFCAFD46B35C2D76E7 /* ReviewView.swift in Sources */,
 				54C21A7A2F17CC052E7538D9 /* Theme.swift in Sources */,
 				701CDFE9F925ECB6D1AD2778 /* TimeTrackerApp.swift in Sources */,

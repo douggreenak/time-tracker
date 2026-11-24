@@ -21,3 +21,12 @@ Pick a team under *Signing & Capabilities* to run on a device. The app's server 
 - **Account** – profile, change password, team list (managers), sync, sign out.
 
 Not yet in the app (still web-only): QuickBooks IIF / CSV / Excel export, reports, people management, backup.
+
+## Location history (opt-in)
+
+Off by default. Turned on from the Places button (top left of Timesheet) or Account > Places & suggestions.
+While on, iOS shows its blue location indicator by the clock. The app keeps at most one point per minute while the
+user is moving (100 m accuracy, 75 m distance filter, auto-pausing), stores them only on the device
+(`Application Support/location-history.json`, excluded from backup, pruned after 30 days) and never uploads them.
+Stays of 10+ minutes form the timeline; non-home stays of 20+ minutes not already covered by logged time are offered as
+suggested entries. Signing out stops tracking and erases the history. Debug launch args: `-seedPlaces YES`, `-debugSheet places`.

@@ -104,7 +104,7 @@ struct ReviewView: View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: icon).foregroundStyle(.tint)
             Text(v).font(.title3.weight(.semibold)).minimumScaleFactor(0.7).lineLimit(1)
-            Text(t).font(.caption).foregroundStyle(.secondary)
+            Text(t).font(.footnote).foregroundStyle(.secondary)
         }
         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
@@ -113,8 +113,8 @@ struct ReviewView: View {
     private func personHeader(_ name: String, _ entries: [TimeEntry]) -> some View {
         let submitted = entries.filter { $0.status == "submitted" }
         return AdaptiveStack(spacing: 8) {
-            Text(name).font(.headline).foregroundStyle(.primary)
-            Text(Fmt.duration(entries.reduce(0) { $0 + $1.durationMinutes })).font(.subheadline).foregroundStyle(.secondary)
+            Text(name).font(.headline).foregroundStyle(Color.primary)
+            Text(Fmt.duration(entries.reduce(0) { $0 + $1.durationMinutes })).font(.subheadline).foregroundStyle(Color.primary.opacity(0.72))
             Spacer(minLength: 0)
             if !submitted.isEmpty {
                 Button {
@@ -213,7 +213,7 @@ struct ReviewDetail: View {
                                 ForEach(h.reversed(), id: \.at) { n in
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(n.text).font(.callout)
-                                        Text("\(n.by) · \(n.kind)").font(.caption2).foregroundStyle(.secondary)
+                                        Text("\(n.by) · \(n.kind)").font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
                             }
