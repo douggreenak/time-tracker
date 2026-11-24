@@ -9,99 +9,99 @@
 :root {
     color-scheme: light;
 
-    /* ── Teal primary, slate surfaces, green positive accent ── */
-    --background:        200 33% 98%;
-    --foreground:        205 25% 10%;
+    /* ── Royal-blue primary, amber highlights, green positive, neutral cool-grey surfaces ── */
+    --background:        210 40% 98%;
+    --foreground:        222 47% 11%;
 
     --card:              0 0% 100%;
-    --card-foreground:   205 25% 10%;
+    --card-foreground:   222 47% 11%;
 
     /* Surface tones */
-    --surface-container-low:     200 30% 96%;
-    --surface-container:         200 24% 93%;
-    --surface-container-high:    200 20% 89%;
-    --surface-container-highest: 200 16% 85%;
+    --surface-container-low:     210 40% 96%;
+    --surface-container:         212 33% 93%;
+    --surface-container-high:    214 27% 89%;
+    --surface-container-highest:213 24% 85%;
 
-    /* Primary – deep teal */
-    --primary:             189 85% 27%;
+    /* Primary – royal blue */
+    --primary:             224 76% 48%;
     --primary-foreground:  0 0% 100%;
-    --primary-container:   187 62% 89%;
-    --on-primary-container:190 85% 12%;
+    --primary-container:   221 91% 93%;
+    --on-primary-container:226 57% 21%;
 
-    /* Secondary – slate blue-grey */
-    --secondary:             205 14% 40%;
+    /* Secondary – neutral slate for tonal buttons and badges */
+    --secondary:             215 16% 38%;
     --secondary-foreground:  0 0% 100%;
-    --secondary-container:   200 38% 91%;
-    --on-secondary-container:205 30% 20%;
+    --secondary-container:   214 35% 92%;
+    --on-secondary-container:218 35% 18%;
 
-    /* Tertiary – green for positive/approved accents */
-    --tertiary:              142 55% 32%;
+    /* Tertiary – green for positive/approved */
+    --tertiary:              142 72% 29%;
     --tertiary-foreground:   0 0% 100%;
-    --tertiary-container:    140 62% 87%;
-    --on-tertiary-container: 142 60% 12%;
+    --tertiary-container:    141 70% 90%;
+    --on-tertiary-container: 144 60% 10%;
 
     /* Error */
     --destructive:          0 72% 46%;
     --destructive-foreground:0 0% 100%;
-    --destructive-container: 0 100% 94%;
+    --destructive-container: 0 100% 95%;
 
-    /* Warning */
-    --warning:              38 100% 48%;
-    --warning-container:    42 100% 90%;
+    /* Warning / highlight – amber */
+    --warning:              30 90% 36%;
+    --warning-container:    46 100% 90%;
 
     /* Neutrals */
-    --muted:                200 25% 94%;
-    --muted-foreground:     205 10% 40%;
-    --accent:               187 62% 89%;
-    --accent-foreground:    190 85% 18%;
-    --border:               205 18% 85%;
-    --input:                205 18% 80%;
-    --outline:              205 8% 50%;
-    --outline-variant:      205 14% 80%;
-    --ring:                 189 85% 27%;
+    --muted:                210 40% 95%;
+    --muted-foreground:     215 16% 40%;
+    --accent:               221 91% 93%;
+    --accent-foreground:    226 57% 21%;
+    --border:               214 22% 86%;
+    --input:                214 22% 82%;
+    --outline:              215 10% 50%;
+    --outline-variant:      214 20% 82%;
+    --ring:                 224 76% 48%;
     --radius:               1rem;
 
-    --fab-gradient: linear-gradient(135deg, hsl(189 85% 27%) 0%, hsl(204 82% 40%) 100%);
-    --fab-gradient-green: linear-gradient(135deg, hsl(142 55% 32%) 0%, hsl(165 60% 32%) 100%);
+    --fab-gradient: linear-gradient(135deg, hsl(224 76% 48%) 0%, hsl(238 70% 54%) 100%);
+    --fab-gradient-green: linear-gradient(135deg, hsl(142 72% 29%) 0%, hsl(160 70% 30%) 100%);
   }
 
   .dark {
     color-scheme: dark;
-    --background:        205 22% 7%;
-    --foreground:        200 15% 93%;
-    --card:              205 18% 11%;
-    --card-foreground:   200 15% 93%;
-    --surface-container-low:     205 18% 11%;
-    --surface-container:         205 16% 15%;
-    --surface-container-high:    205 15% 19%;
-    --surface-container-highest: 205 14% 23%;
-    --primary:              185 68% 58%;
-    --primary-foreground:   190 90% 10%;
-    --primary-container:    189 60% 22%;
-    --on-primary-container: 187 80% 90%;
-    --secondary:            205 12% 74%;
-    --secondary-foreground: 205 20% 12%;
-    --secondary-container:  205 20% 24%;
-    --on-secondary-container:200 50% 92%;
-    --tertiary:             142 50% 66%;
-    --tertiary-foreground:  142 60% 12%;
-    --tertiary-container:   142 40% 22%;
+    --background:        220 49% 8%;
+    --foreground:        210 40% 94%;
+    --card:              219 44% 12%;
+    --card-foreground:   210 40% 94%;
+    --surface-container-low:     219 44% 12%;
+    --surface-container:         220 38% 15%;
+    --surface-container-high:    219 33% 19%;
+    --surface-container-highest: 218 29% 24%;
+    --primary:              213 94% 68%;
+    --primary-foreground:   222 60% 12%;
+    --primary-container:    224 60% 25%;
+    --on-primary-container: 214 90% 92%;
+    --secondary:            215 20% 72%;
+    --secondary-foreground: 220 30% 12%;
+    --secondary-container:  217 25% 24%;
+    --on-secondary-container:214 40% 92%;
+    --tertiary:             142 55% 62%;
+    --tertiary-foreground:  144 60% 10%;
+    --tertiary-container:   142 40% 20%;
     --on-tertiary-container:140 70% 88%;
-    --destructive:          0 100% 82%;
-    --destructive-foreground:0 100% 18%;
-    --destructive-container: 0 60% 24%;
-    --warning:              42 100% 72%;
-    --warning-container:    38 70% 24%;
-    --muted:                205 16% 16%;
-    --muted-foreground:     205 10% 72%;
-    --accent:               189 55% 26%;
-    --accent-foreground:    187 80% 90%;
-    --border:               205 14% 24%;
-    --input:                205 14% 24%;
-    --outline:              205 8% 54%;
-    --outline-variant:      205 12% 30%;
-    --ring:                 185 68% 58%;
-    --fab-gradient: linear-gradient(135deg, hsl(185 68% 48%) 0%, hsl(204 78% 60%) 100%);
+    --destructive:          0 90% 76%;
+    --destructive-foreground:0 80% 16%;
+    --destructive-container: 0 55% 24%;
+    --warning:              38 95% 62%;
+    --warning-container:    38 70% 22%;
+    --muted:                219 30% 16%;
+    --muted-foreground:     215 16% 70%;
+    --accent:               224 55% 28%;
+    --accent-foreground:    214 90% 92%;
+    --border:               218 25% 22%;
+    --input:                218 25% 22%;
+    --outline:              215 12% 52%;
+    --outline-variant:      217 20% 28%;
+    --ring:                 213 94% 68%;
+    --fab-gradient: linear-gradient(135deg, hsl(213 94% 62%) 0%, hsl(232 88% 70%) 100%);
     --fab-gradient-green: linear-gradient(135deg, hsl(142 50% 52%) 0%, hsl(165 55% 46%) 100%);
   }
 }
@@ -203,8 +203,8 @@
   /* ── Location badge colors ── */
   .loc-on-site { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300; }
   .loc-office   { @apply bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300; }
-  .loc-remote   { @apply bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300; }
-  .loc-travel   { @apply bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300; }
+  .loc-remote   { @apply bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300; }
+  .loc-travel   { @apply bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300; }
 
   /* ── Status ── */
   .status-submitted { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300; }
@@ -213,7 +213,7 @@
 
   /* ── Gradient text ── */
   .text-gradient-primary {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(204 82% 40%) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(238 70% 54%) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
