@@ -2,10 +2,9 @@ import SwiftUI
 
 // MARK: - Background
 
-/// A slow-moving mesh gradient. Liquid Glass needs colour behind it to refract.
+/// A static mesh gradient (no continuous animation, so it costs no CPU/battery). Liquid Glass needs colour behind it to refract.
 struct AuroraBackground: View {
     @Environment(\.colorScheme) private var scheme
-    @State private var phase = false
 
     var body: some View {
         let dark = scheme == .dark
@@ -16,18 +15,16 @@ struct AuroraBackground: View {
             : [Color(hex: 0xDCE8FF), Color(hex: 0xC9D8FF), Color(hex: 0xD3F0F5),
                Color(hex: 0xE4DDFF), Color(hex: 0xB5CCFF), Color(hex: 0xC4EEF0),
                Color(hex: 0xF0F4FF), Color(hex: 0xCFE0FF), Color(hex: 0xDDF6F2)]
-        let d: Float = phase ? 0.06 : -0.06
         MeshGradient(
             width: 3, height: 3,
             points: [
                 [0, 0], [0.5, 0], [1, 0],
-                [0, 0.5], [0.5 + d, 0.5 - d], [1, 0.5],
+                [0, 0.5], [0.54, 0.46], [1, 0.5],
                 [0, 1], [0.5, 1], [1, 1],
             ],
             colors: colors
         )
         .ignoresSafeArea()
-        .onAppear { withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) { phase = true } }
     }
 }
 
