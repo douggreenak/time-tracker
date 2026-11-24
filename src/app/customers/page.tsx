@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArchiveRestore, Building2, FolderKanban, Plus, Search, Trash2, AlertCircle, X } from "lucide-react";
+import { Archive, ArchiveRestore, Building2, Check, Pencil, FolderKanban, Plus, Search, Trash2, AlertCircle, X } from "lucide-react";
 import type { CustomerItem, TimeEntryItem } from "@/db/mock-data";
 import { TextCell, cellBase } from "@/components/ui/cell";
 import { useAuth } from "@/components/AuthProvider";
@@ -22,6 +22,9 @@ function CustomersPage() {
   const [newCustomer, setNewCustomer] = useState("");
   const [newProject, setNewProject] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftQb, setDraftQb] = useState("");
 
   const refreshEntries = () =>
     fetch("/api/time-entries")
@@ -77,6 +80,23 @@ function CustomersPage() {
     if (selected.jobs.some((j) => j.name.toLowerCase() === name.toLowerCase())) return setError(`“${name}” already exists for ${selected.name}.`);
     const r = await run(dir.createJob(selected.id, name));
     if (r.ok) setNewProject("");
+  };
+
+  const startEdit = () => {
+    if (!selected) return;
+    setDraftName(selected.name);
+    setDraftQb(selected.qbName);
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selected) return;
+    const name = draftName.trim();
+    const qbName = draftQb.trim();
+    if (!name || !qbName) return setError("Name and QuickBooks name can't be empty.");
+    if (dir.customers.some((c) => c.id !== selected.id && c.name.toLowerCase() === name.toLowerCase())) return setError(`“${name}” already exists.`);
+    const r = await run(dir.updateCustomer(selected.id, { name, qbName }));
+    if (r.ok) setEditing(false);
   };
 
   const confirmDelete = async (what: string, fn: () => Promise<unknown>) => {
@@ -148,7 +168,7 @@ function CustomersPage() {
                   <button
                     role="option"
                     aria-selected={active}
-                    onClick={() => setSelectedId(c.id)}
+                    onClick={() => { setSelectedId(c.id); setEditing(false); }}
                     className={cn(
                       "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
                       active ? "bg-primary/10" : "hover:bg-foreground/[0.04]",
@@ -185,17 +205,50 @@ function CustomersPage() {
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border/70 p-4">
                 <div className="min-w-[14rem] flex-1">
                   <div className="m3-label mb-1">Customer name</div>
-                  <div className="rounded-lg border border-outline-variant bg-surface-low focus-within:border-primary">
-                    <TextCell aria-label="Customer name" disabled={!canEdit} value={selected.name} onCommit={(v) => v.trim() && run(dir.updateCustomer(selected.id, { name: v.trim() }))} className="h-10 text-sm font-semibold" />
-                  </div>
+                  {editing ? (
+                    <input
+                      autoFocus
+                      aria-label="Customer name"
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(false); }}
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-surface-low px-3 text-sm font-semibold outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+                    />
+                  ) : (
+                    <div className="flex h-10 items-center text-sm font-semibold">{selected.name}</div>
+                  )}
                 </div>
                 <div className="min-w-[14rem] flex-1">
                   <div className="m3-label mb-1">QuickBooks name</div>
-                  <div className="rounded-lg border border-outline-variant bg-surface-low focus-within:border-primary">
-                    <TextCell aria-label="QuickBooks name" disabled={!canEdit} value={selected.qbName} onCommit={(v) => v.trim() && run(dir.updateCustomer(selected.id, { qbName: v.trim() }))} className="h-10 font-mono text-xs" />
-                  </div>
+                  {editing ? (
+                    <input
+                      aria-label="QuickBooks name"
+                      value={draftQb}
+                      onChange={(e) => setDraftQb(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(false); }}
+                      className="h-10 w-full rounded-lg border border-outline-variant bg-surface-low px-3 font-mono text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/25"
+                    />
+                  ) : (
+                    <div className="flex h-10 items-center font-mono text-xs">{selected.qbName}</div>
+                  )}
                 </div>
-                {canEdit && <div className="flex gap-2">
+                {canEdit && editing && (
+                  <div className="flex gap-2">
+                    <button onClick={saveEdit} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground hover:brightness-110">
+                      <Check className="h-3.5 w-3.5" />Save
+                    </button>
+                    <button onClick={() => setEditing(false)} className="inline-flex h-9 items-center rounded-full border border-outline-variant px-4 text-xs font-semibold hover:bg-foreground/[0.05]">
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {canEdit && !editing && <div className="flex gap-2">
+                  <button
+                    onClick={startEdit}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition-colors hover:bg-foreground/[0.05]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />Edit
+                  </button>
                   <button
                     onClick={() => run(dir.updateCustomer(selected.id, { isActive: !selected.isActive }))}
                     className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition-colors hover:bg-foreground/[0.05]"

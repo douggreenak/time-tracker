@@ -34,7 +34,7 @@ test.describe("sign in", () => {
     await page.goto("/customers");
     await expect(page.getByRole("heading", { name: "Customers & projects" })).toBeVisible();
     await expect(page.getByLabel("New customer name")).toBeVisible();
-    await expect(page.getByLabel("Customer name", { exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0);
     await page.goto("/tasks");
     await expect(page.getByLabel("New task name")).toBeVisible();
@@ -81,7 +81,7 @@ test.describe("sign in", () => {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
     await page.goto("/customers");
-    await expect(page.getByLabel("Customer name", { exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();
     await page.goto("/team");
     await expect(page.getByLabel("New person name")).toBeVisible(); // accountants can add people

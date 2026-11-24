@@ -224,7 +224,7 @@ test.describe("Enter submits", () => {
     const name = `Enter Co ${Date.now()}`;
     await page.getByLabel("New customer name").fill(name);
     await page.getByLabel("New customer name").press("Enter");
-    await expect(page.getByLabel("Customer name", { exact: true })).toHaveValue(name);
+    await expect(page.getByRole("option", { name: new RegExp(name) })).toBeVisible();
   });
 });
 

@@ -114,16 +114,17 @@ test("customers page: add customer, add project, rename, archive", async ({ page
   await open(page, "/customers", ACCOUNTANT);
   await page.getByLabel("New customer name").fill(`Zeta ${stamp}`);
   await page.getByLabel("New customer name").press("Enter");
-  await expect(page.getByLabel("Customer name", { exact: true })).toHaveValue(`Zeta ${stamp}`);
+  await expect(page.getByRole("option", { name: new RegExp(`Zeta ${stamp}`) })).toBeVisible();
 
   await page.getByLabel("New project name").fill("Bridge Inspection");
   await page.getByLabel("New project name").press("Enter");
   await expect(page.getByLabel("Project name")).toHaveValue("Bridge Inspection");
   await expect(page.getByText(`Zeta ${stamp}:Bridge Inspection`)).toBeVisible();
 
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   const name = page.getByLabel("Customer name", { exact: true });
   await name.fill(`Zeta Renamed ${stamp}`);
-  await name.press("Enter");
+  await page.getByRole("button", { name: "Save" }).click();
   // The QuickBooks name is independent and must keep matching QuickBooks.
   await expect(page.getByText(`Zeta ${stamp}:Bridge Inspection`)).toBeVisible();
   await expect(page.getByRole("option", { name: new RegExp(`Zeta Renamed ${stamp}`) })).toBeVisible();
