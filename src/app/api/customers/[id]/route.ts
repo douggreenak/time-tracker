@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
-import { requireUser } from "@/lib/auth";
+import { isManager, requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser();
   if (!g.ok) return g.res;
   try {
     const body = await request.json();
+    if (body.isActive !== undefined && !isManager(g.user))
+      return NextResponse.json({ success: false, error: "Only an accountant or admin can archive or restore." }, { status: 403 });
     const updates: Record<string, unknown> = {};
     for (const key of ["name", "qbName", "isActive"]) if (body[key] !== undefined) updates[key] = body[key];
     if (typeof updates.name === "string") {

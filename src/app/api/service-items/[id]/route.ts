@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser();
   if (!g.ok) return g.res;
   try {
     const body = await request.json();

@@ -11,7 +11,7 @@ import { cn } from "@/components/ui";
 
 function TasksPage() {
   const dir = useDirectory();
-  const { isManager: canEdit } = useAuth(); // everyone can add; changing or deleting is for accountants/admins
+  const { isManager: canEdit } = useAuth(); // everyone can add; everyone can rename; deleting is for accountants/admins
   const [name, setName] = useState("");
   const [qb, setQb] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -85,8 +85,8 @@ function TasksPage() {
               </tr>
               {shown.map((s) => (
                 <tr key={s.id} className="group bg-card hover:bg-surface-low">
-                  <td data-label="Task" className="span-2"><TextCell aria-label="Task name" disabled={!canEdit} value={s.name} onCommit={(v) => v.trim() && run(dir.updateService(s.id, { name: v.trim() }))} /></td>
-                  <td data-label="QuickBooks service item" className="span-2"><TextCell aria-label="QuickBooks item" disabled={!canEdit} value={s.qbItemName} onCommit={(v) => v.trim() && run(dir.updateService(s.id, { qbItemName: v.trim() }))} className="font-mono text-xs" /></td>
+                  <td data-label="Task" className="span-2"><TextCell aria-label="Task name" value={s.name} onCommit={(v) => v.trim() && run(dir.updateService(s.id, { name: v.trim() }))} /></td>
+                  <td data-label="QuickBooks service item" className="span-2"><TextCell aria-label="QuickBooks item" value={s.qbItemName} onCommit={(v) => v.trim() && run(dir.updateService(s.id, { qbItemName: v.trim() }))} className="font-mono text-xs" /></td>
                   <td className="text-center actions-cell">
                     {canEdit && <button
                       onClick={() => confirm(`Delete “${s.name}”? This can't be undone.`) && run(dir.deleteService(s.id))}
@@ -99,7 +99,7 @@ function TasksPage() {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">Tasks with logged time can&apos;t be deleted. Billable and hours are set on each timesheet entry. {canEdit ? "Edits save when you leave a cell." : "You can add tasks; accountants and admins can change or delete them."}</div>
+        <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">Tasks with logged time can&apos;t be deleted. Billable and hours are set on each timesheet entry. {"Edits save when you leave a cell. "}{!canEdit && "Accountants and admins can delete tasks."}</div>
       </section>
     </div>
   );

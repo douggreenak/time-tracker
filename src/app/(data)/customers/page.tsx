@@ -14,7 +14,7 @@ const hours = (min: number) => (min / 60).toFixed(2);
 function CustomersPage() {
   const dir = useDirectory();
   const { isManager } = useAuth();
-  const canEdit = isManager; // everyone can add; renaming, archiving and deleting are for accountants/admins
+  const canEdit = isManager; // everyone can add and rename; archiving and deleting are for accountants/admins
   const [entries, setEntries] = useState<TimeEntryItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [query, setQuery] = useState("");
@@ -232,7 +232,7 @@ function CustomersPage() {
                     <div className="flex h-10 items-center font-mono text-xs">{selected.qbName}</div>
                   )}
                 </div>
-                {canEdit && editing && (
+                {editing && (
                   <div className="flex gap-2">
                     <button onClick={saveEdit} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground hover:brightness-110">
                       <Check className="h-3.5 w-3.5" />Save
@@ -242,13 +242,14 @@ function CustomersPage() {
                     </button>
                   </div>
                 )}
-                {canEdit && !editing && <div className="flex gap-2">
+                {!editing && <div className="flex gap-2">
                   <button
                     onClick={startEdit}
                     className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition-colors hover:bg-foreground/[0.05]"
                   >
                     <Pencil className="h-3.5 w-3.5" />Edit
                   </button>
+                  {canEdit && <>
                   <button
                     onClick={() => run(dir.updateCustomer(selected.id, { isActive: !selected.isActive }))}
                     className="inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition-colors hover:bg-foreground/[0.05]"
@@ -261,6 +262,7 @@ function CustomersPage() {
                   >
                     <Trash2 className="h-3.5 w-3.5" />Delete
                   </button>
+                </>}
                 </div>}
               </div>
 
@@ -299,7 +301,7 @@ function CustomersPage() {
                     </tr>
                     {selected.jobs.map((j) => (
                       <tr key={j.id} className={cn("group bg-card hover:bg-surface-low", !j.isActive && "opacity-60")}>
-                        <td data-label="Project" className="span-2"><TextCell aria-label="Project name" disabled={!canEdit} value={j.name} onCommit={(v) => v.trim() && run(dir.updateJob(j.id, { name: v.trim() }))} /></td>
+                        <td data-label="Project" className="span-2"><TextCell aria-label="Project name" value={j.name} onCommit={(v) => v.trim() && run(dir.updateJob(j.id, { name: v.trim() }))} /></td>
                         <td data-label="QuickBooks job" className="px-2 font-mono text-[11px] text-muted-foreground span-2 text-xs">{j.fullQbJobName}</td>
                         <td data-label="Hours" className="px-2 text-right font-mono text-[13px] tabular-nums">{hours(minutesBy.byJob.get(j.id) ?? 0)}</td>
                         <td data-label="Status" className="px-2">
@@ -329,7 +331,7 @@ function CustomersPage() {
                 </table>
               </div>
               <div className="border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">
-                Customers or projects with logged time can&apos;t be deleted — archive them to hide them from the timesheet dropdowns. {canEdit ? "Edits save when you leave a cell." : "You can add customers and projects; accountants and admins can rename, archive or delete them."}
+                Customers or projects with logged time can&apos;t be deleted — archive them to hide them from the timesheet dropdowns. {canEdit ? "Edits save when you leave a cell." : "You can add and rename customers and projects; accountants and admins can archive or delete them."}
               </div>
             </>
           )}

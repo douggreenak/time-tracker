@@ -30,15 +30,16 @@ test.describe("sign in", () => {
     await expect(page.getByRole("heading", { name: "Review & export" })).toBeVisible();
     await expect(page.getByText("Billable value")).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Value" })).toHaveCount(0);
-    // Customers & Tasks: can look and add, but not rename / archive / delete.
+    // Customers & Tasks: can add and rename, but not archive / delete.
     await page.goto("/customers");
     await expect(page.getByRole("heading", { name: "Customers & projects" })).toBeVisible();
     await expect(page.getByLabel("New customer name")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Archive" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Delete/ })).toHaveCount(0);
     await page.goto("/tasks");
     await expect(page.getByLabel("New task name")).toBeVisible();
-    await expect(page.getByLabel("Task name", { exact: true }).first()).toBeDisabled();
+    await expect(page.getByLabel("Task name", { exact: true }).first()).toBeEnabled();
     await expect(page.getByRole("button", { name: /^Delete / })).toHaveCount(0);
     // Team: a read-only directory with no rates.
     await page.goto("/team");
@@ -49,7 +50,9 @@ test.describe("sign in", () => {
     expect(seenByEngineer.every((u: { defaultHourlyRate: number }) => u.defaultHourlyRate === 0)).toBe(true);
     expect((await page.request.get("/api/admin/backup")).status()).toBe(403);
     const cust = (await (await page.request.get("/api/customers")).json()).data[0];
-    expect((await page.request.put(`/api/customers/${cust.id}`, { data: { name: "Renamed" } })).status()).toBe(403);
+    // Engineers may rename (same name here, to leave the data alone) but not archive or delete.
+    expect((await page.request.put(`/api/customers/${cust.id}`, { data: { name: cust.name } })).status()).toBe(200);
+    expect((await page.request.put(`/api/customers/${cust.id}`, { data: { isActive: false } })).status()).toBe(403);
     expect((await page.request.delete(`/api/customers/${cust.id}`)).status()).toBe(403);
   });
 
