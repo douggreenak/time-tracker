@@ -179,7 +179,7 @@ struct ReviewDetail: View {
                                             .buttonStyle(.glassProminent).tint(.green)
                                     }
                                     if e.status == "approved" {
-                                        Button { setStatus(.exported) } label: { Label("Mark exported", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
+                                        Button { setStatus(.exported) } label: { Label("Mark sent to QuickBooks", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
                                             .buttonStyle(.glassProminent).tint(.purple)
                                     }
                                     if e.status != "draft" {

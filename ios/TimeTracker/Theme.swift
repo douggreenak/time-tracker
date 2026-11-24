@@ -133,6 +133,8 @@ struct OptionMenu: View {
     let options: [Option]
     var noneLabel: String? = "None"
     var disabled = false
+    var addTitle: String? = nil
+    var onAdd: (() -> Void)? = nil
 
     private var current: String {
         options.first { $0.id == selection }?.label ?? (noneLabel ?? "Choose")
@@ -145,6 +147,10 @@ struct OptionMenu: View {
             }
             ForEach(options) { o in
                 Button { selection = o.id } label: { if selection == o.id { Label(o.label, systemImage: "checkmark") } else { Text(o.label) } }
+            }
+            if let onAdd {
+                Divider()
+                Button(action: onAdd) { Label(addTitle ?? "Add new…", systemImage: "plus") }
             }
         } label: {
             let big = size.isAccessibilitySize

@@ -90,7 +90,7 @@ struct MainTabs: View {
             Tab("Account", systemImage: "person.crop.circle", value: 4) { AccountView() }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory(isEnabled: app.timer != nil && tab != 0) { TimerAccessory() }
+        .tabViewBottomAccessory(isEnabled: app.timer != nil && tab != 0) { TimerAccessory { withAnimation { tab = 0 } } }
         .overlay(alignment: .top) {
             if let t = app.toast {
                 Text(t).font(.subheadline.weight(.medium)).padding(.horizontal, 16).padding(.vertical, 10)

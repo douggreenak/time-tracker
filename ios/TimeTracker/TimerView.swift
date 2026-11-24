@@ -186,14 +186,22 @@ struct TimerView: View {
 /// Compact running-timer pill shown above the tab bar on other tabs.
 struct TimerAccessory: View {
     @Environment(AppState.self) private var app
+    var open: () -> Void = {}
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: app.timer?.isRunning == true ? "timer" : "pause.circle").foregroundStyle(.tint)
-            ClockText(running: app.timer?.isRunning == true).font(.headline)
-            Spacer()
-            Text(app.timer?.isRunning == true ? "Running" : "Paused").font(.caption).foregroundStyle(.secondary)
+        Button(action: open) {
+            HStack(spacing: 10) {
+                Image(systemName: app.timer?.isRunning == true ? "timer" : "pause.circle").foregroundStyle(.tint)
+                ClockText(running: app.timer?.isRunning == true).font(.headline)
+                Spacer()
+                Text(app.timer?.isRunning == true ? "Running" : "Paused").font(.caption).foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 16)
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the timer")
     }
 }
 

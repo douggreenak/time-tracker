@@ -84,7 +84,7 @@ struct DataView: View {
                 }
             }
             .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
-                TextField("Name", text: $text)
+                TextField("Name", text: $text).textInputAutocapitalization(.words)
                 Button("Add") { submitPrompt() }
                 Button("Cancel", role: .cancel) {}
             } message: { if case .task = prompt { Text("New tasks are billable by default.") } }

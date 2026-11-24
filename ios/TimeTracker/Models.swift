@@ -71,7 +71,7 @@ struct FlagNote: Codable, Hashable {
 
 enum EntryStatus: String, CaseIterable {
     case draft, submitted, approved, exported
-    var label: String { rawValue.capitalized }
+    var label: String { self == .exported ? "In QuickBooks" : rawValue.capitalized }
 }
 
 enum LocationKind: String, CaseIterable, Identifiable {

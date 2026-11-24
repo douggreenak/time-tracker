@@ -255,22 +255,28 @@ final class AppState {
 
     // MARK: Directory
 
-    func addCustomer(_ name: String) async throws {
-        if let c: Customer = try await api.send("POST", "api/customers", body: ["name": name, "qbName": name]) {
+    @discardableResult
+    func addCustomer(_ name: String) async throws -> String? {
+        let c: Customer? = try await api.send("POST", "api/customers", body: ["name": name, "qbName": name])
+        if let c {
             customers.append(c)
             customers.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
+        return c?.id
     }
 
-    func addProject(_ name: String, to customerId: String) async throws {
-        let _: Job? = try await api.send("POST", "api/customers", body: ["type": "job", "name": name, "customerId": customerId])
+    @discardableResult
+    func addProject(_ name: String, to customerId: String) async throws -> String? {
+        let j: Job? = try await api.send("POST", "api/customers", body: ["type": "job", "name": name, "customerId": customerId])
         if let list: [Customer] = try? await api.get("api/customers") { customers = list }
+        return j?.id
     }
 
-    func addTask(_ name: String, billable: Bool) async throws {
-        if let s: ServiceItem = try await api.send("POST", "api/service-items", body: ["name": name, "qbItemName": name, "defaultBillable": billable]) {
-            services.append(s)
-        }
+    @discardableResult
+    func addTask(_ name: String, billable: Bool) async throws -> String? {
+        let s: ServiceItem? = try await api.send("POST", "api/service-items", body: ["name": name, "qbItemName": name, "defaultBillable": billable])
+        if let s { services.append(s) }
+        return s?.id
     }
 
     func setCustomerActive(_ c: Customer, _ active: Bool) async throws {
