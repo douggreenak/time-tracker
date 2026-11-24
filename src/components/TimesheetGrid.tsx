@@ -754,6 +754,11 @@ export function TimesheetGrid({
               </td>
             </tr>
 
+            {/* A little breathing room between the entry form and the weeks below it. */}
+            <tr aria-hidden="true" className="group-row max-md:hidden" data-testid="entry-week-gap">
+              <td colSpan={COLUMNS.length} className="h-4 border-b border-border bg-surface-container/60 p-0" />
+            </tr>
+
             {visible.map((e, i) => {
               const locked = e.status === "approved" || e.status === "exported"; // can edit (flags accountant) but not delete
               const wk = weekStart(e.date);
