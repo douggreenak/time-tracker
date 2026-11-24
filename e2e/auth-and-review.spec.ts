@@ -23,7 +23,7 @@ test.describe("sign in", () => {
 
   test("engineers see every tab; pay values, editing others' setup and admin tools stay hidden", async ({ page }) => {
     await loginAs(page, ENGINEER);
-    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
+    for (const name of ["Timesheet", "Review & export", "Data", "Team"]) {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
     await page.goto("/accountant");
@@ -77,7 +77,7 @@ test.describe("sign in", () => {
 
   test("accountants can edit customers and tasks but only read the team; admins manage everyone", async ({ page }) => {
     await loginAs(page, ACCOUNTANT);
-    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team"]) {
+    for (const name of ["Timesheet", "Review & export", "Data", "Team"]) {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
     await page.goto("/customers");
@@ -85,10 +85,10 @@ test.describe("sign in", () => {
     await expect(page.getByRole("button", { name: "Archive" })).toBeVisible();
     await page.goto("/team");
     await expect(page.getByLabel("New person name")).toBeVisible(); // accountants can add people
-    await expect(page.getByRole("link", { name: "Data" })).toHaveCount(0); // ...but backup/restore is admin-only
+    await expect(page.getByRole("link", { name: "Backup" })).toHaveCount(0); // ...but backup/restore is admin-only
     await page.request.post("/api/auth/logout");
     await loginAs(page, ADMIN);
-    for (const name of ["Timesheet", "Review & export", "Customers", "Tasks", "Team", "Data"]) {
+    for (const name of ["Timesheet", "Review & export", "Data", "Team", "Backup"]) {
       await expect(page.getByRole("link", { name })).toBeVisible();
     }
   });
@@ -198,4 +198,14 @@ test.describe("stopwatch lives in the database", () => {
     page.once("dialog", (d) => d.accept());
     await page.getByRole("button", { name: /^Discard/ }).click();
   });
+});
+
+test("Data tab holds Customers and Tasks as sub-tabs", async ({ page }) => {
+  await loginAs(page, ACCOUNTANT, "/customers");
+  const sub = page.getByRole("navigation", { name: "Data" });
+  await expect(sub.getByRole("link", { name: "Customers" })).toHaveAttribute("aria-current", "page");
+  await sub.getByRole("link", { name: "Tasks" }).click();
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Data" })).toHaveAttribute("aria-current", "page");
 });

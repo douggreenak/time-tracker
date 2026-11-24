@@ -12,8 +12,7 @@ test("very long names don't break the layout (desktop + phone)", async ({ page }
   const long = "Northern Pacific Interconnect & Subsea Cable Landing Authority of the Greater Aleutian Region";
   await page.getByLabel("New customer name").fill(long);
   await page.getByLabel("New customer name").press("Enter");
-  await expect(page.getByRole("heading", { name: "Customers & projects" })).toBeVisible();
-  await expect(page.getByLabel("New project name")).toBeVisible(); // wait until it's selected
+  await expect(page.getByRole("option", { selected: true, name: new RegExp(long.slice(0, 30)) })).toBeVisible(); // wait until it's selected
   await page.getByLabel("New project name").fill("Phase 3 — Directional boring crossing under the Susitna River floodplain, including permitting");
   await page.getByLabel("New project name").press("Enter");
   await expect(page.locator('input[aria-label="Project name"][value*="Directional boring"]')).toHaveCount(1);

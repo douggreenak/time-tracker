@@ -9,7 +9,7 @@ test.describe("access & errors", () => {
   test("an engineer on an admin-only page sees 'Something went wrong' with a way back", async ({ page }) => {
     await loginAs(page, ENGINEER, "/admin");
     await expect(page.getByRole("heading", { name: "Something went wrong" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Data" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Backup" })).toHaveCount(0);
     await page.getByRole("link", { name: "Back to timesheet" }).click();
     await expect(page).toHaveURL(/\/engineer$/);
     await expect(page.getByLabel("New entry hours")).toBeVisible();
@@ -23,7 +23,7 @@ test.describe("access & errors", () => {
 
   test("the data page works for admins and has a styled file button", async ({ page }) => {
     await loginAs(page, ADMIN, "/admin");
-    await expect(page.getByRole("heading", { name: "Data", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Backup", exact: true })).toBeVisible();
     const choose = page.getByTestId("backup-choose");
     await expect(choose).toBeVisible();
     // The ugly native file input is hidden; the button opens the chooser.
