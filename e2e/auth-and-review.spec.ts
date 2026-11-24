@@ -212,3 +212,16 @@ test("Data tab holds Customers and Tasks as sub-tabs", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Data" })).toHaveAttribute("aria-current", "page");
 });
+
+test("signing in again always lands on the timesheet", async ({ page }) => {
+  await loginAs(page, ACCOUNTANT, "/accountant");
+  await expect(page.getByRole("heading", { name: "Review & export" })).toBeVisible();
+  await page.getByRole("button", { name: /Account menu/ }).click();
+  await page.getByTestId("sign-out").click();
+  await expect(page.getByLabel(/password/i).first()).toBeVisible();
+  await page.getByRole("combobox").first().click();
+  await page.getByRole("option", { name: /Marguerite/ }).click();
+  await page.getByLabel(/password/i).first().fill("demo1234");
+  await page.getByRole("button", { name: /sign in/i }).click();
+  await expect(page).toHaveURL(/\/engineer$/);
+});

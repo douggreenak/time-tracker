@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Eye, EyeOff, LogIn } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { ThemeToggle } from "./ThemeToggle";
@@ -16,6 +17,7 @@ const field =
 
 export function LoginScreen() {
   const { refresh } = useAuth();
+  const router = useRouter();
   const [people, setPeople] = useState<Person[] | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -78,6 +80,8 @@ export function LoginScreen() {
       try {
         localStorage.setItem(LAST_KEY, j.data.id);
       } catch {}
+      // Every fresh sign-in starts at the timesheet, not wherever the last session ended.
+      router.replace("/engineer");
       await refresh();
     } catch {
       setError("Network error — check your connection.");
