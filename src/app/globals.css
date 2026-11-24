@@ -250,8 +250,9 @@
     transition-duration: 150ms, 150ms, 150ms, 150ms, 150ms, 150ms, 250ms;
     transition-timing-function: ease-out, ease-out, ease-out, ease-out, ease-out, ease-out, cubic-bezier(0.34, 1.4, 0.64, 1);
   }
-  /* Press-shrink suits compact buttons, not full-width rows, list items or menu entries. */
-  button:active:not(:disabled):not(.w-full):not([role="option"]):not([role="menuitem"]) { transform: scale(0.96); }
+  /* Press-shrink is only for compact pill / icon buttons. Wide rows (week headers, list items, menu
+     entries) must never scale, so this is opt-in via rounded-full rather than opt-out. */
+  button.rounded-full:active:not(:disabled):not(.w-full) { transform: scale(0.96); }
   h1 { font-family: "Google Sans Display", "Google Sans", system-ui, sans-serif; letter-spacing: -0.025em; }
 
   /* ── Pulse ring (active timer) ── */
