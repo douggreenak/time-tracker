@@ -40,3 +40,8 @@ next-env.d.ts
 
 # local embedded database
 /.data/
+
+# iOS
+ios/build/
+ios/**/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
