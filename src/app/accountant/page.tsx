@@ -720,30 +720,34 @@ function AccountantPage() {
             const waiting = w.people.reduce((n, p) => n + p.submittedIds.length, 0);
             return (
               <div key={w.wk} className="border-b border-border/70 last:border-b-0" data-week={w.wk}>
-                <button
-                  type="button"
-                  onClick={() => setWeekOpen((o) => ({ ...o, [w.wk]: !open }))}
-                  aria-expanded={open}
-                  data-testid="pay-week-toggle"
-                  className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 bg-surface-container px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.04]"
-                >
-                  {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                  <span className="text-sm font-semibold">{weekRangeLabel(w.wk)}</span>
-                  {weekTag(w.wk) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{weekTag(w.wk)}</span>}
-                  <span className="font-mono text-sm font-semibold tabular-nums">{hrs(w.total)} h</span>
-                  <span className="text-xs text-muted-foreground">{hrs(w.billable)} h billable · {w.people.length} {w.people.length === 1 ? "person" : "people"}</span>
-                  {waiting > 0 && <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{waiting} to review</span>}
-                </button>
-                {waiting > 0 && (
-                  <div className="flex justify-end border-t border-border/70 bg-surface-container/60 px-3 py-1.5">
-                    <button
-                      onClick={() => setStatusFor(w.people.flatMap((p) => p.submittedIds), "approved", `Approved everyone’s week of ${weekRangeLabel(w.wk)} (${waiting} ${waiting === 1 ? "entry" : "entries"}).`)}
-                      aria-label={`Approve everyone’s week of ${weekRangeLabel(w.wk)}`}
-                      data-testid="approve-whole-week"
-                      className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"
-                    ><CheckCheck className="h-3.5 w-3.5" />Approve whole week ({waiting})</button>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-surface-container pr-3 hover:bg-foreground/[0.03]">
+                  <button
+                    type="button"
+                    onClick={() => setWeekOpen((o) => ({ ...o, [w.wk]: !open }))}
+                    aria-expanded={open}
+                    data-testid="pay-week-toggle"
+                    className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 text-left"
+                  >
+                    {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                    <span className="w-32 shrink-0 text-sm font-semibold">{weekRangeLabel(w.wk)}</span>
+                    <span className="w-[4.5rem] shrink-0">
+                      {weekTag(w.wk) && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">{weekTag(w.wk)}</span>}
+                    </span>
+                    <span className="w-20 shrink-0 text-right font-mono text-sm font-semibold tabular-nums">{hrs(w.total)} h</span>
+                    <span className="text-xs text-muted-foreground">{hrs(w.billable)} h billable · {w.people.length} {w.people.length === 1 ? "person" : "people"}</span>
+                  </button>
+                  {waiting > 0 && (
+                    <div className="ml-auto flex shrink-0 items-center gap-3 py-1.5">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{waiting} to review</span>
+                      <button
+                        onClick={() => setStatusFor(w.people.flatMap((p) => p.submittedIds), "approved", `Approved everyone’s week of ${weekRangeLabel(w.wk)} (${waiting} ${waiting === 1 ? "entry" : "entries"}).`)}
+                        aria-label={`Approve everyone’s week of ${weekRangeLabel(w.wk)}`}
+                        data-testid="approve-whole-week"
+                        className="inline-flex h-8 items-center gap-1 rounded-full bg-tertiary-container px-3 text-xs font-semibold text-tertiary-on-container transition hover:brightness-95"
+                      ><CheckCheck className="h-3.5 w-3.5" />Approve whole week ({waiting})</button>
+                    </div>
+                  )}
+                </div>
                 {open && (
                   <div className="stack-table-wrap overflow-x-auto">
                     <table className="stack-table w-full min-w-[36rem] border-separate border-spacing-0 text-left text-[13px]">
