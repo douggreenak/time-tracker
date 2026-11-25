@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Plus, Printer, Trash2, Undo2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Plus, Printer, Trash2, X } from "lucide-react";
 import type { InvoiceRecord } from "@/db/mock-data";
-import { useAuth } from "@/components/AuthProvider";
 import { PageLoader } from "@/components/ui/loader";
 import { cn } from "@/components/ui";
 import { type InvoiceData, type PartRow, blankPart, money, partTotal, withParts } from "@/lib/invoice";
@@ -34,8 +33,7 @@ const field = "h-9 rounded-full border border-outline-variant bg-surface-low px-
 const dateLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
 
 export default function BillingPage() {
-  const { isManager } = useAuth();
-  const [[from, to], setRange] = useState<[string, string]>(() => PRESETS[3].range());
+    const [[from, to], setRange] = useState<[string, string]>(() => PRESETS[3].range());
   const [includeInvoiced, setIncludeInvoiced] = useState(false);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -102,10 +100,10 @@ export default function BillingPage() {
   };
 
   const undoInvoice = async (inv: InvoiceRecord) => {
-    if (!confirm(`Undo the ${inv.customerName} invoice for ${dateLabel(inv.dateFrom)} – ${dateLabel(inv.dateTo)}? Its time becomes “not invoiced” again.`)) return;
+    if (!confirm(`Delete the ${inv.customerName} invoice for ${dateLabel(inv.dateFrom)} – ${dateLabel(inv.dateTo)}? Its time goes back to “not invoiced” so it can be invoiced again.`)) return;
     const res = await fetch(`/api/invoices/${inv.id}`, { method: "DELETE" });
-    if (!res.ok) return setMsg({ type: "error", text: "Couldn't undo that invoice." });
-    setMsg({ type: "success", text: "Invoice removed; its time is waiting to be invoiced again." });
+    if (!res.ok) return setMsg({ type: "error", text: "Couldn't delete that invoice." });
+    setMsg({ type: "success", text: "Invoice deleted; its time is waiting to be invoiced again." });
     await Promise.all([loadRows(), loadHistory()]);
   };
 
@@ -220,7 +218,7 @@ export default function BillingPage() {
                   <td className="px-2 text-muted-foreground">{new Date(h.createdAt).toLocaleDateString()}{h.createdBy ? ` · ${h.createdBy}` : ""}</td>
                   <td className="px-2 text-right">
                     <a href={`/api/invoices/${h.id}/excel`} download aria-label={`Download ${h.customerName} invoice`} className="mr-1 inline-flex h-7 items-center gap-1 rounded-full px-2 font-semibold text-primary hover:bg-primary/10"><Download className="h-3.5 w-3.5" />Excel</a>
-                    {isManager && <button onClick={() => undoInvoice(h)} aria-label={`Undo ${h.customerName} invoice`} title="Undo — marks its time as not invoiced" className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Undo2 className="h-3.5 w-3.5" /></button>}
+                    <button onClick={() => undoInvoice(h)} aria-label={`Delete ${h.customerName} invoice`} title="Delete invoice — its time becomes not invoiced again" className="inline-flex h-7 items-center gap-1 rounded-full px-2 font-semibold text-destructive hover:bg-destructive/10"><Trash2 className="h-3.5 w-3.5" />Delete</button>
                   </td>
                 </tr>
               ))}

@@ -12,9 +12,9 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   return NextResponse.json({ success: true, data: inv });
 }
 
-/** Undoes an invoice: removes the record and marks its time as not invoiced again. */
+/** Deletes an invoice: removes the record and marks its time as not invoiced again. */
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ manager: true });
+  const g = await requireUser();
   if (!g.ok) return g.res;
   if (!(await dataStore.deleteInvoice(params.id))) return NextResponse.json({ success: false, error: "Invoice not found" }, { status: 404 });
   return NextResponse.json({ success: true });

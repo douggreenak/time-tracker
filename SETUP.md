@@ -5,7 +5,7 @@
 >   (persists across restarts, no account needed); with `DATABASE_URL` it uses Neon. Tables are created automatically.
 > - **Sign-in:** each person has their own password. Accountants/admins manage people, rates and passwords; engineers only see their own time (everyone can create invoices on the Billing page).
 >   Set `ENABLE_DEMO_DATA=false` for a blank start — the first visit creates the first admin. With demo data every sample password is `demo1234`.
-> - **Invoices:** *Billing* builds per-customer invoices from billable time; *Mark as invoiced* flags the time so it isn't billed twice. Invoiced time can still be edited, but only accountants/admins can delete it or undo an invoice.
+> - **Invoices:** *Billing* builds per-customer invoices from billable time; *Mark as invoiced* flags the time so it isn't billed twice. Invoiced time can still be edited, but anyone can delete an invoice (its time goes back to not invoiced).
 > - Run the browser tests with `npm run test:e2e` (uses a throwaway in-memory database).
 
 

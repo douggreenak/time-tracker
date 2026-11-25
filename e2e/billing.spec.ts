@@ -126,17 +126,19 @@ test("create invoices in the UI, edit parts, download, mark invoiced, then undo"
 
   // undo puts the time back
   page.once("dialog", (d) => d.accept());
-  await page.getByRole("button", { name: "Undo PINE ELECTRIC invoice" }).first().click();
+  await page.getByRole("button", { name: "Delete PINE ELECTRIC invoice" }).first().click();
   await expect(page.getByTestId("billing-row").filter({ hasText: "PINE ELECTRIC" })).toContainText("TRUE");
 });
 
-test("everyone can use billing, but only managers undo invoices", async ({ page }) => {
+test("everyone can use billing and delete an invoice", async ({ page }) => {
   await loginAs(page, ENGINEER, "/billing");
   await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible();
   await expect(page.getByTestId("create-invoices")).toBeVisible();
   const inv = (await (await page.request.get("/api/invoices")).json()).data as { id: string }[];
   expect(inv.length).toBeGreaterThan(0);
-  expect((await page.request.delete(`/api/invoices/${inv[0].id}`)).status()).toBe(403);
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: /^Delete .* invoice$/ }).first().click();
+  await expect.poll(async () => ((await (await page.request.get("/api/invoices")).json()).data as unknown[]).length).toBe(inv.length - 1);
 });
 
 test("lump sum, other and held lists are editable", async ({ page }) => {
