@@ -68,6 +68,8 @@ struct AccountView: View {
                     Button(role: .destructive) { confirmSignOut = true } label: { Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right") }.glassRow()
                 }
             }
+            .contentMargins(.top, 0, for: .scrollContent)
+            .listSectionSpacing(.compact)
             .screenBackground()
             .screenHeader("Account")
             .sheet(isPresented: $changingPassword) { PasswordSheet() }

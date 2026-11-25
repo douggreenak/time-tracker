@@ -86,6 +86,8 @@ struct TimesheetView: View {
                 }
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListHeaderHeight, 0)
+            .listSectionSpacing(.custom(0))
             .screenBackground()
             .refreshable { await app.refresh() }
             .screenHeader("Timesheet") {

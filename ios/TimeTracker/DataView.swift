@@ -70,6 +70,8 @@ struct DataView: View {
                     }
                 }
             }
+            .contentMargins(.top, 0, for: .scrollContent)
+            .listSectionSpacing(.compact)
             .screenBackground()
             .refreshable { await app.refresh() }
             .screenHeader("Data") {

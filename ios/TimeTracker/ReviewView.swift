@@ -36,6 +36,16 @@ struct ReviewView: View {
             List {
                 Section {
                     VStack(spacing: 14) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                            TextField("Search people, customers, notes", text: $search)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            if !search.isEmpty {
+                                Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }.buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .background(.ultraThinMaterial, in: Capsule())
                         Picker("Filter", selection: $filter) { ForEach(Filter.allCases) { Text($0.rawValue).tag($0) } }
                             .pickerStyle(.segmented)
                         stats
@@ -73,8 +83,9 @@ struct ReviewView: View {
                 }
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListHeaderHeight, 0)
+            .listSectionSpacing(.custom(0))
             .screenBackground()
-            .searchable(text: $search, prompt: "Search people, customers, notes")
             .refreshable { await app.refresh() }
             .screenHeader("Review")
             .sheet(item: $detail) { e in ReviewDetail(entryId: e.id) }

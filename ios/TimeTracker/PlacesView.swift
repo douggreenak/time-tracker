@@ -44,15 +44,21 @@ struct PlacesView: View {
 
                     Section {
                         Button(role: .destructive) { confirmErase = true } label: {
-                            Label("Delete location history", systemImage: "trash")
-                        }.glassRow()
-                    } footer: {
+                            Label("Delete location history", systemImage: "trash").rowCard(padding: 14)
+                        }
+                        .buttonStyle(.plain).foregroundStyle(.red)
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                         Text("Location history stays on this iPhone, is never uploaded, and is deleted automatically after 30 days.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(.footnote).foregroundStyle(Color.primary.opacity(0.72))
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 24, trailing: 20))
                     }
                 }
             }
             .listStyle(.plain)
+            .environment(\.defaultMinListHeaderHeight, 0)
+            .listSectionSpacing(.custom(0))
             .screenBackground()
             .screenHeader("Places") {
                 Button { dismiss() } label: { Label("Done", systemImage: "xmark") }
