@@ -8,7 +8,7 @@ import { exportData } from "@/lib/snapshots";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export const CLEAR_PHRASE = "DELETE ALL DATA";
+const CLEAR_PHRASE = "DELETE ALL DATA";
 
 /**
  * Deletes everything (people, customers, time, invoices, lists). Admin only, and it needs the admin's own password
