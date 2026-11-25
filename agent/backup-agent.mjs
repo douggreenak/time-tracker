@@ -3,7 +3,7 @@
  * TimeTrack backup agent: runs on a Linux PC, copies backups from the TimeTrack web app onto an SMB share.
  *
  * Settings (share, folder, schedule, how many to keep) are managed in the web app's Admin page; this program
- * checks in every minute, applies them, and reports each run back. The SMB password can also be set there (sent over HTTPS); SMB_PASSWORD in the env file is the fallback.
+ * checks in once per scheduled run (or once a week, whichever is sooner), applies them, and reports each run back. The SMB password can also be set there (sent over HTTPS); SMB_PASSWORD in the env file is the fallback.
  *
  * Needs: Node 18+, and `smbclient` (Debian/Ubuntu: sudo apt install smbclient).
  * Environment: TT_URL, TT_TOKEN, SMB_PASSWORD  (see agent.env.example).  Flag: --once (one check, then exit).
@@ -12,14 +12,14 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { decideRun, folderParts, parseLs, safeShare, stamp, toPrune, FILE_RE } from "./lib.mjs";
+import { decideRun, nextCheckMinutes, folderParts, parseLs, safeShare, stamp, toPrune, FILE_RE } from "./lib.mjs";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const URL_BASE = (process.env.TT_URL || "").replace(/\/+$/, "");
 const TOKEN = process.env.TT_TOKEN || "";
 const SMB_PASSWORD = process.env.SMB_PASSWORD || ""; // fallback when the web app has no password set
 const SMBCLIENT = process.env.TT_SMBCLIENT || "smbclient";
-const POLL = Math.max(10, Number(process.env.TT_POLL_SECONDS) || 60) * 1000;
+const FIXED_POLL = Number(process.env.TT_POLL_SECONDS) > 0 ? Math.max(10, Number(process.env.TT_POLL_SECONDS)) * 1000 : 0; // testing only; normally the agent sleeps until the next scheduled run (max 1 week)
 const STATE_DIR = process.env.TT_STATE_DIR || path.join(os.homedir(), ".timetrack-agent");
 const STATE_FILE = path.join(STATE_DIR, "state.json");
 
@@ -95,11 +95,13 @@ async function backup(cfg, reason) {
 }
 
 let busy = false;
+let lastCfg = null;
 async function tick() {
   if (busy) return;
   busy = true;
   try {
     const cfg = (await (await api("/api/agent/config")).json()).data;
+    lastCfg = cfg;
     const state = loadState();
     if (cfg.updatedAt && cfg.updatedAt !== state.applied) {
       await report({ appliedAt: cfg.updatedAt });
@@ -128,8 +130,15 @@ async function tick() {
 }
 
 log(`TimeTrack backup agent ${VERSION} → ${URL_BASE}`);
-await tick();
-if (!process.argv.includes("--once")) {
-  setInterval(tick, POLL);
+if (process.argv.includes("--once")) await tick();
+else {
   process.on("SIGTERM", () => process.exit(0));
+  // Check in once per scheduled run, or once a week, whichever comes first (15 min retry after a failure or lost connection).
+  const loop = async () => {
+    await tick();
+    const mins = FIXED_POLL ? FIXED_POLL / 60000 : lastCfg ? nextCheckMinutes(lastCfg, loadState()) : 15;
+    log(`next check in ${Math.round(mins)} min`);
+    setTimeout(loop, mins * 60000);
+  };
+  await loop();
 }

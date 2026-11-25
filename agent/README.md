@@ -2,7 +2,7 @@
 
 A small Node program that runs on a Linux PC and copies backups from the TimeTrack web app to a Windows/Samba network share.
 
-- **Everything is managed in the web app**: Admin → *Backup agent (SMB share)* — share, folder, user, schedule, days, how many to keep, "Back up now". The agent checks in every minute, applies the settings, and reports every run (and whether it's online) back to that page.
+- **Everything is managed in the web app**: Admin → *Backup agent (SMB share)* — share, folder, user, schedule, days, how many to keep, "Back up now". The agent checks in once per scheduled run (or once a week, whichever is sooner), applies the settings, and reports every run (and whether it's online) back to that page.
 - **The SMB password is set in the web app (stored encrypted, sent to the agent over HTTPS); `SMB_PASSWORD` in `/etc/timetrack-agent.env` is an optional fallback.
 - The agent only makes outbound HTTPS calls to your site — no ports to open.
 - Each run saves `TimeTrack_backup_YYYY-MM-DD_HHMMSS.json` (full restore file for Admin → Import) and `.xlsx` (the workbook layout, importable on the Import & saves page), checks the copy's size, then deletes older files of its own kind beyond the "keep" count. It never touches other files in the folder.

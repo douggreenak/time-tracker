@@ -21,6 +21,25 @@ export function decideRun(cfg, state, now = new Date()) {
   return due && state.lastScheduledDate !== dateKey(now) ? "scheduled" : null;
 }
 
+export const MAX_CHECK_MINUTES = 7 * 24 * 60;
+
+/**
+ * Minutes until the agent should next check in: the next scheduled run, or a week, whichever is sooner.
+ * A failed last run retries after RETRY_MINUTES. Never less than 1 minute.
+ */
+export function nextCheckMinutes(cfg, state, now = new Date()) {
+  if (state && state.lastAttempt && !state.lastAttemptOk) return RETRY_MINUTES;
+  let best = MAX_CHECK_MINUTES;
+  if (cfg && cfg.enabled && cfg.share && Array.isArray(cfg.days) && /^\d\d:\d\d$/.test(cfg.time || "")) {
+    const [h, m] = cfg.time.split(":").map(Number);
+    for (let i = 0; i <= 7; i++) {
+      const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, h, m, 5);
+      if (t > now && cfg.days.includes(t.getDay())) { best = Math.min(best, (t - now) / 60000); break; }
+    }
+  }
+  return Math.max(1, best);
+}
+
 export const FILE_RE = /^TimeTrack_backup_\d{4}-\d{2}-\d{2}_\d{6}\.(json|xlsx)$/;
 
 /** Names on the share that fall outside the newest `keep` of each type (only our own files are ever considered). */
