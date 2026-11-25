@@ -30,7 +30,7 @@ export interface Backup {
   meta: Record<string, string>;
 }
 
-const SKIP_META = new Set(["schema_version", "seed_lock", "seeded", "agent_config", "agent_token_hash", "agent_status"]);
+const SKIP_META = new Set(["schema_version", "seed_lock", "seeded", "agent_config", "agent_token_hash", "agent_status", "agent_smb_password"]);
 
 export async function exportBackup(): Promise<Backup> {
   const db = await getDb();
