@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Trash2, X } from "lucide-react";
 
-const PHRASE = "DELETE ALL DATA";
+const PHRASE = "DELETE DATA";
 
 const GROUPS = [
   { id: "entries", label: "Time entries", help: "every logged row, including held time" },
@@ -55,18 +55,18 @@ export function DataClear() {
   };
 
   return (
-    <section aria-label="Clear all data" className="rounded-[22px] border border-destructive/40 bg-card p-4 shadow-sm sm:p-5">
-      <h2 className="text-base font-semibold text-destructive">Clear all data</h2>
+    <section aria-label="Delete data" className="rounded-[22px] border border-destructive/40 bg-card p-4 shadow-sm sm:p-5">
+      <h2 className="text-base font-semibold text-destructive">Delete data</h2>
       <p className="mt-0.5 text-sm text-muted-foreground">
         Permanently deletes the parts of the app you choose. Before deleting, a backup file is downloaded to your computer and a spreadsheet copy of everything is saved under Import &amp; saves.
       </p>
       <button type="button" onClick={() => setOpen(true)} data-testid="clear-all-open" className="mt-3 inline-flex h-10 items-center gap-2 rounded-full border border-destructive px-5 text-sm font-semibold text-destructive transition hover:bg-destructive/10">
-        <Trash2 className="h-4 w-4" />Clear all data…
+        <Trash2 className="h-4 w-4" />Delete data…
       </button>
 
       {open && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4" onClick={() => !busy && close()}>
-          <div role="dialog" aria-modal="true" aria-label="Clear all data" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && !busy && close()} className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-label="Delete data" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && !busy && close()} className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive"><AlertTriangle className="h-5 w-5" /></span>
               <div className="min-w-0 flex-1">
@@ -108,7 +108,7 @@ export function DataClear() {
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={close} disabled={busy} className="h-10 rounded-full border border-outline-variant px-5 text-sm font-semibold hover:bg-foreground/[0.05] disabled:opacity-40">Cancel</button>
               <button onClick={run} disabled={busy || phrase !== PHRASE || !password || picked.size === 0} data-testid="clear-all-confirm" className="inline-flex h-10 items-center gap-2 rounded-full bg-destructive px-5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40">
-                <Trash2 className="h-4 w-4" />{busy ? "Saving exports, then deleting…" : everything ? "Save export & delete everything" : "Save export & delete selected"}
+                <Trash2 className="h-4 w-4" />{busy ? "Saving exports, then deleting…" : everything ? "Save export & delete all" : "Save export & delete selected"}
               </button>
             </div>
           </div>

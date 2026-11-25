@@ -74,7 +74,7 @@ test("clearing sample data leads to first-run setup and clean empty screens", as
   await expect(page.getByTestId("amount-due")).toHaveText("$375.00"); // 1.5 h x $250
 });
 
-test("Clear all data: only the ticked parts are deleted", async ({ page }) => {
+test("Delete data: only the ticked parts are deleted", async ({ page }) => {
   const users = (await (await page.request.get("/api/auth/users")).json()).data.users as { id: string; name: string }[];
   const pat = users.find((u) => u.name === "Pat Owner")!;
   await page.request.post("/api/auth/login", { data: { userId: pat.id, password: "a-long-password" } });
@@ -84,11 +84,11 @@ test("Clear all data: only the ticked parts are deleted", async ({ page }) => {
 
   await page.goto("/admin");
   await page.getByTestId("clear-all-open").click();
-  const dialog = page.getByRole("dialog", { name: "Clear all data" });
+  const dialog = page.getByRole("dialog", { name: "Delete data" });
   const go = dialog.getByTestId("clear-all-confirm");
-  await dialog.getByLabel("Type DELETE ALL DATA to confirm").fill("DELETE ALL DATA");
+  await dialog.getByLabel("Type DELETE DATA to confirm").fill("DELETE DATA");
   await dialog.getByLabel("Your admin password").fill("a-long-password");
-  await expect(go).toContainText("delete everything"); // everything is ticked by default
+  await expect(go).toContainText("delete all"); // everything is ticked by default
 
   await dialog.getByRole("button", { name: "Select none" }).click();
   await expect(go).toBeDisabled(); // nothing chosen
@@ -111,12 +111,12 @@ test("Clear all data: only the ticked parts are deleted", async ({ page }) => {
   expect(saved.some((s) => s.kind === "cleared")).toBe(true);
 
   // the API refuses an empty or unknown selection
-  const bad = (parts: unknown) => page.request.post("/api/admin/clear", { data: { confirm: "DELETE ALL DATA", password: "a-long-password", parts } });
+  const bad = (parts: unknown) => page.request.post("/api/admin/clear", { data: { confirm: "DELETE DATA", password: "a-long-password", parts } });
   expect((await bad([])).status()).toBe(400);
   expect((await bad(["everything"])).status()).toBe(400);
 });
 
-test("admin 'Clear all data' needs the phrase and password, and saves an export first", async ({ page }) => {
+test("admin 'Delete data' needs the phrase and password, and saves an export first", async ({ page }) => {
   // (runs after the test above: the app holds Pat Owner and one entry, nothing from the demo)
   const users = (await (await page.request.get("/api/auth/users")).json()).data.users as { id: string; name: string }[];
   const pat = users.find((u) => u.name === "Pat Owner")!;
@@ -124,15 +124,15 @@ test("admin 'Clear all data' needs the phrase and password, and saves an export 
   await page.request.post("/api/time-entries", { data: { userId: pat.id, date: "2026-11-24", durationMinutes: 60 } });
   await page.goto("/admin");
   await page.getByTestId("clear-all-open").click();
-  const dialog = page.getByRole("dialog", { name: "Clear all data" });
+  const dialog = page.getByRole("dialog", { name: "Delete data" });
   const go = dialog.getByTestId("clear-all-confirm");
   await expect(go).toBeDisabled(); // needs both the phrase and a password
 
-  await dialog.getByLabel("Type DELETE ALL DATA to confirm").fill("delete everything");
+  await dialog.getByLabel("Type DELETE DATA to confirm").fill("delete everything");
   await dialog.getByLabel("Your admin password").fill("a-long-password");
   await expect(go).toBeDisabled(); // wrong phrase
 
-  await dialog.getByLabel("Type DELETE ALL DATA to confirm").fill("DELETE ALL DATA");
+  await dialog.getByLabel("Type DELETE DATA to confirm").fill("DELETE DATA");
   await dialog.getByLabel("Your admin password").fill("not-my-password");
   const [dl0] = await Promise.all([page.waitForEvent("download"), go.click()]);
   expect(dl0.suggestedFilename()).toMatch(/before_clearing.*\.json$/);

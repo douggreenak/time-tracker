@@ -8,7 +8,7 @@ import { exportData } from "@/lib/snapshots";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const CLEAR_PHRASE = "DELETE ALL DATA";
+const CLEAR_PHRASE = "DELETE DATA";
 const PARTS = ["entries", "invoices", "lists", "customers", "people", "saved"];
 
 /**
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     await dataStore.clearParts(parts, { kind: "cleared", period: stamp });
     return NextResponse.json({ success: true, data: { savedAs: fileName, deleted: Array.from(parts), signedOut: parts.has("people") } });
   } catch (error) {
-    console.error("Clear all data failed:", error);
+    console.error("Delete data failed:", error);
     return NextResponse.json({ success: false, error: "Couldn't clear the data. If it didn't finish, run it again." }, { status: 500 });
   }
 }
