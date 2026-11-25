@@ -6,6 +6,9 @@ struct AccountView: View {
     @Environment(LocationTracker.self) private var tracker
     @State private var confirmSignOut = false
     @State private var showPlaces = false
+    @Environment(\.colorScheme) private var scheme
+    @AppStorage(BackgroundSettings.enabledKey) private var bgEnabled = true
+    @AppStorage(BackgroundSettings.intensityKey) private var bgIntensity = BackgroundSettings.defaultIntensity
 
     private var initials: String {
         (app.me?.name ?? "?").split(separator: " ").prefix(2).compactMap { $0.first }.map(String.init).joined()
@@ -30,6 +33,33 @@ struct AccountView: View {
 
                 Section("Security") {
                     Button { changingPassword = true } label: { Label("Change password", systemImage: "key") }.glassRow()
+                }
+
+                Section("Appearance") {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Toggle("Colorful background", isOn: $bgEnabled)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Intensity")
+                                Spacer()
+                                Text("\(Int((bgIntensity * 100).rounded()))%").foregroundStyle(.secondary).monospacedDigit()
+                            }
+                            Slider(value: $bgIntensity, in: 0...1)
+                            HStack {
+                                Text(scheme == .dark ? "Black" : "White")
+                                Spacer()
+                                Text("Vivid")
+                            }
+                            .font(.footnote).foregroundStyle(Color.primary.opacity(0.72))
+                        }
+                        .disabled(!bgEnabled).opacity(bgEnabled ? 1 : 0.45)
+                        if bgEnabled, abs(bgIntensity - BackgroundSettings.defaultIntensity) > 0.005 {
+                            Button("Reset to default") { bgIntensity = BackgroundSettings.defaultIntensity }
+                                .font(.subheadline)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .glassRow()
                 }
 
                 Section("Location") {
