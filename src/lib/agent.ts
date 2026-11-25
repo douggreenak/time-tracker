@@ -1,6 +1,7 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
+import { secret } from "@/lib/auth";
 
 /** Settings for the Linux backup agent (agent/). Managed in Admin; the agent polls for them. */
 export interface AgentConfig {
@@ -78,6 +79,27 @@ export function cleanConfig(input: Partial<AgentConfig>, current: AgentConfig): 
   if (next.enabled && !next.share) return "Enter the SMB share before turning backups on.";
   return next;
 }
+
+/** The SMB password is kept apart from the settings JSON (so the settings are never sent with it) and encrypted at rest. */
+const pwKey = () => createHash("sha256").update(`tt-agent-smb|${secret()}`).digest();
+export async function setSmbPassword(pw: string | null) {
+  if (!pw) return dataStore.setMeta("agent_smb_password", "");
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", pwKey(), iv);
+  const enc = Buffer.concat([c.update(pw, "utf8"), c.final()]);
+  await dataStore.setMeta("agent_smb_password", [iv, c.getAuthTag(), enc].map((b) => b.toString("base64")).join("."));
+}
+export async function getSmbPassword(): Promise<string> {
+  const v = await dataStore.getMeta("agent_smb_password");
+  if (!v) return "";
+  try {
+    const [iv, tag, enc] = v.split(".").map((p) => Buffer.from(p, "base64"));
+    const d = createDecipheriv("aes-256-gcm", pwKey(), iv);
+    d.setAuthTag(tag);
+    return Buffer.concat([d.update(enc), d.final()]).toString("utf8");
+  } catch { return ""; }
+}
+export const hasSmbPassword = async () => !!(await dataStore.getMeta("agent_smb_password"));
 
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
 export async function newAgentToken() {

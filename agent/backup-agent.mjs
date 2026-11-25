@@ -3,7 +3,7 @@
  * TimeTrack backup agent: runs on a Linux PC, copies backups from the TimeTrack web app onto an SMB share.
  *
  * Settings (share, folder, schedule, how many to keep) are managed in the web app's Admin page; this program
- * checks in every minute, applies them, and reports each run back. Only the SMB password stays on this PC.
+ * checks in every minute, applies them, and reports each run back. The SMB password can also be set there (sent over HTTPS); SMB_PASSWORD in the env file is the fallback.
  *
  * Needs: Node 18+, and `smbclient` (Debian/Ubuntu: sudo apt install smbclient).
  * Environment: TT_URL, TT_TOKEN, SMB_PASSWORD  (see agent.env.example).  Flag: --once (one check, then exit).
@@ -14,10 +14,10 @@ import os from "node:os";
 import path from "node:path";
 import { decideRun, folderParts, parseLs, safeShare, stamp, toPrune, FILE_RE } from "./lib.mjs";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const URL_BASE = (process.env.TT_URL || "").replace(/\/+$/, "");
 const TOKEN = process.env.TT_TOKEN || "";
-const SMB_PASSWORD = process.env.SMB_PASSWORD || "";
+const SMB_PASSWORD = process.env.SMB_PASSWORD || ""; // fallback when the web app has no password set
 const SMBCLIENT = process.env.TT_SMBCLIENT || "smbclient";
 const POLL = Math.max(10, Number(process.env.TT_POLL_SECONDS) || 60) * 1000;
 const STATE_DIR = process.env.TT_STATE_DIR || path.join(os.homedir(), ".timetrack-agent");
@@ -46,7 +46,7 @@ const report = (body) => api("/api/agent/report", { method: "POST", headers: { "
 function smb(cfg, command, folder) {
   return new Promise((resolve, reject) => {
     const authFile = path.join(STATE_DIR, `.auth-${process.pid}`);
-    fs.writeFileSync(authFile, `username = ${cfg.smbUser}\npassword = ${SMB_PASSWORD}\n${cfg.smbDomain ? `domain = ${cfg.smbDomain}\n` : ""}`, { mode: 0o600 });
+    fs.writeFileSync(authFile, `username = ${cfg.smbUser}\npassword = ${cfg.smbPassword || SMB_PASSWORD}\n${cfg.smbDomain ? `domain = ${cfg.smbDomain}\n` : ""}`, { mode: 0o600 });
     const args = [safeShare(cfg.share), "-A", authFile, ...(folder ? ["-D", folder] : []), "-c", command];
     const p = spawn(SMBCLIENT, args, { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";

@@ -19,6 +19,8 @@ export function AgentSettings() {
   const [cfg, setCfg] = useState<AgentConfig | null>(null);
   const [status, setStatus] = useState<AgentStatus | null>(null);
   const [hasToken, setHasToken] = useState(false);
+  const [hasPw, setHasPw] = useState(false);
+  const [pw, setPw] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -28,7 +30,7 @@ export function AgentSettings() {
     const j = await fetch("/api/admin/agent").then((r) => r.json()).catch(() => null);
     if (!j?.success) return;
     setStatus(j.data.status);
-    setHasToken(j.data.hasToken);
+    setHasToken(j.data.hasToken); setHasPw(j.data.hasSmbPassword);
     if (!keepForm) setCfg(j.data.config);
     else setCfg((c) => (c ? { ...c, runRequestedAt: j.data.config.runRequestedAt, updatedAt: j.data.config.updatedAt } : j.data.config));
   }, []);
@@ -41,7 +43,7 @@ export function AgentSettings() {
     setBusy(false);
     if (!j?.success) { setMsg({ ok: false, text: j?.error ?? "Couldn't save." }); return null; }
     setMsg({ ok: true, text: ok });
-    setStatus(j.data.status); setHasToken(j.data.hasToken); setCfg(j.data.config); setDirty(false);
+    setStatus(j.data.status); setHasToken(j.data.hasToken); setHasPw(j.data.hasSmbPassword); setPw(""); setCfg(j.data.config); setDirty(false);
     return j.data;
   };
 
@@ -55,7 +57,7 @@ export function AgentSettings() {
     <section aria-label="Backup agent" className="rounded-[22px] border border-border/70 bg-card p-4 shadow-sm sm:p-5" data-testid="agent-section">
       <h2 className="flex items-center gap-2 text-base font-semibold"><HardDrive className="h-4 w-4" />Backup agent (SMB share)</h2>
       <p className="mt-0.5 text-sm text-muted-foreground">
-        A small program on a Linux PC copies a full backup (restore file + spreadsheet) to a network share on a schedule. Everything below is managed here; the agent checks in every minute and applies it. Only the share’s password stays on that PC.
+        A small program on a Linux PC copies a full backup (restore file + spreadsheet) to a network share on a schedule. Everything below is managed here; the agent checks in every minute and applies it. The share’s password is stored encrypted on the server and sent to the agent over HTTPS (or leave it blank and keep it in the agent’s env file).
       </p>
 
       {/* status */}
@@ -89,6 +91,10 @@ export function AgentSettings() {
         <label className="text-xs font-semibold text-muted-foreground">SMB user name
           <input aria-label="SMB user name" autoComplete="off" value={cfg.smbUser} onChange={(e) => set("smbUser", e.target.value)} className={cn(field, "mt-1")} />
         </label>
+        <label className="text-xs font-semibold text-muted-foreground">SMB password
+          <input aria-label="SMB password" type="password" autoComplete="new-password" value={pw} placeholder={hasPw ? "•••••••• (saved — type to replace)" : "Not set (agent falls back to its env file)"} onChange={(e) => { setPw(e.target.value); setDirty(true); }} className={cn(field, "mt-1")} />
+          {hasPw && <button type="button" onClick={() => call({ method: "PUT", body: JSON.stringify({ clearSmbPassword: true }) }, "Saved password removed.")} className="mt-1 text-xs font-medium text-primary hover:underline">Remove saved password</button>}
+        </label>
         <label className="text-xs font-semibold text-muted-foreground">Domain / workgroup (optional)
           <input aria-label="Domain" autoComplete="off" value={cfg.smbDomain} onChange={(e) => set("smbDomain", e.target.value)} className={cn(field, "mt-1")} />
         </label>
@@ -118,7 +124,7 @@ export function AgentSettings() {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button type="button" disabled={busy || !dirty} onClick={() => call({ method: "PUT", body: JSON.stringify(cfg) }, "Saved. The agent will pick this up within a minute.")} data-testid="agent-save" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground hover:brightness-110">
+        <button type="button" disabled={busy || !dirty} onClick={() => call({ method: "PUT", body: JSON.stringify({ ...cfg, ...(pw ? { smbPassword: pw } : {}) }) }, "Saved. The agent will pick this up within a minute.")} data-testid="agent-save" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground hover:brightness-110">
           <Save className="h-4 w-4" />Save settings
         </button>
         <button type="button" disabled={busy || dirty || !cfg.share || !!cfg.runRequestedAt} onClick={() => call({ method: "POST", body: JSON.stringify({ action: "run" }) }, "Asked the agent to back up now.")} data-testid="agent-run" className={btn}>

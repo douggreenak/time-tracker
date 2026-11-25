@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { cleanConfig, getConfig, getStatus, hasAgentToken, newAgentToken, saveConfig } from "@/lib/agent";
+import { cleanConfig, getConfig, getStatus, getSmbPassword, hasAgentToken, hasSmbPassword, newAgentToken, saveConfig, setSmbPassword } from "@/lib/agent";
 
 export const dynamic = "force-dynamic";
 
-const view = async () => ({ config: await getConfig(), status: await getStatus(), hasToken: await hasAgentToken() });
+const view = async () => ({ config: await getConfig(), status: await getStatus(), hasToken: await hasAgentToken(), hasSmbPassword: await hasSmbPassword() });
 
 export async function GET() {
   const g = await requireUser({ admin: true });
@@ -19,6 +19,11 @@ export async function PUT(request: Request) {
   const body = await request.json().catch(() => ({}));
   const next = cleanConfig(body, await getConfig());
   if (typeof next === "string") return NextResponse.json({ success: false, error: next }, { status: 400 });
+  // Password is write-only: a non-empty string sets it, clearSmbPassword removes it, otherwise it's left alone.
+  if (typeof body.smbPassword === "string" && body.smbPassword) {
+    if (body.smbPassword.length > 200 || /[\r\n\0]/.test(body.smbPassword)) return NextResponse.json({ success: false, error: "That password isn't valid." }, { status: 400 });
+    await setSmbPassword(body.smbPassword);
+  } else if (body.clearSmbPassword) await setSmbPassword(null);
   await saveConfig(next);
   return NextResponse.json({ success: true, data: await view() });
 }

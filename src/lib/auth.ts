@@ -9,7 +9,7 @@ export const SESSION_COOKIE = "tt_session";
 const SESSION_DAYS = 14;
 
 /** Signing key: AUTH_SECRET, else derived from DATABASE_URL, else a random key kept in .data/. */
-function secret(): string {
+export function secret(): string {
   if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
   if (process.env.DATABASE_URL) return createHash("sha256").update(`tt-session|${process.env.DATABASE_URL}`).digest("hex");
   const g = globalThis as unknown as { __ttSecret?: string };

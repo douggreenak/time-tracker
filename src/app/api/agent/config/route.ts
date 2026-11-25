@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getConfig, requireAgent, touchAgent } from "@/lib/agent";
+import { getConfig, getSmbPassword, requireAgent, touchAgent } from "@/lib/agent";
 
 export const dynamic = "force-dynamic";
 
@@ -8,5 +8,5 @@ export async function GET(request: Request) {
   const bad = await requireAgent(request);
   if (bad) return bad;
   await touchAgent(request);
-  return NextResponse.json({ success: true, data: await getConfig() });
+  return NextResponse.json({ success: true, data: { ...(await getConfig()), smbPassword: await getSmbPassword() } });
 }
