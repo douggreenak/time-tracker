@@ -97,7 +97,7 @@ export async function getSmbPassword(): Promise<string> {
     const d = createDecipheriv("aes-256-gcm", pwKey(), iv);
     d.setAuthTag(tag);
     return Buffer.concat([d.update(enc), d.final()]).toString("utf8");
-  } catch { return ""; }
+  } catch { return v; } // not encrypted (e.g. restored from a plain-text backup)
 }
 export const hasSmbPassword = async () => !!(await dataStore.getMeta("agent_smb_password"));
 

@@ -30,7 +30,7 @@ export interface Backup {
   meta: Record<string, string>;
 }
 
-const SKIP_META = new Set(["schema_version", "seed_lock", "seeded", "agent_config", "agent_token_hash", "agent_status", "agent_smb_password"]);
+const SKIP_META = new Set(["schema_version", "seed_lock", "seeded", "agent_token_hash", "agent_status"]);
 
 export async function exportBackup(): Promise<Backup> {
   const db = await getDb();
@@ -40,6 +40,11 @@ export async function exportBackup(): Promise<Backup> {
   }
   const meta: Record<string, string> = {};
   for (const m of await db.select().from(t.appMeta)) if (!SKIP_META.has(m.key)) meta[m.key] = m.value ?? "";
+  // Backups are plain, readable files: the SMB password is written decrypted (and the agent settings are included).
+  if (meta.agent_smb_password) {
+    const { getSmbPassword } = await import("@/lib/agent");
+    meta.agent_smb_password = await getSmbPassword();
+  }
   return { format: BACKUP_FORMAT, version: BACKUP_VERSION, exportedAt: new Date().toISOString(), tables, meta };
 }
 
