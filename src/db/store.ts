@@ -296,6 +296,54 @@ export const dataStore = {
     return r.length;
   },
 
+  // ───────── Bulk import and saved spreadsheets ─────────
+  /** Creates any customers that don't exist yet (matched ignoring case/spacing); returns name(lowercase) -> id. */
+  ensureCustomers: async (names: string[]): Promise<Map<string, string>> => {
+    const db = await getDb();
+    const have = new Map((await db.select().from(t.customers)).map((c) => [c.name.trim().toLowerCase(), c.id]));
+    const fresh = Array.from(new Set(names.map((n) => n.trim()).filter((n) => n && !have.has(n.toLowerCase()))));
+    for (let i = 0; i < fresh.length; i += 100) {
+      const rows = await db.insert(t.customers).values(fresh.slice(i, i + 100).map((name) => ({ name, qbName: name }))).returning();
+      for (const r of rows) have.set(r.name.trim().toLowerCase(), r.id);
+    }
+    return have;
+  },
+  insertEntries: async (rows: { userId: string; customerId: string | null; date: string; durationMinutes: number; notes: string; isLumpSum: boolean; partsNote: string; internalNote: string; contractPo: string; isBillable: boolean; isInvoiced: boolean; isHeld: boolean }[]) => {
+    const db = await getDb();
+    for (let i = 0; i < rows.length; i += 100) {
+      await db.insert(t.timeEntries).values(rows.slice(i, i + 100).map((r) => ({ ...r, durationMinutes: toTenths(r.durationMinutes), status: "draft" })));
+    }
+    return rows.length;
+  },
+  insertBillingItems: async (rows: { kind: BillingItem["kind"]; customer: string; description: string; amount: number; notes: string }[]) => {
+    const db = await getDb();
+    for (let i = 0; i < rows.length; i += 100) await db.insert(t.billingItems).values(rows.slice(i, i + 100).map((r) => ({ ...r, amount: String(r.amount) })));
+    return rows.length;
+  },
+  getSavedExports: async () => {
+    const db = await getDb();
+    const rows = await db
+      .select({ id: t.savedExports.id, kind: t.savedExports.kind, period: t.savedExports.period, fileName: t.savedExports.fileName, sizeBytes: t.savedExports.sizeBytes, createdAt: t.savedExports.createdAt })
+      .from(t.savedExports)
+      .orderBy(desc(t.savedExports.period));
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  },
+  getSavedExport: async (id: string) => {
+    if (!isUuid(id)) return undefined;
+    const db = await getDb();
+    return (await db.select().from(t.savedExports).where(eq(t.savedExports.id, id)))[0];
+  },
+  hasSavedExport: async (kind: string, period: string) => {
+    const db = await getDb();
+    return (await db.select({ id: t.savedExports.id }).from(t.savedExports).where(and(eq(t.savedExports.kind, kind), eq(t.savedExports.period, period)))).length > 0;
+  },
+  /** One saved file per (kind, period): saving again replaces it. */
+  putSavedExport: async (kind: string, period: string, fileName: string, file: Buffer) => {
+    const db = await getDb();
+    await db.delete(t.savedExports).where(and(eq(t.savedExports.kind, kind), eq(t.savedExports.period, period)));
+    await db.insert(t.savedExports).values({ kind, period, fileName, sizeBytes: file.length, data: file.toString("base64") });
+  },
+
   // ───────── Lump sum / Other lists ─────────
   getBillingItems: async (kind?: BillingItem["kind"]): Promise<BillingItem[]> => {
     const db = await getDb();
@@ -378,6 +426,7 @@ export const dataStore = {
   /** Wipes every record (used to drop the sample data and start fresh). */
   clearAllData: async () => {
     const db = await getDb();
+    await db.delete(t.savedExports);
     await db.delete(t.invoices);
     await db.delete(t.billingItems);
     await db.delete(t.activeTimers);

@@ -1,7 +1,7 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { ADMIN, loginAs, DEMO_PASSWORD } from "./helpers";
 
-const PAGES = ["/engineer", "/billing", "/customers", "/lump-sum", "/other", "/held", "/team", "/account", "/admin", "/"];
+const PAGES = ["/engineer", "/billing", "/files", "/customers", "/lump-sum", "/other", "/held", "/team", "/account", "/admin", "/"];
 const ZONES = ["America/Anchorage", "UTC", "Pacific/Auckland", "Asia/Kolkata", "America/New_York", "Europe/London"];
 const LOCALES = ["en-US", "en-GB", "de-DE", "ja-JP"];
 

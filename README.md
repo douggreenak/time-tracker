@@ -9,6 +9,7 @@ Built for **Vercel** + **Neon Postgres** (or an embedded Postgres locally). Next
 * **Billing** — pick a date range and customers (the *MACRO DATA* sheet: last invoice date, "new hours?"). *Create invoices* gives, per customer, the macro's layout: labor table (DATE, CUSTOMER, HOURS, TASK, PERSONNEL, RATE, TOTAL), editable PARTS table (qty × unit cost), a per-person SUMMARY, `PARTS TOTAL` and `INVOICE AMT. DUE`. Download **Excel** (one sheet per customer, live `SUMIF` formulas, one landscape page each), **Print**, or **Mark as invoiced** (saves the invoice and flags its time so it isn't billed twice). Invoice history can be re-downloaded or undone (accountants/admins).
 * **Data** — *Customers*, *Lump sum*, *Other* and *Held time* (the workbook's LUMP SUM, OTHER and HELD TIME sheets).
 * **Team** — people and roles, plus each person's **billing rate** (default $250, the workbook's only rate).
+* **Import & saves** — import any year's workbook (adds time back to its original dates and skips what is already here). The app also saves a full-data spreadsheet each month and a yearly spreadsheet in the same layout (first use of each month / January), ready to download or import again.
 * **Backup** (admin) — JSON export/restore.
 
 Billable, not-held, not-yet-invoiced time is invoiced at `hours × the person's rate`. Lump-sum entries list on the invoice at $0 labor (price them from the Lump sum list). Rates are copied onto saved invoices, so changing a rate never alters history.

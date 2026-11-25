@@ -114,4 +114,14 @@ export const DDL: string[] = [
     created_at timestamp NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS invoices_customer_idx ON invoices (customer_id, date_to)`,
+  `CREATE TABLE IF NOT EXISTS saved_exports (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    kind varchar(20) NOT NULL,
+    period varchar(10) NOT NULL,
+    file_name varchar(255) NOT NULL,
+    size_bytes integer NOT NULL DEFAULT 0,
+    data text NOT NULL,
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS saved_exports_period_idx ON saved_exports (kind, period)`,
 ];

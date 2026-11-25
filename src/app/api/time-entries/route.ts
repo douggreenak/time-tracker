@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dataStore } from "@/db/store";
 import { isManager, requireUser } from "@/lib/auth";
+import { ensureSnapshots } from "@/lib/snapshots";
 import { checkDate, checkEntryText, checkMinutes, checkNotes } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const g = await requireUser();
   if (!g.ok) return g.res;
+  await ensureSnapshots(); // keeps the monthly/yearly spreadsheet saves up to date (cheap, throttled)
   try {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate") || undefined;

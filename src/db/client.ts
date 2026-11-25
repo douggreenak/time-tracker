@@ -93,7 +93,7 @@ async function seedIfEmpty(db: Db) {
     // Everything in ONE all-or-nothing step, so a crash or a second server can never leave half a seed behind.
     const build = (x: Pick<Db, "insert" | "delete">) => [
       ...(wipe
-        ? [schema.invoices, schema.billingItems, schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users].map((t) => x.delete(t))
+        ? [schema.savedExports, schema.invoices, schema.billingItems, schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users].map((t) => x.delete(t))
         : []),
       ...demoSeedStatements(x, hash),
       x.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing(),

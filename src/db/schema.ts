@@ -91,6 +91,17 @@ export const invoices = pgTable("invoices", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Spreadsheet saves made automatically every month and year (and on request), kept so they can be downloaded later.
+export const savedExports = pgTable("saved_exports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: varchar("kind", { length: 20 }).notNull(), // 'monthly' | 'yearly'
+  period: varchar("period", { length: 10 }).notNull(), // '2026-11' or '2026'
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  data: text("data").notNull(), // the .xlsx file, base64
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const activeTimers = pgTable("active_timers", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull().unique(),

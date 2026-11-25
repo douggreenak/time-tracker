@@ -10,6 +10,7 @@ Next.js 14 (App Router) + Drizzle ORM. Postgres is Neon over HTTP in production,
 | `time_entries` | one workbook TIME SUMMARY row: `date`, `duration_minutes` (whole tenths = 6 min), `notes` (description), `is_lump_sum`, `parts_note`, `internal_note`, `contract_po`, `is_billable`, `is_invoiced`, `invoiced_on`, `is_held` |
 | `billing_items` | LUMP SUM and OTHER lists (`kind`, customer, description, amount, notes) |
 | `invoices` | saved invoices: customer, date range, total, `snapshot` JSON (lines, parts, rates, entry ids) |
+| `saved_exports` | monthly/yearly workbook saves (`kind`, `period`, base64 `.xlsx`); one per kind+period |
 | `app_meta` | flags (demo, seeded, schema version) |
 
 Left in place but unused by the app: `jobs`, `service_items`, `active_timers`, and the old `status`/`flagged`/location columns on `time_entries` (kept so production data is never dropped).
@@ -30,3 +31,7 @@ For a date range, each customer with usable time gets one invoice. Usable = bill
 | `GET/POST /api/billing-items`, `PUT/DELETE /api/billing-items/[id]` | lump sum and other lists |
 | `GET /api/export/csv` | time log in workbook column order, formula-safe |
 | `/api/auth/*`, `/api/demo`, `/api/health`, backup routes | sign-in, demo clear, health, JSON backup |
+| `POST /api/import/preview`, `POST /api/import` | multipart `file` (+ `mapping` sheet→user id, `heldUserId`, `includeHeld`, `includeLists`); duplicates (same person/date/customer/hours/description) are skipped, engineers can only import for themselves |
+| `GET/POST /api/snapshots`, `GET /api/snapshots/[id]`, `GET /api/export/workbook?year=` | saved monthly/yearly workbooks; `ensureSnapshots()` runs (throttled) on time-entry loads |
+
+Workbook layout (`src/lib/workbook.ts`) matches the original macro file: `TIME SUMMARY - <NAME>` sheets (header row 2: item, day, date, customer, hours, description, lump sum, parts, contract/PO, billable, invoiced), `HELD TIME`, `LUMP SUM`, `OTHER`, `MACRO DATA`. Cell comments become parts/private notes.

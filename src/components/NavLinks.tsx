@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Clock, Database, HardDriveDownload, Users } from "lucide-react";
+import { BarChart3, Clock, Database, FileSpreadsheet, HardDriveDownload, Users } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { cn } from "@/components/ui";
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/engineer", label: "Timesheet", icon: Clock },
   { href: "/billing", label: "Billing", icon: BarChart3 },
   { href: "/customers", label: "Data", icon: Database, also: ["/lump-sum", "/other", "/held"] },
+  { href: "/files", label: "Import & saves", icon: FileSpreadsheet },
   { href: "/team", label: "Team", icon: Users },
   { href: "/admin", label: "Backup", icon: HardDriveDownload, admin: true },
 ];

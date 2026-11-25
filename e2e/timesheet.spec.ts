@@ -10,7 +10,7 @@ test("demo data comes from the Apex workbook", async ({ page }) => {
   expect(all.filter((e) => e.isHeld).length).toBe(9);
   expect(new Set(logged.map((e) => e.customerName)).size).toBeGreaterThanOrEqual(30);
   const customers = (await (await page.request.get("/api/customers")).json()).data as { name: string }[];
-  expect(customers.length).toBe(43);
+  expect(customers.length).toBeGreaterThanOrEqual(43); // other tests may add more
   expect(customers.map((c) => c.name)).toContain("HARBOR WTP");
 });
 
