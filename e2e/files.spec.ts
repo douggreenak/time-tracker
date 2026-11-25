@@ -43,13 +43,24 @@ test("importing an old workbook in the UI adds history, then skips duplicates", 
   const tag = String(Date.now()).slice(-6);
   await loginAs(page, ACCOUNTANT, "/files");
   await expect(page.getByRole("heading", { name: "Import & saved spreadsheets" })).toBeVisible();
+  // slow the server down a little so the loading wheel and progress bar can be seen
+  let slowed = false;
+  await page.route("**/api/import/preview", async (r) => { if (!slowed) { slowed = true; await new Promise((x) => setTimeout(x, 900)); } await r.continue(); });
+  await page.route("**/api/import", async (r) => { await new Promise((x) => setTimeout(x, 900)); await r.continue(); });
   await page.getByTestId("import-file").setInputFiles({ name: "2019_APEX BILLING.xlsm", mimeType: XLSX, buffer: await oldWorkbook(tag) });
+  const bar = page.getByTestId("import-progress");
+  await expect(bar).toContainText(/Uploading|Reading the spreadsheet/);
+  await expect(bar.getByRole("progressbar")).toBeVisible();
+  await expect(bar.locator(".m3-spinner")).toBeVisible(); // the loading wheel
   const plan = page.getByTestId("import-plan");
   await expect(plan).toContainText("TIME SUMMARY - JEFF");
   await expect(plan.getByRole("combobox", { name: "Person for TIME SUMMARY - JEFF" })).toContainText("Jeff Green"); // matched by first name
   await expect(plan).toContainText("2019-03-04 → 2019-03-07");
   await expect(page.getByTestId("import-run")).toContainText("Import 6 new rows"); // 4 time rows + held + lump sum list
   await page.getByTestId("import-run").click();
+  await expect(page.getByTestId("import-progress")).toContainText(/Importing 6 new rows|Uploading/);
+  await expect(page.getByTestId("import-run")).toBeDisabled();
+  await expect(page.getByTestId("import-progress")).toHaveCount(0, { timeout: 10000 }); // gone when it finishes
   await expect(page.getByRole("status")).toContainText("Added 5 time entries");
 
   const jeff = ((await api(page, "/api/users")).data as { id: string; name: string }[]).find((u) => u.name === "Jeff Green")!;

@@ -232,6 +232,7 @@
     stroke-dashoffset: 0;
     animation: m3-dash 1.4s ease-in-out infinite;
   }
+  @keyframes m3-indeterminate { 0% { left: -40%; } 100% { left: 100%; } }
   @keyframes m3-spin { to { transform: rotate(360deg); } }
   @keyframes m3-dash {
     0%   { stroke-dasharray: 1, 200;  stroke-dashoffset: 0; }

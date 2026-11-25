@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Save, Upload, X } from "lucide-react";
-import { PageLoader } from "@/components/ui/loader";
+import { PageLoader, Spinner } from "@/components/ui/loader";
 import { Dropdown } from "@/components/ui/dropdown";
 import { useAuth } from "@/components/AuthProvider";
 import { useDirectory } from "@/lib/useDirectory";
@@ -19,6 +19,39 @@ interface Saved { id: string; kind: "monthly" | "yearly" | "cleared"; period: st
 
 const btn = "inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition hover:bg-foreground/[0.05] disabled:opacity-40";
 const primary = "inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-40";
+/** POST a form with real upload progress (fetch can't report it). `onProgress(null)` means "uploaded, now the server is working". */
+function postForm(url: string, form: FormData, onProgress: (pct: number | null) => void): Promise<any> {
+  return new Promise((resolve) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", url);
+    x.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
+    x.upload.onload = () => onProgress(null);
+    x.onload = () => { try { resolve(JSON.parse(x.responseText)); } catch { resolve(null); } };
+    x.onerror = () => resolve(null);
+    x.send(form);
+  });
+}
+
+function Progress({ label, pct, detail }: { label: string; pct: number | null; detail?: string }) {
+  return (
+    <div role="status" aria-live="polite" data-testid="import-progress" className="rounded-xl border border-border/70 bg-surface-low px-4 py-3">
+      <div className="flex items-center gap-3">
+        <Spinner size={22} />
+        <span className="text-sm font-medium">{label}</span>
+        {pct !== null && <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{pct}%</span>}
+      </div>
+      <div role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined} className="relative mt-2.5 h-2 overflow-hidden rounded-full bg-surface-high">
+        {pct === null ? (
+          <div className="absolute inset-y-0 w-2/5 rounded-full bg-primary" style={{ animation: "m3-indeterminate 1.2s ease-in-out infinite" }} />
+        ) : (
+          <div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: `${pct}%` }} />
+        )}
+      </div>
+      {detail && <p className="mt-1.5 text-[11px] text-muted-foreground">{detail}</p>}
+    </div>
+  );
+}
+
 const kb = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 export default function FilesPage() {
@@ -32,6 +65,8 @@ export default function FilesPage() {
   const [includeHeld, setIncludeHeld] = useState(true);
   const [includeLists, setIncludeLists] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ label: string; pct: number | null; detail?: string } | null>(null);
+  const [recount, setRecount] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saved, setSaved] = useState<Saved[] | null>(null);
   const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -57,9 +92,11 @@ export default function FilesPage() {
     setMsg(null); setPlan(null); setFile(picked ?? null);
     if (!picked) return;
     setBusy(true);
+    setProgress({ label: "Uploading spreadsheet…", pct: 0 });
     const f = new FormData();
     f.set("file", picked);
-    const j = await fetch("/api/import/preview", { method: "POST", body: f }).then((r) => r.json()).catch(() => null);
+    const j = await postForm("/api/import/preview", f, (pct) => setProgress(pct === null ? { label: "Reading the spreadsheet and checking what’s new…", pct: null, detail: "Big workbooks can take a few seconds." } : { label: "Uploading spreadsheet…", pct }));
+    setProgress(null);
     setBusy(false);
     if (!j?.success) return setMsg({ ok: false, text: j?.error ?? "Couldn't read that file." });
     const p = j.data as Plan;
@@ -80,7 +117,9 @@ export default function FilesPage() {
       f.set("heldUserId", heldUserId);
       f.set("includeHeld", String(includeHeld));
       f.set("includeLists", String(includeLists));
-      const j = await fetch("/api/import/preview", { method: "POST", body: f }).then((r) => r.json()).catch(() => null);
+      setRecount(true);
+      const j = await postForm("/api/import/preview", f, () => {});
+      setRecount(false);
       if (j?.success) setLive(j.data);
     }, 0);
     return () => clearTimeout(t);
@@ -89,8 +128,10 @@ export default function FilesPage() {
   const run = async () => {
     setBusy(true);
     setMsg(null);
-    const j = await fetch("/api/import", { method: "POST", body: body({ mapping: JSON.stringify(mapping), heldUserId, includeHeld: String(includeHeld), includeLists: String(includeLists) }) })
-      .then((r) => r.json()).catch(() => null);
+    setProgress({ label: "Uploading spreadsheet…", pct: 0 });
+    const j = await postForm("/api/import", body({ mapping: JSON.stringify(mapping), heldUserId, includeHeld: String(includeHeld), includeLists: String(includeLists) }),
+      (pct) => setProgress(pct === null ? { label: `Importing ${toAdd} new rows…`, pct: null, detail: "Adding the time and creating any new customers. Keep this page open." } : { label: "Uploading spreadsheet…", pct }));
+    setProgress(null);
     setBusy(false);
     if (!j?.success) return setMsg({ ok: false, text: j?.error ?? "The import failed." });
     const d = j.data as { added: number; lists: number; skipped: number; customersCreated: number };
@@ -141,7 +182,9 @@ export default function FilesPage() {
             <input ref={fileRef} type="file" accept=".xlsx,.xlsm" aria-label="Spreadsheet to import" data-testid="import-file" onChange={(e) => choose(e.target.files?.[0])} className="hidden" />
             <button onClick={() => fileRef.current?.click()} disabled={busy} className={btn} data-testid="import-choose"><Upload className="h-3.5 w-3.5" />Choose spreadsheet…</button>
             {file && <span className="text-xs text-muted-foreground">{file.name}</span>}
+            {recount && !progress && <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Spinner size={14} />Updating counts…</span>}
           </div>
+          {progress && <Progress {...progress} />}
 
           {shown && (
             <div className="space-y-3" data-testid="import-plan">
