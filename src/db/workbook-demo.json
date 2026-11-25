@@ -36,7 +36,7 @@
   "NOAB",
   "NSEDX",
   "OIX",
-  "PETROSTAR - TERMINAL 9",
+  "FUELCO - TERMINAL 9",
   "QRS",
   "PSVX",
   "RPX",
@@ -46,7 +46,7 @@
   "STARLING",
   "STATE OF XX",
   "SUMMIT FREIGHT",
-  "TAURUS POWER",
+  "ORION POWER",
   "TETRAX",
   "TVSB"
  ],
@@ -2924,7 +2924,7 @@
   {
    "person": "Jeff Green",
    "date": "2026-09-09",
-   "customer": "PETROSTAR - TERMINAL 9",
+   "customer": "FUELCO - TERMINAL 9",
    "hours": 6.5,
    "description": "FAN MOTOR TROUBLESHOOTING",
    "lumpSum": false,
@@ -2938,7 +2938,7 @@
   {
    "person": "Jeff Green",
    "date": "2026-09-10",
-   "customer": "PETROSTAR - TERMINAL 9",
+   "customer": "FUELCO - TERMINAL 9",
    "hours": 10.5,
    "description": "FEED SYSTEM FIELD CALIBRATION",
    "lumpSum": false,
@@ -2952,7 +2952,7 @@
   {
    "person": "Jeff Green",
    "date": "2026-09-11",
-   "customer": "PETROSTAR - TERMINAL 9",
+   "customer": "FUELCO - TERMINAL 9",
    "hours": 11.5,
    "description": "LIFT STATION PROGRAMMING",
    "lumpSum": false,
@@ -3134,7 +3134,7 @@
   {
    "person": "Jeff Green",
    "date": "2026-09-28",
-   "customer": "TAURUS POWER",
+   "customer": "ORION POWER",
    "hours": 1.9,
    "description": "WELL HOUSE SITE VISIT",
    "lumpSum": false,
