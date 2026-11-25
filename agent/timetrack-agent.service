@@ -1,0 +1,16 @@
+[Unit]
+Description=TimeTrack backup agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/timetrack-agent.env
+Environment=TT_STATE_DIR=/var/lib/timetrack-agent
+ExecStart=/usr/bin/node /opt/timetrack-agent/backup-agent.mjs
+Restart=always
+RestartSec=30
+User=timetrack
+StateDirectory=timetrack-agent
+
+[Install]
+WantedBy=multi-user.target

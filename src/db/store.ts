@@ -417,6 +417,17 @@ export const dataStore = {
     return true;
   },
 
+  // ───────── Small settings (backup agent) ─────────
+  getMeta: async (key: string): Promise<string | null> => {
+    const db = await getDb();
+    const [r] = await db.select().from(t.appMeta).where(eq(t.appMeta.key, key));
+    return r?.value ?? null;
+  },
+  setMeta: async (key: string, value: string) => {
+    const db = await getDb();
+    await db.insert(t.appMeta).values({ key, value }).onConflictDoUpdate({ target: t.appMeta.key, set: { value } });
+  },
+
   // ───────── Demo data ─────────
   isDemo: async (): Promise<boolean> => {
     const db = await getDb();

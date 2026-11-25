@@ -35,3 +35,5 @@ For a date range, each customer with usable time gets one invoice. Usable = bill
 | `GET/POST /api/snapshots`, `GET /api/snapshots/[id]`, `GET /api/export/workbook?year=` | saved monthly/yearly workbooks; `ensureSnapshots()` runs (throttled) on time-entry loads |
 
 Workbook layout (`src/lib/workbook.ts`) matches the original macro file: `TIME SUMMARY - <NAME>` sheets (header row 2: item, day, date, customer, hours, description, lump sum, parts, contract/PO, billable, invoiced), `HELD TIME`, `LUMP SUM`, `OTHER`, `MACRO DATA`. Cell comments become parts/private notes.
+
+Backup agent (`agent/`, see its README): a Node program on a Linux PC. Admin settings live in `app_meta` (`agent_config`, `agent_token_hash`, `agent_status`, excluded from backups). The agent polls `GET /api/agent/config` (Bearer token, doubles as heartbeat), downloads `GET /api/agent/backup?format=json|xlsx`, copies to the share with `smbclient`, and posts `POST /api/agent/report`. Admin side: `GET/PUT/POST /api/admin/agent`.

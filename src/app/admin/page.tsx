@@ -1,6 +1,7 @@
 "use client";
 
 import { DataBackup } from "@/components/DataBackup";
+import { AgentSettings } from "@/components/AgentSettings";
 import { DataClear } from "@/components/DataClear";
 import { RequireAdmin } from "@/components/AuthProvider";
 
@@ -13,6 +14,7 @@ export default function Page() {
           <p className="mt-0.5 text-sm text-muted-foreground">Back up everything in the app, or restore it from a backup. Admins only.</p>
         </div>
         <DataBackup />
+        <AgentSettings />
         <DataClear />
       </div>
     </RequireAdmin>
