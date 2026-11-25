@@ -15,7 +15,7 @@ interface Plan {
   other: { rows: number; newRows: number };
   newCustomers: string[];
 }
-interface Saved { id: string; kind: "monthly" | "yearly"; period: string; fileName: string; sizeBytes: number; createdAt: string }
+interface Saved { id: string; kind: "monthly" | "yearly" | "cleared"; period: string; fileName: string; sizeBytes: number; createdAt: string }
 
 const btn = "inline-flex h-9 items-center gap-1.5 rounded-full border border-outline-variant px-4 text-xs font-semibold transition hover:bg-foreground/[0.05] disabled:opacity-40";
 const primary = "inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground transition hover:brightness-110 disabled:opacity-40";
@@ -199,7 +199,7 @@ export default function FilesPage() {
           <tbody className="divide-y divide-border/60">
             {saved.map((s) => (
               <tr key={s.id} className="hover:bg-surface-low">
-                <td className="px-4 py-2"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", s.kind === "yearly" ? "bg-secondary-container text-secondary-on-container" : "bg-primary/10 text-primary")}>{s.kind === "yearly" ? "Yearly" : "Monthly"}</span></td>
+                <td className="px-4 py-2"><span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", s.kind === "yearly" ? "bg-secondary-container text-secondary-on-container" : s.kind === "cleared" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>{s.kind === "yearly" ? "Yearly" : s.kind === "cleared" ? "Before clearing" : "Monthly"}</span></td>
                 <td className="px-2 font-medium">{s.period}</td>
                 <td className="px-2 text-muted-foreground">{s.fileName}</td>
                 <td className="px-2 text-muted-foreground">{kb(s.sizeBytes)}</td>

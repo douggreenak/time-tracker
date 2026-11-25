@@ -94,8 +94,8 @@ export const invoices = pgTable("invoices", {
 // Spreadsheet saves made automatically every month and year (and on request), kept so they can be downloaded later.
 export const savedExports = pgTable("saved_exports", {
   id: uuid("id").defaultRandom().primaryKey(),
-  kind: varchar("kind", { length: 20 }).notNull(), // 'monthly' | 'yearly'
-  period: varchar("period", { length: 10 }).notNull(), // '2026-11' or '2026'
+  kind: varchar("kind", { length: 20 }).notNull(), // 'monthly' | 'yearly' | 'cleared'
+  period: varchar("period", { length: 20 }).notNull(), // '2026-11', '2026', or a timestamp for a before-clearing save
   fileName: varchar("file_name", { length: 255 }).notNull(),
   sizeBytes: integer("size_bytes").notNull().default(0),
   data: text("data").notNull(), // the .xlsx file, base64

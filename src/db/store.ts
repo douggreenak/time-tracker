@@ -424,9 +424,10 @@ export const dataStore = {
     return r?.value === "true";
   },
   /** Wipes every record (used to drop the sample data and start fresh). */
-  clearAllData: async () => {
+  /** Deletes everything. Saved spreadsheets are kept when `keepSaved` is set (the safety copy made just before clearing lives there). */
+  clearAllData: async (keepSaved = false) => {
     const db = await getDb();
-    await db.delete(t.savedExports);
+    if (!keepSaved) await db.delete(t.savedExports);
     await db.delete(t.invoices);
     await db.delete(t.billingItems);
     await db.delete(t.activeTimers);

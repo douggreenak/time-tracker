@@ -73,3 +73,44 @@ test("clearing sample data leads to first-run setup and clean empty screens", as
   await page.getByTestId("create-invoices").click();
   await expect(page.getByTestId("amount-due")).toHaveText("$375.00"); // 1.5 h x $250
 });
+
+test("admin 'Clear all data' needs the phrase and password, and saves an export first", async ({ page }) => {
+  // (runs after the test above: the app holds Pat Owner and one entry, nothing from the demo)
+  const users = (await (await page.request.get("/api/auth/users")).json()).data.users as { id: string; name: string }[];
+  const pat = users.find((u) => u.name === "Pat Owner")!;
+  await page.request.post("/api/auth/login", { data: { userId: pat.id, password: "a-long-password" } });
+  await page.goto("/admin");
+  await page.getByTestId("clear-all-open").click();
+  const dialog = page.getByRole("dialog", { name: "Clear all data" });
+  const go = dialog.getByTestId("clear-all-confirm");
+  await expect(go).toBeDisabled(); // needs both the phrase and a password
+
+  await dialog.getByLabel("Type DELETE ALL DATA to confirm").fill("delete everything");
+  await dialog.getByLabel("Your admin password").fill("a-long-password");
+  await expect(go).toBeDisabled(); // wrong phrase
+
+  await dialog.getByLabel("Type DELETE ALL DATA to confirm").fill("DELETE ALL DATA");
+  await dialog.getByLabel("Your admin password").fill("not-my-password");
+  const [dl0] = await Promise.all([page.waitForEvent("download"), go.click()]);
+  expect(dl0.suggestedFilename()).toMatch(/before_clearing.*\.json$/);
+  await expect(dialog.getByRole("alert")).toContainText("Wrong password");
+  // still there
+  expect(((await (await page.request.get("/api/time-entries")).json()).data as unknown[]).length).toBeGreaterThan(0);
+
+  await dialog.getByLabel("Your admin password").fill("a-long-password");
+  const [dl] = await Promise.all([page.waitForEvent("download"), go.click()]);
+  expect(dl.suggestedFilename()).toMatch(/before_clearing.*\.json$/);
+  await expect(page.getByRole("heading", { name: "Create the first admin account" })).toBeVisible();
+
+  // everything is gone, but the safety spreadsheet was kept
+  const users2 = (await (await page.request.get("/api/auth/users")).json()).data;
+  expect(users2.users).toHaveLength(0);
+  await page.getByLabel("Your name").fill("Next Admin");
+  await page.getByLabel("Email").fill("next@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("another-long-password");
+  await page.getByRole("button", { name: /Create admin/ }).click();
+  await expect(page.getByLabel("New entry hours")).toBeVisible();
+  expect(((await (await page.request.get("/api/time-entries")).json()).data as unknown[]).length).toBe(0);
+  const saved = (await (await page.request.get("/api/snapshots")).json()).data as { kind: string; fileName: string }[];
+  expect(saved.some((s) => s.kind === "cleared" && /before_clearing/.test(s.fileName))).toBe(true);
+});

@@ -123,5 +123,6 @@ export const DDL: string[] = [
     data text NOT NULL,
     created_at timestamp NOT NULL DEFAULT now()
   )`,
+  `ALTER TABLE saved_exports ALTER COLUMN period TYPE varchar(20)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS saved_exports_period_idx ON saved_exports (kind, period)`,
 ];
