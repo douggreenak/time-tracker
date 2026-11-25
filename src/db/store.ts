@@ -424,6 +424,29 @@ export const dataStore = {
     return r?.value === "true";
   },
   /** Wipes every record (used to drop the sample data and start fresh). */
+  /**
+   * Deletes the chosen groups. Callers must include what depends on a group (customers and people take their
+   * time entries with them). Saved spreadsheets are cleared except the one named in `keepSaved`.
+   */
+  clearParts: async (parts: Set<string>, keepSaved?: { kind: string; period: string }) => {
+    const db = await getDb();
+    if (parts.has("invoices")) await db.delete(t.invoices);
+    if (parts.has("lists")) await db.delete(t.billingItems);
+    if (parts.has("entries") || parts.has("customers") || parts.has("people")) {
+      await db.delete(t.activeTimers);
+      await db.delete(t.timeEntries);
+    }
+    if (parts.has("customers")) {
+      await db.delete(t.jobs);
+      await db.delete(t.customers);
+      await db.delete(t.serviceItems);
+    }
+    if (parts.has("people")) await db.delete(t.users);
+    if (parts.has("saved")) {
+      await db.delete(t.savedExports).where(keepSaved ? sql`not (${t.savedExports.kind} = ${keepSaved.kind} and ${t.savedExports.period} = ${keepSaved.period})` : undefined);
+    }
+    if (parts.has("people") && parts.has("customers")) await db.delete(t.appMeta).where(eq(t.appMeta.key, "demo"));
+  },
   /** Deletes everything. Saved spreadsheets are kept when `keepSaved` is set (the safety copy made just before clearing lives there). */
   clearAllData: async (keepSaved = false) => {
     const db = await getDb();
