@@ -35,6 +35,9 @@ const dateLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("e
 export default function BillingPage() {
     const [[from, to], setRange] = useState<[string, string]>(() => PRESETS[3].range());
   const [includeInvoiced, setIncludeInvoiced] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [everyone, setEveryone] = useState<{ id: string; name: string; isActive: boolean; lastInvoiceDate?: string | null }[]>([]);
+  useEffect(() => { fetch("/api/customers").then((r) => r.json()).then((j) => j?.success && setEveryone(j.data)).catch(() => {}); }, []);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [invoices, setInvoices] = useState<InvoiceData[] | null>(null);
@@ -110,6 +113,10 @@ export default function BillingPage() {
   const setCustomerParts = (id: string, next: PartRow[]) => setParts((p) => ({ ...p, [id]: next }));
 
   if (!rows) return <PageLoader label="Loading billing…" />;
+  // Only customers with time in the range, unless "Show all customers" adds the rest (greyed out, nothing to invoice).
+  const shownRows: Row[] = showAll
+    ? [...rows, ...everyone.filter((c) => !rows.some((r) => r.customerId === c.id)).map((c): Row => ({ customerId: c.id, customerName: c.name, isActive: c.isActive, lastInvoiceDate: c.lastInvoiceDate ?? null, newHours: false, unbilledHours: 0, hoursInRange: 0, entriesInRange: 0, amountInRange: 0 }))].sort((x, y) => x.customerName.localeCompare(y.customerName))
+    : rows.filter((r) => r.entriesInRange > 0);
   const shown = (invoices ?? []).map((i) => withParts(i, parts[i.customerId] ?? []));
 
   return (
@@ -146,6 +153,10 @@ export default function BillingPage() {
             <input type="checkbox" checked={includeInvoiced} onChange={(e) => setIncludeInvoiced(e.target.checked)} data-testid="include-invoiced" className="accent-[hsl(var(--primary))]" />
             Include time already invoiced
           </label>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} data-testid="show-all-customers" className="accent-[hsl(var(--primary))]" />
+            Show all customers
+          </label>
         </div>
 
         <div className="stack-table-wrap m3-scroll max-h-[22rem] overflow-auto">
@@ -160,7 +171,7 @@ export default function BillingPage() {
               </tr>
             </thead>
             <tbody className="[&_td]:border-b [&_td]:border-r [&_td]:border-border/70 [&_td:last-child]:border-r-0">
-              {rows.map((r) => {
+              {shownRows.map((r) => {
                 const none = r.entriesInRange === 0;
                 return (
                   <tr key={r.customerId} className={cn("bg-card hover:bg-surface-low", none && "opacity-60")} data-testid="billing-row">
@@ -174,7 +185,7 @@ export default function BillingPage() {
                   </tr>
                 );
               })}
-              {rows.length === 0 && <tr className="group-row"><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No billable time in this range.</td></tr>}
+              {shownRows.length === 0 && <tr className="group-row"><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No billable time in this range. Tick “Show all customers” to list everyone.</td></tr>}
             </tbody>
           </table>
         </div>

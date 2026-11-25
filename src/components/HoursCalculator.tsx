@@ -5,13 +5,15 @@ import { Calculator, X } from "lucide-react";
 import { hourDifference } from "@/lib/hours";
 import { cn } from "@/components/ui";
 
-const input = "h-9 w-full rounded-lg border border-outline-variant bg-surface-low px-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/25";
+const input = "h-9 w-full rounded-lg border border-outline-variant bg-surface-low px-2 text-sm font-semibold text-foreground outline-none placeholder:font-normal placeholder:italic placeholder:text-muted-foreground/45 focus:border-primary focus:ring-2 focus:ring-primary/25";
+/** Lunch and extra are minutes: a bare "30" means 30 minutes ("1h", "1:30" and "45m" still work). */
+const minutes = (s: string) => (/^\s*\d+(\.\d+)?\s*$/.test(s) ? `${s.trim()}m` : s);
 
 /** The workbook's HOUR DIFFERENCES sheet: start and end in military time, minus gaps, plus a block. */
 export function HoursCalculator({ onUse }: { onUse: (hours: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [v, setV] = useState({ start: "", end: "", minus: "", plus: "" });
-  const result = v.start && v.end ? hourDifference(v.start, v.end, v.minus, v.plus) : null;
+  const [v, setV] = useState({ start: "", end: "", minus: "0", plus: "0" });
+  const result = v.start && v.end ? hourDifference(v.start, v.end, minutes(v.minus), minutes(v.plus)) : null;
   const field = (key: keyof typeof v, label: string, placeholder: string) => (
     <label className="block text-[11px] font-semibold text-muted-foreground">
       {label}
@@ -36,12 +38,12 @@ export function HoursCalculator({ onUse }: { onUse: (hours: string) => void }) {
             <button onClick={() => setOpen(false)} aria-label="Close" className="rounded-full p-1 hover:bg-foreground/10"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {field("start", "Start", "0730")}
-            {field("end", "End", "1650")}
-            {field("minus", "Minus (lunch…)", "30m")}
-            {field("plus", "Plus (extra)", "1h")}
+            {field("start", "Start", "e.g. 0730")}
+            {field("end", "End", "e.g. 1650")}
+            {field("minus", "Lunch (minutes)", "0")}
+            {field("plus", "Extra (minutes)", "0")}
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">Times are military (1304 = 1:04 pm). Rounds to a tenth of an hour.</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">Start and End are military time (1304 = 1:04 pm). Lunch is taken off, Extra is added. Rounds to a tenth of an hour. Faded text is just an example.</p>
           <div className="mt-3 flex items-center justify-between rounded-xl bg-surface-low px-3 py-2">
             <span data-testid="hours-calc-result" className="font-mono text-xl font-semibold tabular-nums">{result === null ? "—" : result.toFixed(1)} <span className="text-xs font-medium text-muted-foreground">h</span></span>
             <button

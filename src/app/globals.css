@@ -349,3 +349,21 @@
   .stack-table td:last-child { padding-right: 0.625rem; }
   .stack-table td.actions-cell:last-child { padding-right: 0.875rem; }
 }
+
+/* Unavailable controls: unmistakably flat, gray and not clickable (beats per-button utility colors). */
+button:disabled, [aria-disabled="true"] {
+  background-color: hsl(var(--surface-container-high)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+  border-color: hsl(var(--outline-variant) / 0.5) !important;
+  box-shadow: none !important;
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+input:disabled, select:disabled, textarea:disabled {
+  background-color: hsl(var(--surface-container-high)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+button:disabled:hover { filter: grayscale(1) !important; }

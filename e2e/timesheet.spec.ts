@@ -54,7 +54,7 @@ test("hours calculator matches the workbook's HOUR DIFFERENCES sheet", async ({ 
   await page.getByLabel("Start", { exact: true }).fill("1304");
   await page.getByLabel("End", { exact: true }).fill("1650");
   await expect(page.getByTestId("hours-calc-result")).toContainText("3.8");
-  await page.getByLabel("Minus (lunch…)").fill("30m");
+  await page.getByLabel("Lunch (minutes)").fill("30");
   await expect(page.getByTestId("hours-calc-result")).toContainText("3.3");
   await page.getByTestId("hours-calc-use").click();
   await expect(page.getByLabel("New entry hours")).toHaveValue("3.3");

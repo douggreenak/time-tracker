@@ -92,7 +92,7 @@ export async function planImport(parsed: ParsedWorkbook, opts: Partial<ImportOpt
       plan.held.newRows++;
       if (opts.includeHeld && opts.heldUserId) {
         noteCustomer(h.customer);
-        toInsert.push({ userId: opts.heldUserId, customer: h.customer, date: h.date, minutes: Math.round(h.hours * 60), notes: h.description, isLumpSum: false, partsNote: h.partsNote, internalNote: "", contractPo: "", isBillable: true, isInvoiced: false, isHeld: true });
+        toInsert.push({ userId: opts.heldUserId, customer: h.customer, date: h.date, minutes: Math.round(h.hours * 60), notes: h.description, isLumpSum: false, partsNote: h.partsNote, internalNote: h.internalNote, contractPo: "", isBillable: true, isInvoiced: false, isHeld: true });
       }
     }
   }

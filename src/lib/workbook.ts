@@ -33,6 +33,7 @@ export interface WbHeld {
   hours: number;
   description: string;
   partsNote: string;
+  internalNote: string;
 }
 export interface WbItem {
   customer: string;
@@ -105,7 +106,7 @@ export async function parseWorkbook(data: Buffer | ArrayBuffer): Promise<ParsedW
         }
         const partsCell = clean(val(row.getCell(9)));
         const partsNote = note(row.getCell(9)) || (/^SEE NOTE/i.test(partsCell) ? "" : partsCell);
-        const internal = [4, 5, 6, 7].map((c) => note(row.getCell(c))).filter(Boolean).join(" | ");
+        const internal = [4, 5, 6, 7, 8, 10, 11, 12].map((c) => note(row.getCell(c))).filter(Boolean).join(" | ");
         const billableRaw = clean(val(row.getCell(11))).toUpperCase();
         entries.push({
           date: d,
@@ -128,7 +129,7 @@ export async function parseWorkbook(data: Buffer | ArrayBuffer): Promise<ParsedW
         const customer = clean(val(row.getCell(5)));
         const hours = num(row.getCell(6));
         if (d && customer && hours !== null)
-          out.held.push({ date: d, customer, hours: Math.round(hours * 10) / 10, description: clean(val(row.getCell(7))), partsNote: clean(val(row.getCell(8))) });
+          out.held.push({ date: d, customer, hours: Math.round(hours * 10) / 10, description: clean(val(row.getCell(7))), partsNote: clean(val(row.getCell(8))), internalNote: [4, 5, 6, 7, 8].map((c) => note(row.getCell(c))).filter(Boolean).join(" | ") });
       });
     } else if (name === "LUMP SUM" || name === "OTHER") {
       const first = name === "LUMP SUM" ? 4 : 3;
@@ -240,6 +241,7 @@ export async function buildDataWorkbook(data: ExportData, title?: string): Promi
     wh.getCell(r, 6).value = Math.round(e.durationMinutes / 6) / 10;
     wh.getCell(r, 7).value = e.notes ?? "";
     wh.getCell(r, 8).value = e.partsNote ?? "";
+    if (e.internalNote) wh.getCell(r, 7).note = e.internalNote;
   });
   [[4, 12], [5, 22], [6, 8], [7, 48], [8, 24]].forEach(([c, w]) => (wh.getColumn(c).width = w));
 

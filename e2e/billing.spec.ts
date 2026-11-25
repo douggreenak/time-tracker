@@ -157,3 +157,39 @@ test("lump sum, other and held lists are editable", async ({ page }) => {
   await page.goto("/other");
   await expect(page.getByRole("heading", { name: "Other" })).toBeVisible();
 });
+
+test("billing lists only customers with time in the range, unless 'Show all customers' is ticked", async ({ page }) => {
+  await loginAs(page, ACCOUNTANT, "/billing");
+  const rows = page.getByTestId("billing-row");
+  const api = (await (await page.request.get("/api/billing/summary?from=2026-11-13&to=2026-11-20")).json()).data as Row[];
+  const withTime = api.filter((r) => r.entriesInRange > 0).length;
+  const all = ((await (await page.request.get("/api/customers")).json()).data as unknown[]).length;
+  expect(all).toBeGreaterThan(withTime); // there are customers with nothing in this range
+  await page.getByLabel("From date").fill("2026-11-13");
+  await page.getByLabel("To date").fill("2026-11-20");
+  await expect(rows).toHaveCount(withTime);
+  await page.getByTestId("show-all-customers").check();
+  await expect(rows).toHaveCount(all);
+  await expect(page.getByRole("checkbox", { name: /^Invoice / }).and(page.locator(":disabled")).first()).toBeVisible(); // empty ones can't be picked
+  await page.getByTestId("show-all-customers").uncheck();
+  await expect(rows).toHaveCount(withTime);
+});
+
+test("unavailable buttons look clearly unavailable", async ({ page }) => {
+  await loginAs(page, ACCOUNTANT, "/billing");
+  await page.getByLabel("From date").fill("2026-11-13");
+  await page.getByLabel("To date").fill("2026-11-20");
+  await expect(page.getByTestId("billing-row").first()).toBeVisible();
+  await page.getByLabel("Select all customers").uncheck();
+  const create = page.getByTestId("create-invoices");
+  await expect(create).toBeDisabled();
+  const off = await create.evaluate((e) => { const s = getComputedStyle(e); return { bg: s.backgroundColor, op: s.opacity, cur: s.cursor, f: s.filter }; });
+  expect(off.cur).toBe("not-allowed");
+  expect(Number(off.op)).toBeLessThan(0.7);
+  expect(off.f).toContain("grayscale");
+  await page.getByLabel("Select all customers").check();
+  await expect(create).toBeEnabled();
+  const on = await create.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, op: getComputedStyle(e).opacity }));
+  await expect.poll(async () => await create.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe(off.bg);
+  await expect.poll(async () => Number(await create.evaluate((e) => getComputedStyle(e).opacity))).toBe(1);
+});
