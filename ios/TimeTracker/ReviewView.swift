@@ -76,7 +76,7 @@ struct ReviewView: View {
             .screenBackground()
             .searchable(text: $search, prompt: "Search people, customers, notes")
             .refreshable { await app.refresh() }
-            .navigationTitle("Review")
+            .screenHeader("Review")
             .sheet(item: $detail) { e in ReviewDetail(entryId: e.id) }
             #if DEBUG
             .onAppear {

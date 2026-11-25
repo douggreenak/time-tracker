@@ -69,7 +69,7 @@ struct AccountView: View {
                 }
             }
             .screenBackground()
-            .navigationTitle("Account")
+            .screenHeader("Account")
             .sheet(isPresented: $changingPassword) { PasswordSheet() }
             .sheet(isPresented: $showPlaces) { PlacesView() }
             #if DEBUG

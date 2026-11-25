@@ -72,16 +72,11 @@ struct DataView: View {
             }
             .screenBackground()
             .refreshable { await app.refresh() }
-            .navigationTitle("Data")
-            .toolbar {
+            .screenHeader("Data") {
                 if app.isManager && tab == .customers {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Toggle(isOn: $showArchived) { Image(systemName: "archivebox") }.toggleStyle(.button)
-                    }
+                    Button { showArchived.toggle() } label: { Label(showArchived ? "Hide archived" : "Show archived", systemImage: showArchived ? "archivebox.fill" : "archivebox") }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { text = ""; billable = true; prompt = tab == .customers ? .customer : .task } label: { Label("Add", systemImage: "plus") }
-                }
+                Button { text = ""; billable = true; prompt = tab == .customers ? .customer : .task } label: { Label("Add", systemImage: "plus") }
             }
             .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
                 TextField("Name", text: $text).textInputAutocapitalization(.words)

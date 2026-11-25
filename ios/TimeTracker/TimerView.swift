@@ -36,11 +36,8 @@ struct TimerView: View {
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await app.refresh() }
             .background { AuroraBackground() }
-            .navigationTitle("Timer")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { editing = EntryDraft(userId: app.me?.id ?? "") } label: { Label("Add time", systemImage: "plus") }
-                }
+            .screenHeader("Timer") {
+                Button { editing = EntryDraft(userId: app.me?.id ?? "") } label: { Label("Add time", systemImage: "plus") }
             }
             .sheet(item: $editing) { d in EntryEditor(draft: d) }
         }

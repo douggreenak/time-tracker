@@ -54,9 +54,9 @@ struct PlacesView: View {
             }
             .listStyle(.plain)
             .screenBackground()
-            .navigationTitle("Places")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .screenHeader("Places") {
+                Button { dismiss() } label: { Label("Done", systemImage: "xmark") }
+            }
             .sheet(item: $editing) { d in EntryEditor(draft: d) }
             .confirmationDialog("Delete all saved location history?", isPresented: $confirmErase, titleVisibility: .visible) {
                 Button("Delete history", role: .destructive) { tracker.eraseHistory() }

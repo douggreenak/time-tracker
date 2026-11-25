@@ -88,14 +88,9 @@ struct TimesheetView: View {
             .listStyle(.plain)
             .screenBackground()
             .refreshable { await app.refresh() }
-            .navigationTitle("Timesheet")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showPlaces = true } label: { Label("Places", systemImage: tracker.isRunning ? "location.fill" : "location") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { editing = EntryDraft(userId: app.me?.id ?? "") } label: { Label("Add time", systemImage: "plus") }
-                }
+            .screenHeader("Timesheet") {
+                Button { showPlaces = true } label: { Label("Places", systemImage: tracker.isRunning ? "location.fill" : "location") }
+                Button { editing = EntryDraft(userId: app.me?.id ?? "") } label: { Label("Add time", systemImage: "plus") }
             }
             .sheet(item: $editing) { d in EntryEditor(draft: d) }
             .sheet(isPresented: $showPlaces) { PlacesView() }

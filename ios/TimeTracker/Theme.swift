@@ -63,6 +63,28 @@ extension View {
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
     }
 
+    /// One header for every page: the title on the left and the page's buttons on the right, on the same line.
+    func screenHeader<T: View>(_ title: String, @ViewBuilder buttons: () -> T = { EmptyView() }) -> some View {
+        let trailing = buttons()
+        return self.toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(spacing: 10) {
+                    Text(title).font(.largeTitle.bold()).lineLimit(1).minimumScaleFactor(0.6)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 8)
+                    GlassEffectContainer(spacing: 10) {
+                        HStack(spacing: 10) { trailing }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.circle)
+                            .controlSize(.large)
+                    }
+                }
+                .frame(minHeight: 52)
+                .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 10)
+            }
+    }
+
     func screenBackground() -> some View {
         self.scrollContentBackground(.hidden).background { AuroraBackground() }
     }
