@@ -19,6 +19,10 @@ const userOf = (r: typeof t.users.$inferSelect): UserItem => ({
   defaultHourlyRate: Number(r.defaultHourlyRate ?? 250),
 });
 
+const readRateHistory = async (): Promise<Record<string, { until: string; rate: number }[]>> => {
+  try { return JSON.parse((await dataStore.getMeta("rate_history")) ?? "{}"); } catch { return {}; }
+};
+
 const entrySelect = {
   id: t.timeEntries.id,
   userId: t.timeEntries.userId,
@@ -99,7 +103,26 @@ export const dataStore = {
   // ───────── Users ─────────
   getUsers: async (): Promise<UserItem[]> => {
     const db = await getDb();
-    return (await db.select().from(t.users).orderBy(asc(t.users.name))).map(userOf);
+    const history = await readRateHistory();
+    return (await db.select().from(t.users).orderBy(asc(t.users.name))).map((r) => ({ ...userOf(r), ...(history[r.id]?.length ? { rateHistory: history[r.id] } : {}) }));
+  },
+  /**
+   * Changes someone's billing rate. scope "all" re-prices every day (past time too); "future" keeps the old rate
+   * for days before `from` and uses the new one from then on.
+   */
+  changeRate: async (id: string, rate: number, scope: "all" | "future", from: string) => {
+    const u = await dataStore.getUserById(id);
+    if (!u) return null;
+    const history = await readRateHistory();
+    if (scope === "all") delete history[id];
+    else if (rate !== u.defaultHourlyRate) {
+      const until = new Date(new Date(`${from}T00:00:00Z`).getTime() - 864e5).toISOString().slice(0, 10);
+      const list = history[id] ?? [];
+      if (!list.some((h) => h.until === until)) list.push({ until, rate: u.defaultHourlyRate });
+      history[id] = list.sort((a, b) => a.until.localeCompare(b.until));
+    }
+    await dataStore.setMeta("rate_history", JSON.stringify(history));
+    return dataStore.updateUser(id, { defaultHourlyRate: rate });
   },
   getUserById: async (id: string) => {
     if (!isUuid(id)) return undefined;

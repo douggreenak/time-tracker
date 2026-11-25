@@ -38,7 +38,7 @@ test("manager pages fit", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible();
   await noSidewaysScroll(page);
   await shot(page, "m-review");
-  for (const [path, name] of [["/customers", "m-customers"], ["/lump-sum", "m-lump"], ["/held", "m-held"]] as const) {
+  for (const [path, name] of [["/customers", "m-customers"], ["/team", "m-team"]] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading").first()).toBeVisible();
     await noSidewaysScroll(page);

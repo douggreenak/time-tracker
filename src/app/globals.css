@@ -3,7 +3,6 @@
 @tailwind utilities;
 
 /* ───────── Google Fonts ───────── */
-@import url("https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap");
 
 @layer base {
 :root {
@@ -51,7 +50,7 @@
 
     /* Neutrals */
     --muted:                210 40% 95%;
-    --muted-foreground:     215 16% 40%;
+    --muted-foreground:     215 18% 33%;
     --accent:               221 91% 93%;
     --accent-foreground:    226 57% 21%;
     --border:               214 22% 86%;
@@ -93,7 +92,7 @@
     --warning:              38 95% 62%;
     --warning-container:    38 70% 22%;
     --muted:                219 30% 16%;
-    --muted-foreground:     215 16% 70%;
+    --muted-foreground:     215 16% 78%;
     --accent:               224 55% 28%;
     --accent-foreground:    214 90% 92%;
     --border:               218 25% 22%;

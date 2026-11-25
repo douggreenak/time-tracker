@@ -70,6 +70,13 @@ export function withParts(inv: InvoiceData, parts: PartRow[]): InvoiceData {
   return { ...inv, parts: kept, partsTotal, amountDue: cents(inv.laborTotal + partsTotal) };
 }
 
+/** The billing rate for a person on a given day (honours rate changes that only apply going forward). */
+export function rateAt(u: Pick<UserItem, "defaultHourlyRate" | "rateHistory"> | undefined, date: string): number {
+  if (!u) return 0;
+  const old = [...(u.rateHistory ?? [])].sort((a, b) => a.until.localeCompare(b.until)).find((h) => date <= h.until);
+  return Number(old ? old.rate : u.defaultHourlyRate) || 0;
+}
+
 export function buildInvoice(
   entries: TimeEntryItem[],
   users: UserItem[],
@@ -78,7 +85,7 @@ export function buildInvoice(
   dateTo: string,
   parts: PartRow[] = []
 ): InvoiceData {
-  const rateOf = new Map(users.map((u) => [u.id, Number(u.defaultHourlyRate) || 0]));
+  const userOf = new Map(users.map((u) => [u.id, u]));
   const mine = entries
     .filter((e) => e.customerId === customer.id && e.date >= dateFrom && e.date <= dateTo)
     // by person, then by date, as the macro walks each person's sheet in order
@@ -86,7 +93,7 @@ export function buildInvoice(
 
   const lines: InvoiceLine[] = mine.map((e) => {
     const hours = tenths(e.durationMinutes);
-    const rate = rateOf.get(e.userId) ?? 0;
+    const rate = rateAt(userOf.get(e.userId), e.date);
     return {
       entryId: e.id,
       date: e.date,

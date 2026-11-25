@@ -51,7 +51,7 @@ export function useDirectory() {
     updateCustomer: (id: string, patch: { name?: string; isActive?: boolean }) => mutate(call(`/api/customers/${id}`, "PUT", patch)),
     deleteCustomer: (id: string) => mutate(call(`/api/customers/${id}`, "DELETE")),
     createUser: (u: { name: string; email: string; role?: string; defaultHourlyRate?: number; password: string }) => mutate(call<UserItem>("/api/users", "POST", u)),
-    updateUser: (id: string, patch: Partial<Pick<UserItem, "name" | "email" | "role" | "defaultHourlyRate">> & { password?: string }) =>
+    updateUser: (id: string, patch: Partial<Pick<UserItem, "name" | "email" | "role" | "defaultHourlyRate">> & { password?: string; rateScope?: "all" | "future"; effectiveFrom?: string }) =>
       mutate(call(`/api/users/${id}`, "PUT", patch)),
     deleteUser: (id: string) => mutate(call(`/api/users/${id}`, "DELETE")),
   };

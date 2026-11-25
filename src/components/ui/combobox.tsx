@@ -173,7 +173,7 @@ export function Combobox({
         }}
         onBlur={() => close()}
         onKeyDown={onKeyDown}
-        className="block h-9 w-full truncate bg-transparent pl-2 pr-7 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-card focus:shadow-[inset_0_0_0_2px_hsl(var(--primary))] disabled:cursor-not-allowed disabled:text-muted-foreground"
+        className="block h-9 w-full truncate bg-transparent pl-2 pr-7 text-sm text-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-card focus:shadow-[inset_0_0_0_2px_hsl(var(--primary))] disabled:cursor-not-allowed disabled:text-muted-foreground"
       />
       <button
         type="button"
@@ -208,7 +208,7 @@ export function Combobox({
               width,
               ...(flip ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
             }}
-            className={cn("m3-scroll z-[100] max-h-60 animate-m3-pop overflow-auto rounded-lg border border-border bg-card py-1 text-[13px] shadow-lg ring-1 ring-black/5", flip ? "origin-bottom" : "origin-top")}
+            className={cn("m3-scroll z-[100] max-h-60 animate-m3-pop overflow-auto rounded-lg border border-border bg-card py-1 text-[15px] leading-snug shadow-lg ring-1 ring-black/5", flip ? "origin-bottom" : "origin-top")}
           >
             {items.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">No matches</li>}
             {items.map((it, i) => {
@@ -237,7 +237,7 @@ export function Combobox({
                   ) : (
                     <>
                       <span className="min-w-0 flex-1 truncate">{it.label}</span>
-                      {it.opt?.hint && <span className="shrink-0 text-[11px] text-muted-foreground">{it.opt.hint}</span>}
+                      {it.opt?.hint && <span className="shrink-0 text-xs text-muted-foreground">{it.opt.hint}</span>}
                       {isSel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
                     </>
                   )}

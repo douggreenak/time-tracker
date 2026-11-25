@@ -17,6 +17,8 @@ export interface UserItem {
   role: "engineer" | "accountant" | "admin";
   /** What this person is billed out at, per hour (the workbook's RATE). */
   defaultHourlyRate: number;
+  /** Earlier rates: time dated on or before `until` is billed at `rate` (set when a rate change only applies going forward). */
+  rateHistory?: { until: string; rate: number }[];
 }
 
 /** One row of the workbook's TIME SUMMARY sheets. */

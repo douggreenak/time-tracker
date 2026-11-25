@@ -141,21 +141,13 @@ test("everyone can use billing and delete an invoice", async ({ page }) => {
   await expect.poll(async () => ((await (await page.request.get("/api/invoices")).json()).data as unknown[]).length).toBe(inv.length - 1);
 });
 
-test("lump sum, other and held lists are editable", async ({ page }) => {
-  await loginAs(page, ACCOUNTANT, "/lump-sum");
-  await expect(page.getByTestId("lump_sum-table").locator('input[aria-label="Description"]').first()).toBeVisible();
-  await page.getByLabel("New customer").fill("TEST CO");
-  await page.getByLabel("New description").fill("fixed price job");
-  await page.getByLabel("New amount").fill("1,250.50");
-  await page.getByRole("button", { name: "Add row" }).click();
-  await expect(page.locator('input[value="TEST CO"]')).toHaveCount(1);
-  const items = (await (await page.request.get("/api/billing-items?kind=lump_sum")).json()).data as any[];
-  expect(items.find((i) => i.customer === "TEST CO").amount).toBe(1250.5);
-
-  await page.goto("/held");
-  await expect(page.getByTestId("held-table").getByRole("button", { name: "Release to billing" })).toHaveCount(9);
-  await page.goto("/other");
-  await expect(page.getByRole("heading", { name: "Other" })).toBeVisible();
+test("the Data tab is now just Customers; the old list pages are gone but their data stays", async ({ page }) => {
+  await loginAs(page, ACCOUNTANT, "/customers");
+  await expect(page.getByRole("link", { name: "Customers", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Data", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Data" })).toHaveCount(0); // no sub-tabs
+  for (const gone of ["/lump-sum", "/other", "/held"]) expect((await page.request.get(gone)).status()).toBe(404);
+  expect(((await (await page.request.get("/api/billing-items?kind=lump_sum")).json()).data as unknown[]).length).toBeGreaterThan(0);
 });
 
 test("billing lists only customers with time in the range, unless 'Show all customers' is ticked", async ({ page }) => {

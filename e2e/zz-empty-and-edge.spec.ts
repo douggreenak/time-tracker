@@ -49,8 +49,6 @@ test("clearing sample data leads to first-run setup and clean empty screens", as
   for (const [path, text, name] of [
     ["/billing", "No billable time in this range.", "x-empty-billing"],
     ["/customers", "No customers match.", "x-empty-customers"],
-    ["/held", "No held time.", "x-empty-held"],
-    ["/lump-sum", "Nothing here yet.", "x-empty-lump"],
   ] as const) {
     await page.goto(path);
     await expect(page.getByText(text)).toBeVisible();

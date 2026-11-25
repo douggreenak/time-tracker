@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export const cellBase =
-  "block h-9 w-full bg-transparent px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/60 " +
+  "block h-9 w-full bg-transparent px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/60 " +
   "focus:bg-card focus:shadow-[inset_0_0_0_2px_hsl(var(--primary))] disabled:cursor-not-allowed disabled:text-muted-foreground";
 
 /** Text-like cell that keeps a local draft and commits on blur / Enter; Escape reverts. */

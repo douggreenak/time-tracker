@@ -10,7 +10,7 @@ import { cn } from "@/components/ui";
 const NAV_ITEMS = [
   { href: "/engineer", label: "Timesheet", icon: Clock },
   { href: "/billing", label: "Billing", icon: BarChart3 },
-  { href: "/customers", label: "Data", icon: Database, also: ["/lump-sum", "/other", "/held"] },
+  { href: "/customers", label: "Customers", icon: Database },
   { href: "/files", label: "Import & saves", icon: FileSpreadsheet },
   { href: "/team", label: "Team", icon: Users },
   { href: "/admin", label: "Backup", icon: HardDriveDownload, admin: true },
@@ -23,7 +23,7 @@ export function NavLinks() {
     <nav aria-label="Main" className="flex min-w-0 items-center gap-0.5 rounded-full bg-surface-container p-1">
       {NAV_ITEMS.filter((i) => !("admin" in i && i.admin) || isAdmin).map((item) => {
         const { href, label, icon: Icon } = item;
-        const active = [href, ...(("also" in item && item.also) || [])].some((h) => pathname === h || pathname.startsWith(`${h}/`));
+        const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={href}

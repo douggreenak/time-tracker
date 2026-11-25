@@ -4,14 +4,32 @@ import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 
 const KEY = "tt-theme";
+export const MODE_KEY = "tt-theme-mode"; // "toggle" (default) | "light" | "dark"
+export type ThemeMode = "toggle" | "light" | "dark";
 
-/** Light / dark switch. The initial class is set by an inline script in layout.tsx to avoid a flash. */
+export const readMode = (): ThemeMode => {
+  try { const m = localStorage.getItem(MODE_KEY); return m === "light" || m === "dark" ? m : "toggle"; } catch { return "toggle"; }
+};
+/** Saves the preference and applies it right away (and tells any visible toggle to hide or show). */
+export function setMode(mode: ThemeMode) {
+  try { mode === "toggle" ? localStorage.removeItem(MODE_KEY) : localStorage.setItem(MODE_KEY, mode); } catch {}
+  if (mode !== "toggle") document.documentElement.classList.toggle("dark", mode === "dark");
+  window.dispatchEvent(new Event("tt-theme-mode"));
+}
+
+/** Light / dark switch (hidden when the person has chosen always-light or always-dark). The initial class is set by an inline script in layout.tsx to avoid a flash. */
 export function ThemeToggle() {
   const [dark, setDark] = useState<boolean | null>(null);
+  const [mode, setModeState] = useState<ThemeMode>("toggle");
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
+    const sync = () => { setModeState(readMode()); setDark(document.documentElement.classList.contains("dark")); };
+    sync();
+    window.addEventListener("tt-theme-mode", sync);
+    return () => window.removeEventListener("tt-theme-mode", sync);
   }, []);
+
+  if (mode !== "toggle") return null;
 
   const toggle = () => {
     const next = !document.documentElement.classList.contains("dark");

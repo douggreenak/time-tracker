@@ -141,7 +141,7 @@ export function Dropdown({ value, options, onChange, placeholder = "Select…", 
         onKeyDown={onKeyDown}
         className={cn(
           "flex w-full items-center justify-between gap-2 border border-outline-variant bg-surface-low text-left transition-colors hover:border-outline focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50",
-          variant === "pill" ? "h-9 rounded-full px-3 text-xs font-medium" : "h-11 rounded-xl px-4 text-sm",
+          variant === "pill" ? "h-9 rounded-full px-3 text-[13px] font-medium" : "h-11 rounded-xl px-4 text-sm",
           open && "border-primary ring-2 ring-primary/25",
           className
         )}
@@ -160,7 +160,7 @@ export function Dropdown({ value, options, onChange, placeholder = "Select…", 
             aria-label={rest["aria-label"]}
             onMouseDown={(e) => e.preventDefault()}
             style={{ position: "fixed", left, width, ...(flip ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }) }}
-            className={cn("m3-scroll z-[100] max-h-64 animate-m3-pop overflow-auto rounded-lg border border-border bg-card py-1 text-[13px] shadow-lg ring-1 ring-black/5", flip ? "origin-bottom" : "origin-top")}
+            className={cn("m3-scroll z-[100] max-h-64 animate-m3-pop overflow-auto rounded-lg border border-border bg-card py-1 text-[15px] leading-snug shadow-lg ring-1 ring-black/5", flip ? "origin-bottom" : "origin-top")}
           >
             {options.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">Nothing to choose</li>}
             {options.map((o, i) => {
@@ -180,7 +180,7 @@ export function Dropdown({ value, options, onChange, placeholder = "Select…", 
                   )}
                 >
                   <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                  {o.hint && <span className="shrink-0 text-[11px] text-muted-foreground">{o.hint}</span>}
+                  {o.hint && <span className="shrink-0 text-xs text-muted-foreground">{o.hint}</span>}
                   {isSel && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
                 </li>
               );

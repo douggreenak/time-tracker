@@ -20,8 +20,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  // Accountants can add people too, but only engineers and accountants (admins are made by admins).
-  const g = await requireUser({ manager: true });
+  // Anyone signed in can add people, but only engineers and accountants (admins are made by admins).
+  const g = await requireUser();
   if (!g.ok) return g.res;
   try {
     const { name, email, role, defaultHourlyRate, password } = await request.json();

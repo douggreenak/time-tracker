@@ -1,7 +1,7 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import { ADMIN, loginAs, DEMO_PASSWORD } from "./helpers";
 
-const PAGES = ["/engineer", "/billing", "/files", "/customers", "/lump-sum", "/other", "/held", "/team", "/account", "/admin", "/"];
+const PAGES = ["/engineer", "/billing", "/files", "/customers", "/team", "/account", "/admin", "/"];
 const ZONES = ["America/Anchorage", "UTC", "Pacific/Auckland", "Asia/Kolkata", "America/New_York", "Europe/London"];
 const LOCALES = ["en-US", "en-GB", "de-DE", "ja-JP"];
 
@@ -62,7 +62,7 @@ for (const tz of ZONES) {
       await loginAs(page, ADMIN);
       const name = await makeUser(page, "engineer");
       const { ctx, page: p, errors } = await signIn(browser, name, { timezoneId: tz, locale });
-      for (const path of ["/engineer", "/billing", "/customers", "/held", "/team"]) {
+      for (const path of ["/engineer", "/billing", "/customers", "/team"]) {
         await p.goto(path);
         await p.waitForTimeout(500);
         await expect(p.getByText(/Application error|client-side exception/i)).toHaveCount(0);
@@ -95,7 +95,7 @@ test("storage blocked (private mode / strict settings): app still loads", async 
   await p.getByLabel("Password", { exact: true }).fill("sweep-pass-1");
   await p.getByRole("button", { name: "Sign in" }).click();
   await expect(p.getByLabel("New entry hours")).toBeVisible();
-  for (const path of ["/billing", "/customers", "/lump-sum", "/team"]) { await p.goto(path); await p.waitForTimeout(400); }
+  for (const path of ["/billing", "/customers", "/team"]) { await p.goto(path); await p.waitForTimeout(400); }
   expect(errors, errors.join("\n")).toEqual([]);
   await ctx.close();
 });

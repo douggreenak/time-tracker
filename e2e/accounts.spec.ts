@@ -95,32 +95,96 @@ test("admin can change their own password too", async ({ page, browser }) => {
   await ctx.close();
 });
 
-test("accountants can add people and change rates; only admins change roles, passwords or remove people", async ({ page }) => {
-  await loginAs(page, ACCOUNTANT, "/team");
-  await expect(page.getByLabel("New person name")).toBeVisible();
-  await expect(page.getByLabel(/Set password for/)).toHaveCount(0);
-  await expect(page.getByRole("columnheader", { name: "Hours" })).toHaveCount(0);
-  // Add someone (starting as an engineer; accountants can't create admins).
-  const email = `acct${Date.now()}@example.com`;
-  const made = await page.request.post("/api/users", { data: { name: "Added By Accountant", email, role: "engineer", password: "longenough1", defaultHourlyRate: 90 } });
+test("anyone can add and remove people and change rates; only admins change roles, passwords or remove admins", async ({ page }) => {
+  await loginAs(page, ENGINEER, "/team");
+  await expect(page.getByLabel("New person name")).toBeVisible(); // engineers get the full Team table
+  await expect(page.getByLabel(/Set password for/)).toHaveCount(0); // ...but not password controls
+  const email = `eng${Date.now()}@example.com`;
+  const made = await page.request.post("/api/users", { data: { name: "Added By Engineer", email, role: "engineer", password: "longenough1", defaultHourlyRate: 90 } });
   expect(made.status()).toBe(201);
   const id = (await made.json()).data.id;
   expect((await page.request.post("/api/users", { data: { name: "Sneaky Admin", email: `s${Date.now()}@example.com`, role: "admin", password: "longenough1" } })).status()).toBe(403);
-  // Rate, name and email are theirs to change.
   const upd = await (await page.request.put(`/api/users/${id}`, { data: { defaultHourlyRate: 140, name: "Renamed Person", email: "NEW.Mail@Example.com" } })).json();
   expect(Number(upd.data.defaultHourlyRate)).toBe(140);
   expect(upd.data.email).toBe("new.mail@example.com");
-  // ...but not roles, passwords or removal.
   expect((await page.request.put(`/api/users/${id}`, { data: { role: "admin" } })).status()).toBe(403);
   expect((await page.request.put(`/api/users/${id}`, { data: { password: "hijacked-pass-1" } })).status()).toBe(403);
-  expect((await page.request.delete(`/api/users/${id}`)).status()).toBe(403);
   expect((await page.request.delete("/api/demo")).status()).toBe(403);
-  // The rate edit works in the UI too.
+  // the rate edit works in the UI, and nothing saves until Save is pressed
   await page.reload();
-  const rate = page.locator("tr", { has: page.locator('input[value="Renamed Person"]') }).getByLabel("Rate");
-  await rate.fill("150");
-  await rate.press("Enter");
+  const row = page.locator("tr", { has: page.locator('input[value="Renamed Person"]') });
+  await row.getByLabel("Rate").fill("150");
+  await row.getByLabel("Rate").press("Enter");
+  await row.getByLabel("Rate").blur();
+  await page.waitForTimeout(500);
+  expect(Number((await (await page.request.get("/api/users")).json()).data.find((u: { id: string }) => u.id === id).defaultHourlyRate)).toBe(140); // no autosave
+  await expect(row.getByRole("button", { name: /^Save / })).toBeEnabled();
+  await row.getByRole("button", { name: /^Save / }).click();
+  await page.getByTestId("rate-confirm").click();
   await expect.poll(async () => Number((await (await page.request.get("/api/users")).json()).data.find((u: { id: string }) => u.id === id).defaultHourlyRate)).toBe(150);
+  // removing: people can be removed from the table; admins only by admins; never yourself
+  page.once("dialog", (d) => d.accept());
+  await page.locator("tr", { has: page.locator('input[value="Renamed Person"]') }).getByRole("button", { name: /^Remove / }).click();
+  await expect.poll(async () => ((await (await page.request.get("/api/users")).json()).data as { id: string }[]).some((u) => u.id === id)).toBe(false);
+  const users = (await (await page.request.get("/api/users")).json()).data as { id: string; role: string }[];
+  expect((await page.request.delete(`/api/users/${users.find((u) => u.role === "admin")!.id}`)).status()).toBe(403);
+  const me = (await (await page.request.get("/api/auth/me")).json()).data;
+  expect((await page.request.delete(`/api/users/${me.id}`)).status()).toBe(400);
+});
+
+test("a rate change asks whether it is retroactive or only from today on", async ({ page }) => {
+  await loginAs(page, ADMIN, "/team");
+  const name = `Rate Person ${Date.now()}`;
+  const made = await (await page.request.post("/api/users", { data: { name, email: `rate${Date.now()}@example.com`, password: "longenough1", defaultHourlyRate: 100 } })).json();
+  const id = made.data.id as string;
+  const cust = ((await (await page.request.get("/api/customers")).json()).data as { id: string; name: string }[]).find((c) => c.name === "HARBOR WTP")!;
+  const e = await page.request.post("/api/time-entries", { data: { userId: id, customerId: cust.id, date: "2026-01-12", durationMinutes: 120, notes: "old work" } });
+  expect(e.status()).toBe(201);
+  const lineRate = async () => {
+    const inv = (await (await page.request.post("/api/billing/preview", { data: { from: "2026-01-12", to: "2026-01-12", includeInvoiced: true, customers: [{ id: cust.id, parts: [] }] } })).json()).data[0];
+    return (inv.lines as { personnel: string; rate: number }[]).find((l) => l.personnel === name.toUpperCase())!.rate;
+  };
+  expect(await lineRate()).toBe(100);
+
+  await page.reload();
+  const row = () => page.locator("tr", { has: page.locator(`input[value="${name}"]`) });
+  // 1) from today on only: the January entry keeps $100
+  await row().getByLabel("Rate", { exact: true }).fill("180");
+  await row().getByRole("button", { name: /^Save / }).click();
+  const dialog = page.getByRole("dialog", { name: "Change billing rate" });
+  await expect(dialog).toContainText("Are you sure?");
+  await expect(dialog).toContainText("$100");
+  await expect(dialog).toContainText("$180");
+  await dialog.getByLabel("From today on only").check();
+  await dialog.getByTestId("rate-confirm").click();
+  await expect.poll(async () => Number((await (await page.request.get("/api/users")).json()).data.find((u: { id: string }) => u.id === id).defaultHourlyRate)).toBe(180);
+  expect(await lineRate()).toBe(100);
+  // 2) cancelling changes nothing
+  await row().getByLabel("Rate", { exact: true }).fill("200");
+  await row().getByRole("button", { name: /^Save / }).click();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  expect(Number((await (await page.request.get("/api/users")).json()).data.find((u: { id: string }) => u.id === id).defaultHourlyRate)).toBe(180);
+  // 3) retroactive: everything is re-priced
+  await row().getByRole("button", { name: /^Save / }).click();
+  await dialog.getByLabel(/^Retroactive/).check();
+  await dialog.getByTestId("rate-confirm").click();
+  await expect.poll(lineRate).toBe(200);
+});
+
+test("light/dark mode: the toggle can be removed in favour of always light or always dark", async ({ page }) => {
+  await loginAs(page, ENGINEER, "/team");
+  const toggle = page.getByRole("button", { name: /Switch to (light|dark) mode/ });
+  await expect(toggle).toBeVisible();
+  await page.getByRole("radio", { name: "Always dark" }).click();
+  await expect(toggle).toHaveCount(0);
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(toggle).toHaveCount(0);
+  await page.getByRole("radio", { name: "Always light" }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await page.getByRole("radio", { name: "Show the toggle" }).click();
+  await expect(toggle).toBeVisible();
 });
 
 test("everyone can edit their own name and email, but not their role", async ({ page }) => {
@@ -135,9 +199,6 @@ test("everyone can edit their own name and email, but not their role", async ({ 
   expect(after.email).toBe("priya.nair@engineering.com");
   expect(after.role).toBe("engineer");
   expect((await page.request.put(`/api/users/${me.id}`, { data: { role: "admin" } })).status()).toBe(403);
-  expect((await page.request.put(`/api/users/${me.id}`, { data: { defaultHourlyRate: 999 } })).status()).toBe(403);
-  const others = (await (await page.request.get("/api/users")).json()).data.filter((u: { id: string }) => u.id !== me.id);
-  expect((await page.request.put(`/api/users/${others[0].id}`, { data: { name: "Hacked" } })).status()).toBe(403);
   // put it back
   await page.request.put(`/api/users/${me.id}`, { data: { name: me.name, email: me.email } });
 });
@@ -161,16 +222,15 @@ test("overwriting a password asks first; saying no changes nothing", async ({ pa
   await addPerson(page, name, "original-pass-1");
   await page.reload();
   const field = page.getByLabel(`Set password for ${name}`);
-  page.once("dialog", (d) => d.dismiss());
   await field.fill("replacement-pass-1");
-  await field.press("Enter");
+  page.once("dialog", (d) => d.dismiss());
+  await page.getByRole("button", { name: `Save password for ${name}` }).click();
   await page.waitForTimeout(600);
   const { ctx, p } = await signInFresh(browser, name, "original-pass-1");
   await expect(p.getByLabel("New entry hours")).toBeVisible(); // still the old password
   await ctx.close();
   page.once("dialog", (d) => d.accept());
-  await page.getByLabel(`Set password for ${name}`).fill("replacement-pass-1");
-  await page.getByLabel(`Set password for ${name}`).press("Enter");
+  await page.getByRole("button", { name: `Save password for ${name}` }).click();
   await expect(page.getByLabel(`Set password for ${name}`)).toHaveAttribute("placeholder", /updated/);
 });
 

@@ -12,13 +12,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const body = await request.json();
     const self = g.user.id === params.id;
-    // Everyone may edit their own name and email; accountants and admins may also edit anyone's details and rate;
-    // only admins may change roles or passwords.
-    if (!isManager(g.user)) {
-      if (!self) return NextResponse.json({ success: false, error: "You can only edit your own details." }, { status: 403 });
-      if (Object.keys(body).some((k) => !["name", "email"].includes(k)))
-        return NextResponse.json({ success: false, error: "You can change your name and email here. Ask an admin about anything else." }, { status: 403 });
-    }
+    // Anyone signed in can edit a person's name, email and billing rate; only admins change roles or passwords.
     if (!isAdmin(g.user)) {
       const target = await dataStore.getUserById(params.id);
       if (body.password !== undefined || (body.role !== undefined && body.role !== target?.role))
@@ -26,6 +20,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       delete body.role;
     }
     const updates: Record<string, unknown> = {};
+    let rateChange: number | undefined;
     for (const k of ["name", "email", "role"]) {
       if (typeof body[k] === "string") updates[k] = k === "email" ? body[k].trim().toLowerCase() : body[k].trim();
     }
@@ -34,7 +29,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       if (!Number.isFinite(rate) || rate < 0) {
         return NextResponse.json({ success: false, error: "Hourly rate must be a number" }, { status: 400 });
       }
-      updates.defaultHourlyRate = rate;
+      rateChange = rate;
     }
     if (updates.name === "" || updates.email === "") {
       return NextResponse.json({ success: false, error: "Name and email can't be empty" }, { status: 400 });
@@ -48,7 +43,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (body.role !== undefined && g.user.id === params.id && body.role !== g.user.role) {
       return NextResponse.json({ success: false, error: "You can't change your own role." }, { status: 400 });
     }
-    const updated = await dataStore.updateUser(params.id, updates);
+    let updated = await dataStore.updateUser(params.id, updates);
+    if (updated && rateChange !== undefined) {
+      // "all" re-prices past time too; "future" keeps the old rate for earlier days (default: all, like an old client).
+      const scope = body.rateScope === "future" ? "future" : "all";
+      const from = /^\d{4}-\d{2}-\d{2}$/.test(String(body.effectiveFrom ?? "")) ? String(body.effectiveFrom) : new Date().toISOString().slice(0, 10);
+      updated = await dataStore.changeRate(params.id, rateChange, scope, from);
+    }
     if (updated && body.password !== undefined) await dataStore.setPassword(params.id, await hashPassword(body.password));
     if (!updated) return NextResponse.json({ success: false, error: "Person not found" }, { status: 404 });
     return NextResponse.json({ success: true, data: updated });
@@ -62,8 +63,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const g = await requireUser({ admin: true });
+  const g = await requireUser();
   if (!g.ok) return g.res;
+  const target = await dataStore.getUserById(params.id);
+  if (target?.role === "admin" && !isAdmin(g.user)) return NextResponse.json({ success: false, error: "Only an admin can remove an admin." }, { status: 403 });
   if (g.user.id === params.id) return NextResponse.json({ success: false, error: "You can't remove yourself." }, { status: 400 });
   try {
     const result = await dataStore.deleteUser(params.id);
