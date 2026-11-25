@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, ListChecks } from "lucide-react";
+import { Building2, Hourglass, Layers, ReceiptText } from "lucide-react";
 import { cn } from "@/components/ui";
 
 const TABS = [
   { href: "/customers", label: "Customers", icon: Building2 },
-  { href: "/tasks", label: "Tasks", icon: ListChecks },
+  { href: "/lump-sum", label: "Lump sum", icon: Layers },
+  { href: "/other", label: "Other", icon: ReceiptText },
+  { href: "/held", label: "Held time", icon: Hourglass },
 ];
 
 export function DataTabs() {

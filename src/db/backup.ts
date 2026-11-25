@@ -11,7 +11,11 @@ const TABLES = [
   ["serviceItems", t.serviceItems],
   ["timeEntries", t.timeEntries],
   ["activeTimers", t.activeTimers],
+  ["billingItems", t.billingItems],
+  ["invoices", t.invoices],
 ] as const;
+/** Sections an older backup may not have; they restore as empty. */
+const OPTIONAL = new Set<string>(["billingItems", "invoices"]);
 
 export const BACKUP_FORMAT = "timetrack-backup";
 export const BACKUP_VERSION = 1;
@@ -47,6 +51,10 @@ export function validateBackup(data: unknown): asserts data is Backup {
   if (!b.tables || typeof b.tables !== "object") throw new Error("The backup has no data in it.");
   for (const [name] of TABLES) {
     const rows = (b.tables as Record<string, unknown>)[name];
+    if (rows === undefined && OPTIONAL.has(name)) {
+      (b.tables as Record<string, unknown>)[name] = [];
+      continue;
+    }
     if (!Array.isArray(rows) || rows.some((r) => !r || typeof r !== "object" || Array.isArray(r))) throw new Error(`The backup's “${name}” section is damaged.`);
   }
   const users = b.tables.users as Record<string, unknown>[];

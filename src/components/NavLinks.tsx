@@ -9,8 +9,8 @@ import { cn } from "@/components/ui";
 // Everyone sees every tab; what they can change on each depends on their role.
 const NAV_ITEMS = [
   { href: "/engineer", label: "Timesheet", icon: Clock },
-  { href: "/accountant", label: "Review & export", icon: BarChart3 },
-  { href: "/customers", label: "Data", icon: Database, also: ["/tasks"] },
+  { href: "/billing", label: "Billing", icon: BarChart3 },
+  { href: "/customers", label: "Data", icon: Database, also: ["/lump-sum", "/other", "/held"] },
   { href: "/team", label: "Team", icon: Users },
   { href: "/admin", label: "Backup", icon: HardDriveDownload, admin: true },
 ];

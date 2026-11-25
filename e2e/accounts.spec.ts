@@ -139,7 +139,7 @@ test("everyone can edit their own name and email, but not their role", async ({ 
   const others = (await (await page.request.get("/api/users")).json()).data.filter((u: { id: string }) => u.id !== me.id);
   expect((await page.request.put(`/api/users/${others[0].id}`, { data: { name: "Hacked" } })).status()).toBe(403);
   // put it back
-  await page.request.put(`/api/users/${me.id}`, { data: { name: "Priya Nair", email: me.email } });
+  await page.request.put(`/api/users/${me.id}`, { data: { name: me.name, email: me.email } });
 });
 
 test("the show-password eye sits inside the password box", async ({ page }) => {

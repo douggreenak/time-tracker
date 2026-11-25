@@ -1,24 +1,13 @@
+import workbook from "./workbook-demo.json";
+
+/** Types shared by the API and the screens, plus the demo data (built from the Apex billing workbook). */
+
 export interface CustomerItem {
   id: string;
   name: string;
-  qbName: string;
   isActive: boolean;
-  jobs: JobItem[];
-}
-
-export interface JobItem {
-  id: string;
-  customerId: string;
-  name: string;
-  fullQbJobName: string;
-  isActive: boolean;
-}
-
-export interface ServiceItem {
-  id: string;
-  name: string;
-  qbItemName: string;
-  defaultBillable: boolean;
+  /** End date of the most recent invoice made for this customer (the workbook's MACRO DATA sheet). */
+  lastInvoiceDate?: string | null;
 }
 
 export interface UserItem {
@@ -26,600 +15,117 @@ export interface UserItem {
   name: string;
   email: string;
   role: "engineer" | "accountant" | "admin";
-  qbEmployeeName: string;
+  /** What this person is billed out at, per hour (the workbook's RATE). */
   defaultHourlyRate: number;
 }
 
-export interface FlagNote {
-  at: string;
-  by: string;
-  kind: "question" | "edit" | "withdrawn" | "cleared";
-  text: string;
-}
-
+/** One row of the workbook's TIME SUMMARY sheets. */
 export interface TimeEntryItem {
   id: string;
   userId: string;
   userName: string;
   customerId: string;
   customerName: string;
-  jobId?: string | null;
-  jobName?: string | null;
-  serviceItemId: string;
-  serviceItemName: string;
   date: string; // YYYY-MM-DD
-  durationMinutes: number;
-  locationType: "office" | "on_site" | "remote" | "travel";
-  locationName?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
+  durationMinutes: number; // always a whole number of tenths of an hour (6 minutes)
+  /** The workbook's DESCRIPTION column. */
   notes?: string | null;
+  isLumpSum: boolean;
+  /** What parts were used (and their prices). Anything here means the entry has parts. */
+  partsNote?: string | null;
+  /** Private comment, like the cell comments in the workbook. */
+  internalNote?: string | null;
+  contractPo?: string | null;
   isBillable: boolean;
-  status: "draft" | "submitted" | "approved" | "exported";
-  /** Edited after approval/export — the accountant should look again. */
-  flagged?: boolean;
-  flagReason?: string | null;
-  /** Every note ever attached to this entry (questions, post-approval edits, withdrawals), oldest first. */
-  flagHistory?: FlagNote[];
-  /** Automatic review checks (e.g. "weekend") an accountant has dismissed for this entry. */
-  dismissedIssues?: string[];
+  isInvoiced: boolean;
+  invoicedOn?: string | null;
+  /** Held time: worked but not billed yet, so it stays out of invoices. */
+  isHeld: boolean;
   createdAt: string;
 }
 
+export interface BillingItem {
+  id: string;
+  kind: "lump_sum" | "other";
+  customer: string;
+  description: string;
+  amount: number;
+  notes: string;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  dateFrom: string;
+  dateTo: string;
+  total: number;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
 export const initialUsers: UserItem[] = [
-  {
-    id: "usr_eng_1",
-    name: "Priya Nair",
-    email: "priya.nair@engineering.com",
-    role: "engineer",
-    qbEmployeeName: "Priya Nair",
-    defaultHourlyRate: 165.0,
-  },
-  {
-    id: "usr_eng_2",
-    name: "Tomas Herrera",
-    email: "tomas.herrera@engineering.com",
-    role: "engineer",
-    qbEmployeeName: "Tomas Herrera",
-    defaultHourlyRate: 155.0,
-  },
-  {
-    id: "usr_eng_3",
-    name: "Callum Brooks",
-    email: "callum.brooks@engineering.com",
-    role: "engineer",
-    qbEmployeeName: "Callum Brooks",
-    defaultHourlyRate: 125.0,
-  },
-  {
-    id: "usr_acc_1",
-    name: "Marguerite Okafor",
-    email: "marguerite.okafor@accounting.com",
-    role: "accountant",
-    qbEmployeeName: "Marguerite Okafor",
-    defaultHourlyRate: 95.0,
-  },
-  {
-    id: "usr_adm_1",
-    name: "Ingrid Solberg",
-    email: "ingrid.solberg@engineering.com",
-    role: "admin",
-    qbEmployeeName: "Ingrid Solberg",
-    defaultHourlyRate: 0,
-  },
+  { id: "usr_jeff", name: "Jeff Green", email: "jeff.green@example.com", role: "engineer", defaultHourlyRate: 250 },
+  { id: "usr_doug", name: "Doug Green", email: "doug.green@example.com", role: "admin", defaultHourlyRate: 250 },
+  { id: "usr_molly", name: "Molly Green", email: "molly.green@example.com", role: "accountant", defaultHourlyRate: 250 },
+  { id: "usr_others", name: "Others", email: "others@example.com", role: "engineer", defaultHourlyRate: 250 },
 ];
 
-/** Emails the sample people had in earlier versions (used to rename them in existing databases). */
-export const legacySampleEmails: Record<string, string> = {
-  usr_eng_1: "doug@engineering.com",
-  usr_eng_2: "elena@engineering.com",
-  usr_eng_3: "marcus@engineering.com",
-  usr_acc_1: "sarah@accounting.com",
-};
+const userIdByName = new Map(initialUsers.map((u) => [u.name, u.id]));
+export const customerIdOf = (name: string) => `cust_${slug(name)}`;
 
-export const initialCustomers: CustomerItem[] = [
-  {
-    id: "cust_1",
-    name: "Apex Energy Solutions",
-    qbName: "Apex Energy Solutions",
-    isActive: true,
-    jobs: [
-      {
-        id: "job_1_1",
-        customerId: "cust_1",
-        name: "Turbine Unit 4 Upgrade",
-        fullQbJobName: "Apex Energy Solutions:Turbine Unit 4 Upgrade",
-        isActive: true,
-      },
-      {
-        id: "job_1_2",
-        customerId: "cust_1",
-        name: "Substation Safety Audit",
-        fullQbJobName: "Apex Energy Solutions:Substation Safety Audit",
-        isActive: true,
-      },
-    ],
-  },
-  {
-    id: "cust_2",
-    name: "Metro Water District",
-    qbName: "Metro Water District",
-    isActive: true,
-    jobs: [
-      {
-        id: "job_2_1",
-        customerId: "cust_2",
-        name: "Pumping Station B Seismic Retrofit",
-        fullQbJobName: "Metro Water District:Pumping Station B Seismic Retrofit",
-        isActive: true,
-      },
-      {
-        id: "job_2_2",
-        customerId: "cust_2",
-        name: "Aqueduct Flow Gate Replacement",
-        fullQbJobName: "Metro Water District:Aqueduct Flow Gate Replacement",
-        isActive: true,
-      },
-    ],
-  },
-  {
-    id: "cust_3",
-    name: "Highland Industrial Park",
-    qbName: "Highland Industrial Park",
-    isActive: true,
-    jobs: [
-      {
-        id: "job_3_1",
-        customerId: "cust_3",
-        name: "Phase 2 Drainage Engineering",
-        fullQbJobName: "Highland Industrial Park:Phase 2 Drainage Engineering",
-        isActive: true,
-      },
-      {
-        id: "job_3_2",
-        customerId: "cust_3",
-        name: "Retaining Wall Geotechnical Survey",
-        fullQbJobName: "Highland Industrial Park:Retaining Wall Geotechnical Survey",
-        isActive: true,
-      },
-    ],
-  },
-  {
-    id: "cust_4",
-    name: "Cascade Tunnel Authority",
-    qbName: "Cascade Tunnel Authority",
-    isActive: true,
-    jobs: [
-      {
-        id: "job_4_1",
-        customerId: "cust_4",
-        name: "Ventilation Shaft Dynamic Analysis",
-        fullQbJobName: "Cascade Tunnel Authority:Ventilation Shaft Dynamic Analysis",
-        isActive: true,
-      },
-    ],
-  },
-  {
-    id: "cust_5",
-    name: "Pacific Power Grid",
-    qbName: "Pacific Power Grid",
-    isActive: true,
-    jobs: [
-      {
-        id: "job_5_1",
-        customerId: "cust_5",
-        name: "High-Voltage Transformer Foundation",
-        fullQbJobName: "Pacific Power Grid:High-Voltage Transformer Foundation",
-        isActive: true,
-      },
-    ],
-  },
-  {
-    id: "cust_6",
-    name: "Internal Overhead",
-    qbName: "Internal Overhead",
-    isActive: true,
-    jobs: [],
-  },
-];
+export const initialCustomers: CustomerItem[] = workbook.customers.map((name) => ({ id: customerIdOf(name), name, isActive: true }));
 
-export const initialServiceItems: ServiceItem[] = [
-  {
-    id: "srv_1",
-    name: "Field Engineering & Inspection",
-    qbItemName: "Field Engineering",
-    defaultBillable: true,
-  },
-  {
-    id: "srv_2",
-    name: "CAD Drafting & Modeling",
-    qbItemName: "CAD Drafting",
-    defaultBillable: true,
-  },
-  {
-    id: "srv_3",
-    name: "Structural Calculations & Analysis",
-    qbItemName: "Calculations",
-    defaultBillable: true,
-  },
-  {
-    id: "srv_4",
-    name: "Client Consultation & Site Walk",
-    qbItemName: "Consulting",
-    defaultBillable: true,
-  },
-  {
-    id: "srv_5",
-    name: "Environmental & Safety Audit",
-    qbItemName: "Safety Audit",
-    defaultBillable: true,
-  },
-  {
-    id: "srv_6",
-    name: "Administrative / Internal Overhead",
-    qbItemName: "Admin Overhead",
-    defaultBillable: false,
-  },
-];
+/** Time before this date is treated as already invoiced in the demo (the last run was 12 Nov 2026). */
+export const DEMO_LAST_RUN = "2026-11-12";
+
+const entryBase = { isHeld: false, createdAt: "2026-11-20T12:00:00.000Z" };
 
 export const initialTimeEntries: TimeEntryItem[] = [
-  // Today (2026-11-22)
-  {
-    id: "entry_1",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_1",
-    customerName: "Apex Energy Solutions",
-    jobId: "job_1_1",
-    jobName: "Turbine Unit 4 Upgrade",
-    serviceItemId: "srv_1",
-    serviceItemName: "Field Engineering & Inspection",
-    date: "2026-11-22",
-    durationMinutes: 240, // 4h 00m
-    locationType: "on_site",
-    locationName: "Plant 4 Turbines - Bay A",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    notes: "High-speed optical alignment check on secondary bearing casing. Calibrated laser micrometer.",
+  ...workbook.entries.map((e, i): TimeEntryItem => ({
+    ...entryBase,
+    id: `ent_${i + 1}`,
+    userId: userIdByName.get(e.person) ?? "usr_jeff",
+    userName: e.person,
+    customerId: customerIdOf(e.customer),
+    customerName: e.customer,
+    date: e.date,
+    durationMinutes: Math.round(e.hours * 60),
+    notes: e.description,
+    isLumpSum: e.lumpSum,
+    partsNote: e.partsNote || (e.hasParts ? "See notes" : ""),
+    internalNote: e.internalNote,
+    contractPo: e.contractPo,
+    isBillable: e.billable,
+    isInvoiced: e.invoiced || (e.billable && e.date <= DEMO_LAST_RUN),
+    invoicedOn: e.invoiced || (e.billable && e.date <= DEMO_LAST_RUN) ? DEMO_LAST_RUN : null,
+  })),
+  // HELD TIME sheet
+  ...workbook.held.map((h, i): TimeEntryItem => ({
+    ...entryBase,
+    id: `held_${i + 1}`,
+    userId: "usr_jeff",
+    userName: "Jeff Green",
+    customerId: customerIdOf(h.customer),
+    customerName: h.customer,
+    date: h.date,
+    durationMinutes: Math.round(h.hours * 60),
+    notes: h.description,
+    isLumpSum: false,
+    partsNote: h.partsNote,
+    internalNote: h.internalNote,
+    contractPo: "",
     isBillable: true,
-    status: "submitted",
-    createdAt: "2026-11-22T02:00:00Z",
-  },
-  {
-    id: "entry_2",
-    userId: "usr_eng_2",
-    userName: "Tomas Herrera",
-    customerId: "cust_2",
-    customerName: "Metro Water District",
-    jobId: "job_2_1",
-    jobName: "Pumping Station B Seismic Retrofit",
-    serviceItemId: "srv_3",
-    serviceItemName: "Structural Calculations & Analysis",
-    date: "2026-11-22",
-    durationMinutes: 180, // 3h 00m
-    locationType: "office",
-    locationName: "Structural Engineering Lab",
-    notes: "Base isolator deflection matrix calculations and seismic dampening curves.",
-    isBillable: true,
-    status: "submitted",
-    createdAt: "2026-11-22T01:30:00Z",
-  },
+    isInvoiced: false,
+    invoicedOn: null,
+    isHeld: true,
+  })),
+];
 
-  // Yesterday (2026-11-21)
-  {
-    id: "entry_3",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_2",
-    customerName: "Metro Water District",
-    jobId: "job_2_1",
-    jobName: "Pumping Station B Seismic Retrofit",
-    serviceItemId: "srv_1",
-    serviceItemName: "Field Engineering & Inspection",
-    date: "2026-11-21",
-    durationMinutes: 210, // 3h 30m
-    locationType: "on_site",
-    locationName: "Station B Intake Tunnel",
-    latitude: 37.7833,
-    longitude: -122.4167,
-    notes: "Ultrasonic concrete core testing on bedrock footing anchor bolts.",
-    isBillable: true,
-    status: "approved",
-    createdAt: "2026-11-21T14:00:00Z",
-  },
-  {
-    id: "entry_4",
-    userId: "usr_eng_3",
-    userName: "Callum Brooks",
-    customerId: "cust_3",
-    customerName: "Highland Industrial Park",
-    jobId: "job_3_1",
-    jobName: "Phase 2 Drainage Engineering",
-    serviceItemId: "srv_2",
-    serviceItemName: "CAD Drafting & Modeling",
-    date: "2026-11-21",
-    durationMinutes: 270, // 4h 30m
-    locationType: "office",
-    locationName: "CAD Workstation 4",
-    notes: "Civil 3D retention basin 3D surfaces and cross-sectional storm inlet profiles.",
-    isBillable: true,
-    status: "approved",
-    createdAt: "2026-11-21T16:45:00Z",
-  },
-  {
-    id: "entry_5",
-    userId: "usr_eng_2",
-    userName: "Tomas Herrera",
-    customerId: "cust_4",
-    customerName: "Cascade Tunnel Authority",
-    jobId: "job_4_1",
-    jobName: "Ventilation Shaft Dynamic Analysis",
-    serviceItemId: "srv_4",
-    serviceItemName: "Client Consultation & Site Walk",
-    date: "2026-11-21",
-    durationMinutes: 120, // 2h 00m
-    locationType: "travel",
-    locationName: "Cascade County Transit HQ",
-    notes: "Transit authority board briefing on emergency ventilation airflow dynamics.",
-    isBillable: true,
-    status: "approved",
-    createdAt: "2026-11-21T18:00:00Z",
-  },
-
-  // Earlier This Week (2026-11-18 - 2026-11-20)
-  {
-    id: "entry_6",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_1",
-    customerName: "Apex Energy Solutions",
-    jobId: "job_1_1",
-    jobName: "Turbine Unit 4 Upgrade",
-    serviceItemId: "srv_1",
-    serviceItemName: "Field Engineering & Inspection",
-    date: "2026-11-20",
-    durationMinutes: 225, // 3h 45m
-    locationType: "on_site",
-    locationName: "Plant 4 North Bay",
-    latitude: 37.7749,
-    longitude: -122.4194,
-    notes: "Measured vibration harmonic oscillations on turbine shaft bearing housing.",
-    isBillable: true,
-    status: "approved",
-    createdAt: "2026-11-20T14:30:00Z",
-  },
-  {
-    id: "entry_7",
-    userId: "usr_eng_3",
-    userName: "Callum Brooks",
-    customerId: "cust_5",
-    customerName: "Pacific Power Grid",
-    jobId: "job_5_1",
-    jobName: "High-Voltage Transformer Foundation",
-    serviceItemId: "srv_2",
-    serviceItemName: "CAD Drafting & Modeling",
-    date: "2026-11-19",
-    durationMinutes: 300, // 5h 00m
-    locationType: "office",
-    locationName: "CAD Suite 1",
-    notes: "Rebar schedule detailing and seismic tie spacing specifications.",
-    isBillable: true,
-    status: "approved",
-    createdAt: "2026-11-19T15:00:00Z",
-  },
-  {
-    id: "entry_8",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_6",
-    customerName: "Internal Overhead",
-    serviceItemId: "srv_6",
-    serviceItemName: "Administrative / Internal Overhead",
-    date: "2026-11-19",
-    durationMinutes: 60, // 1h 00m
-    locationType: "office",
-    locationName: "Conference Room B",
-    notes: "Monthly OSHA compliance & field gear calibration meeting.",
-    isBillable: false,
-    status: "approved",
-    createdAt: "2026-11-19T09:00:00Z",
-  },
-  {
-    id: "entry_9",
-    userId: "usr_eng_2",
-    userName: "Tomas Herrera",
-    customerId: "cust_1",
-    customerName: "Apex Energy Solutions",
-    jobId: "job_1_2",
-    jobName: "Substation Safety Audit",
-    serviceItemId: "srv_5",
-    serviceItemName: "Environmental & Safety Audit",
-    date: "2026-11-18",
-    durationMinutes: 240, // 4h 00m
-    locationType: "on_site",
-    locationName: "Substation 12 High-Bay",
-    notes: "Thermographic imaging of capacitor banks and transformer lead insulators.",
-    isBillable: true,
-    status: "approved",
-    createdAt: "2026-11-18T13:30:00Z",
-  },
-
-  // Last Week (2026-11-10 - 2026-11-16)
-  {
-    id: "entry_10",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_3",
-    customerName: "Highland Industrial Park",
-    jobId: "job_3_2",
-    jobName: "Retaining Wall Geotechnical Survey",
-    serviceItemId: "srv_1",
-    serviceItemName: "Field Engineering & Inspection",
-    date: "2026-11-14",
-    durationMinutes: 360, // 6h 00m
-    locationType: "on_site",
-    locationName: "West Perimeter Slope",
-    latitude: 37.8044,
-    longitude: -122.2712,
-    notes: "Inclinometer depth soundings across 5 monitoring boreholes along retaining wall.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-11-14T17:00:00Z",
-  },
-  {
-    id: "entry_11",
-    userId: "usr_eng_2",
-    userName: "Tomas Herrera",
-    customerId: "cust_4",
-    customerName: "Cascade Tunnel Authority",
-    jobId: "job_4_1",
-    jobName: "Ventilation Shaft Dynamic Analysis",
-    serviceItemId: "srv_3",
-    serviceItemName: "Structural Calculations & Analysis",
-    date: "2026-11-13",
-    durationMinutes: 300, // 5h 00m
-    locationType: "remote",
-    locationName: "Remote Workstation",
-    notes: "Transient pressure wave numerical simulation for 120 mph train passage.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-11-13T16:00:00Z",
-  },
-  {
-    id: "entry_12",
-    userId: "usr_eng_3",
-    userName: "Callum Brooks",
-    customerId: "cust_2",
-    customerName: "Metro Water District",
-    jobId: "job_2_2",
-    jobName: "Aqueduct Flow Gate Replacement",
-    serviceItemId: "srv_2",
-    serviceItemName: "CAD Drafting & Modeling",
-    date: "2026-11-12",
-    durationMinutes: 240, // 4h 00m
-    locationType: "office",
-    locationName: "Engineering Main Office",
-    notes: "Hydraulic actuator mounting bracket fabrication drawings.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-11-12T14:30:00Z",
-  },
-  {
-    id: "entry_13",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_5",
-    customerName: "Pacific Power Grid",
-    jobId: "job_5_1",
-    jobName: "High-Voltage Transformer Foundation",
-    serviceItemId: "srv_1",
-    serviceItemName: "Field Engineering & Inspection",
-    date: "2026-11-11",
-    durationMinutes: 210, // 3h 30m
-    locationType: "on_site",
-    locationName: "Switchyard Substation G",
-    notes: "Witnessed 28-day concrete compression cylinder break tests (average 5,420 psi).",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-11-11T12:00:00Z",
-  },
-
-  // Earlier This Month (2026-11-03 - 2026-11-07)
-  {
-    id: "entry_14",
-    userId: "usr_eng_2",
-    userName: "Tomas Herrera",
-    customerId: "cust_2",
-    customerName: "Metro Water District",
-    jobId: "job_2_1",
-    jobName: "Pumping Station B Seismic Retrofit",
-    serviceItemId: "srv_3",
-    serviceItemName: "Structural Calculations & Analysis",
-    date: "2026-11-06",
-    durationMinutes: 330, // 5h 30m
-    locationType: "office",
-    locationName: "Structural Engineering Lab",
-    notes: "Nonlinear pushover analysis for existing reinforced concrete columns.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-11-06T15:00:00Z",
-  },
-  {
-    id: "entry_15",
-    userId: "usr_eng_3",
-    userName: "Callum Brooks",
-    customerId: "cust_1",
-    customerName: "Apex Energy Solutions",
-    jobId: "job_1_1",
-    jobName: "Turbine Unit 4 Upgrade",
-    serviceItemId: "srv_2",
-    serviceItemName: "CAD Drafting & Modeling",
-    date: "2026-11-05",
-    durationMinutes: 240, // 4h 00m
-    locationType: "office",
-    locationName: "CAD Suite 2",
-    notes: "Cooling water piping isometric spools and hanger details.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-11-05T14:00:00Z",
-  },
-
-  // Last Month (October 2026)
-  {
-    id: "entry_16",
-    userId: "usr_eng_1",
-    userName: "Priya Nair",
-    customerId: "cust_1",
-    customerName: "Apex Energy Solutions",
-    jobId: "job_1_1",
-    jobName: "Turbine Unit 4 Upgrade",
-    serviceItemId: "srv_1",
-    serviceItemName: "Field Engineering & Inspection",
-    date: "2026-10-29",
-    durationMinutes: 300, // 5h 00m
-    locationType: "on_site",
-    locationName: "Plant 4 Turbines",
-    notes: "Pre-shutdown survey and baseline vibration logging.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-10-29T16:00:00Z",
-  },
-  {
-    id: "entry_17",
-    userId: "usr_eng_2",
-    userName: "Tomas Herrera",
-    customerId: "cust_3",
-    customerName: "Highland Industrial Park",
-    jobId: "job_3_2",
-    jobName: "Retaining Wall Geotechnical Survey",
-    serviceItemId: "srv_3",
-    serviceItemName: "Structural Calculations & Analysis",
-    date: "2026-10-28",
-    durationMinutes: 240, // 4h 00m
-    locationType: "office",
-    locationName: "Lab Room 101",
-    notes: "Rankine active earth pressure coefficients and sliding factor of safety.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-10-28T14:00:00Z",
-  },
-  {
-    id: "entry_18",
-    userId: "usr_eng_3",
-    userName: "Callum Brooks",
-    customerId: "cust_4",
-    customerName: "Cascade Tunnel Authority",
-    jobId: "job_4_1",
-    jobName: "Ventilation Shaft Dynamic Analysis",
-    serviceItemId: "srv_2",
-    serviceItemName: "CAD Drafting & Modeling",
-    date: "2026-10-24",
-    durationMinutes: 285, // 4h 45m
-    locationType: "office",
-    locationName: "CAD Suite 1",
-    notes: "3D BIM geometry export for computational fluid dynamics mesh generation.",
-    isBillable: true,
-    status: "exported",
-    createdAt: "2026-10-24T16:30:00Z",
-  },
+/** LUMP SUM and OTHER sheets. */
+export const initialBillingItems: BillingItem[] = [
+  ...workbook.lumpSum.map((x, i): BillingItem => ({ id: `lump_${i + 1}`, kind: "lump_sum", ...x })),
+  ...workbook.other.map((x, i): BillingItem => ({ id: `other_${i + 1}`, kind: "other", ...x })),
 ];

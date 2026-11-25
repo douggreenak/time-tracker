@@ -8,9 +8,8 @@ export async function GET() {
   const g = await requireUser();
   if (!g.ok) return g.res;
   try {
-    const customers = await dataStore.getCustomers();
-    return NextResponse.json({ success: true, data: customers });
-  } catch (error) {
+    return NextResponse.json({ success: true, data: await dataStore.getCustomers() });
+  } catch {
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }
 }
@@ -19,25 +18,13 @@ export async function POST(request: Request) {
   const g = await requireUser();
   if (!g.ok) return g.res;
   try {
-    const body = await request.json();
-    const { type, name, qbName, customerId } = body;
-
-    if (type === "job") {
-      if (!customerId || !name) {
-        return NextResponse.json({ success: false, error: "customerId and name required for job" }, { status: 400 });
-      }
-      const job = await dataStore.addJob(customerId, name);
-      if (!job) return NextResponse.json({ success: false, error: "Customer not found" }, { status: 404 });
-      return NextResponse.json({ success: true, data: job }, { status: 201 });
-    }
-
-    if (!name) {
+    const { name } = await request.json();
+    if (typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ success: false, error: "Customer name required" }, { status: 400 });
     }
-
-    const customer = await dataStore.addCustomer(name, qbName);
+    const customer = await dataStore.addCustomer(name.trim());
     return NextResponse.json({ success: true, data: customer }, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }
 }

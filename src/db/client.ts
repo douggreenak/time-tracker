@@ -4,7 +4,7 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 import { DDL } from "./ddl";
 import { demoHash, demoSeedStatements, seedId } from "./seed";
-import { initialUsers, legacySampleEmails } from "./mock-data";
+import { initialUsers } from "./mock-data";
 
 export type Db = PgliteDatabase<typeof schema>;
 
@@ -79,60 +79,8 @@ const isSeeded = async (db: Db) => (await db.select().from(schema.appMeta).where
  * Loads the sample data once. Seeding uses fixed ids and skips rows that already exist, so it is safe
  * to repeat and safe if two server instances do it at the same moment (no lock to get stuck on).
  */
-/**
- * Early hosted deployments ended up with a sample set whose people have random ids (and sign-in
- * didn't work). Sample-only data on hosted Postgres is reloaded once in the current, repeatable form.
- */
-async function upgradeLegacySample(db: Db) {
-  if (storageMode() !== "neon" || process.env.ENABLE_DEMO_DATA === "false") return;
-  const [demo] = await db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = 'demo'`);
-  if (!demo) return; // real data: never touch
-  const users = await db.select({ id: schema.users.id }).from(schema.users);
-  const have = new Set(users.map((u) => u.id));
-  if (users.length === 0 || initialUsers.some((u) => have.has(seedId(u.id)))) return;
-  await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seeded'`);
-  await seedIfEmpty(db);
-}
-
-/** One-time: make sure the sample people can sign in with the documented sample password. */
-async function fixSamplePasswords(db: Db) {
-  if (storageMode() !== "neon" || process.env.ENABLE_DEMO_DATA === "false") return; // hosted only; local files are left alone
-  const meta = (k: string) => db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = ${k}`);
-  const [[demo], [done]] = await Promise.all([meta("demo"), meta("demo_pw_v1")]);
-  if (!demo || done) return;
-  const hash = await demoHash();
-  await db.update(schema.users).set({ passwordHash: hash });
-  await db.insert(schema.appMeta).values({ key: "demo_pw_v1", value: "true" }).onConflictDoNothing();
-}
-
-/** One-time: give existing sample databases the current sample people (new names, plus the admin). */
-async function syncSamplePeople(db: Db) {
-  if (process.env.ENABLE_DEMO_DATA === "false") return;
-  const meta = (k: string) => db.select().from(schema.appMeta).where(sql`${schema.appMeta.key} = ${k}`);
-  const [[demo], [done]] = await Promise.all([meta("demo"), meta("demo_people_v2")]);
-  if (!demo || done) return;
-  const existing = await db.select({ id: schema.users.id, email: schema.users.email }).from(schema.users);
-  const hash = await demoHash();
-  for (const u of initialUsers) {
-    const row = existing.find((r) => r.id === seedId(u.id)) ?? existing.find((r) => r.email === legacySampleEmails[u.id]);
-    if (row) {
-      await db.update(schema.users).set({ name: u.name, email: u.email, qbEmployeeName: u.qbEmployeeName }).where(sql`${schema.users.id} = ${row.id}`);
-    } else {
-      await db
-        .insert(schema.users)
-        .values({ id: seedId(u.id), name: u.name, email: u.email, role: u.role, qbEmployeeName: u.qbEmployeeName, defaultHourlyRate: String(u.defaultHourlyRate), passwordHash: hash })
-        .onConflictDoNothing();
-    }
-  }
-  await db.insert(schema.appMeta).values({ key: "demo_people_v2", value: "true" }).onConflictDoNothing();
-}
-
 async function seedIfEmpty(db: Db) {
-  if (await isSeeded(db)) {
-    await upgradeLegacySample(db);
-    await fixSamplePasswords(db);
-    return syncSamplePeople(db);
-  }
+  if (await isSeeded(db)) return;
   await db.delete(schema.appMeta).where(sql`${schema.appMeta.key} = 'seed_lock'`); // leftover from an earlier version
 
   if (process.env.ENABLE_DEMO_DATA !== "false") {
@@ -145,7 +93,7 @@ async function seedIfEmpty(db: Db) {
     // Everything in ONE all-or-nothing step, so a crash or a second server can never leave half a seed behind.
     const build = (x: Pick<Db, "insert" | "delete">) => [
       ...(wipe
-        ? [schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users].map((t) => x.delete(t))
+        ? [schema.invoices, schema.billingItems, schema.activeTimers, schema.timeEntries, schema.jobs, schema.customers, schema.serviceItems, schema.users].map((t) => x.delete(t))
         : []),
       ...demoSeedStatements(x, hash),
       x.insert(schema.appMeta).values({ key: "demo", value: "true" }).onConflictDoNothing(),

@@ -3,9 +3,9 @@
 > **Current behaviour (read this first)**
 > - **Data is stored in a real Postgres database.** Without `DATABASE_URL` the app uses an embedded Postgres saved in `./.data/pglite`
 >   (persists across restarts, no account needed); with `DATABASE_URL` it uses Neon. Tables are created automatically.
-> - **Sign-in:** each person has their own password. Accountants/admins manage people, passwords, customers and tasks; engineers only see their own time.
+> - **Sign-in:** each person has their own password. Accountants/admins manage people, rates and passwords; engineers only see their own time (everyone can create invoices on the Billing page).
 >   Set `ENABLE_DEMO_DATA=false` for a blank start — the first visit creates the first admin. With demo data every sample password is `demo1234`.
-> - **Edits after approval** are allowed and automatically flag the entry for the accountant on the *Review & export* page.
+> - **Invoices:** *Billing* builds per-customer invoices from billable time; *Mark as invoiced* flags the time so it isn't billed twice. Invoiced time can still be edited, but only accountants/admins can delete it or undo an invoice.
 > - Run the browser tests with `npm run test:e2e` (uses a throwaway in-memory database).
 
 
@@ -104,15 +104,8 @@ Follow the interactive prompts. When prompted for environment variables, add:
 
 ---
 
-## 4. Next Agent Handoff / Transfer Checklist
-
-If you are continuing this project in a new session or with another agent:
-1. All core project specifications are documented in:
-   - `ARCHITECTURE.md` (System components, database schemas, API specs, iOS roadmap)
-   - `QUICKBOOKS_INTEGRATION.md` (QuickBooks Desktop `.iif` format details and validation)
-   - `SETUP.md` (Deployment and configuration)
-2. The codebase uses clean modular paths:
-   - `src/app/engineer`: Mobile-responsive timer & time logger
-   - `src/app/accountant`: Review table, filters, and `.iif`/`.csv` export buttons
-   - `src/lib/quickbooks.ts`: Engine for generating valid QuickBooks Desktop `.iif` output
-   - `src/db/`: Drizzle ORM schema & Neon client
+## 4. Where things live
+- `src/app/engineer` – Timesheet; `src/app/billing` – Billing; `src/app/(data)` – Customers / Lump sum / Other / Held time
+- `src/lib/invoice.ts` – invoice maths shared by the screen, server and Excel; `src/lib/invoice-excel.ts` – Excel sheets; `src/lib/hours.ts` – hours calculator
+- `src/db/` – Drizzle schema, idempotent DDL (`ddl.ts`), store, demo seed (from `workbook-demo.json`)
+- `ARCHITECTURE.md` – design and API list

@@ -12,10 +12,7 @@ test("very long names don't break the layout (desktop + phone)", async ({ page }
   const long = "Northern Pacific Interconnect & Subsea Cable Landing Authority of the Greater Aleutian Region";
   await page.getByLabel("New customer name").fill(long);
   await page.getByLabel("New customer name").press("Enter");
-  await expect(page.getByRole("option", { selected: true, name: new RegExp(long.slice(0, 30)) })).toBeVisible(); // wait until it's selected
-  await page.getByLabel("New project name").fill("Phase 3 — Directional boring crossing under the Susitna River floodplain, including permitting");
-  await page.getByLabel("New project name").press("Enter");
-  await expect(page.locator('input[aria-label="Project name"][value*="Directional boring"]')).toHaveCount(1);
+  await expect(page.locator(`input[aria-label="Customer name"][value^="Northern Pacific"]`)).toHaveCount(1);
   await shot(page, "x-long-customers");
   await noSideways(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -33,7 +30,7 @@ test("very long names don't break the layout (desktop + phone)", async ({ page }
 });
 
 test("clearing sample data leads to first-run setup and clean empty screens", async ({ page }) => {
-  await loginAs(page, ADMIN, "/accountant");
+  await loginAs(page, ADMIN, "/billing");
   page.once("dialog", (d) => d.accept());
   await page.getByTestId("clear-demo").click();
 
@@ -50,24 +47,29 @@ test("clearing sample data leads to first-run setup and clean empty screens", as
   await shot(page, "x-empty-timesheet");
 
   for (const [path, text, name] of [
-    ["/accountant", "Nothing matches these filters.", "x-empty-review"],
-    ["/customers", "Add a customer to get started.", "x-empty-customers"],
+    ["/billing", "No billable time in this range.", "x-empty-billing"],
+    ["/customers", "No customers match.", "x-empty-customers"],
+    ["/held", "No held time.", "x-empty-held"],
+    ["/lump-sum", "Nothing here yet.", "x-empty-lump"],
   ] as const) {
     await page.goto(path);
     await expect(page.getByText(text)).toBeVisible();
     await shot(page, name);
   }
-  await page.goto("/tasks");
-  await shot(page, "x-empty-tasks");
 
-  // The very first entry works from a blank database via create-on-type.
+  // The very first entry works from a blank database via create-on-type, and bills at the default $250.
   await page.goto("/engineer");
   await page.getByLabel("New entry customer").fill("First Client");
   await page.getByLabel("New entry customer").press("Enter");
-  await page.getByLabel("New entry task").fill("Site visit");
-  await page.getByLabel("New entry task").press("Enter");
+  await page.getByLabel("New entry description").fill("Site visit");
   await page.getByLabel("New entry hours").fill("1.5");
   await page.getByLabel("New entry hours").press("Enter");
-  await expect(page.locator('input[value="1.50"]')).toHaveCount(1);
+  await expect(page.locator('input[aria-label="Hours"][value="1.5"]')).toHaveCount(1);
   await expect(page.getByTestId("clear-demo")).toHaveCount(0);
+
+  await page.goto("/billing");
+  await page.getByLabel("From date").fill("2000-01-01");
+  await page.getByLabel("To date").fill("2099-12-31");
+  await page.getByTestId("create-invoices").click();
+  await expect(page.getByTestId("amount-due")).toHaveText("$375.00"); // 1.5 h x $250
 });

@@ -10,9 +10,10 @@ export function checkDate(d: unknown): string | null {
   return null;
 }
 
-export function checkMinutes(m: unknown): string | null {
+/** `allowZero` is for lump-sum days, which the workbook logs with no hours. */
+export function checkMinutes(m: unknown, allowZero = false): string | null {
   const n = Number(m);
-  if (!Number.isFinite(n) || n <= 0) return "Duration must be greater than 0.";
+  if (!Number.isFinite(n) || n < 0 || (n === 0 && !allowZero)) return "Duration must be greater than 0.";
   if (n > MAX_MINUTES) return "A single entry can't be longer than 24 hours.";
   return null;
 }
@@ -23,7 +24,15 @@ export function checkNotes(n: unknown): string | null {
   return null;
 }
 
-export const STATUSES = ["draft", "submitted", "approved", "exported"] as const;
-
 /** Shortest password we accept (kept low on purpose; people can pick longer). */
 export const MIN_PASSWORD = 4;
+
+/** Text fields on a time entry, with their limits. Returns an error message or null. */
+export function checkEntryText(b: Record<string, unknown>): string | null {
+  for (const [key, label, max] of [["partsNote", "Parts", 2000], ["internalNote", "Note", 2000], ["contractPo", "Contract / PO", 255]] as const) {
+    const v = b[key];
+    if (v != null && typeof v !== "string") return `${label} must be text.`;
+    if (typeof v === "string" && v.length > max) return `${label} is limited to ${max} characters.`;
+  }
+  return null;
+}

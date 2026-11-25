@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "TimeTrack",
     short_name: "TimeTrack",
-    description: "Time tracking for engineers, with review and QuickBooks export.",
+    description: "Time tracking and customer invoicing.",
     start_url: "/engineer",
     scope: "/",
     display: "standalone",

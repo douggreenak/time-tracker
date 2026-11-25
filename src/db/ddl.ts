@@ -8,7 +8,7 @@ export const DDL: string[] = [
     role varchar(50) NOT NULL DEFAULT 'engineer',
     qb_employee_name varchar(255),
     password_hash text,
-    default_hourly_rate numeric(10,2) DEFAULT 125.00,
+    default_hourly_rate numeric(10,2) DEFAULT 250.00,
     created_at timestamp NOT NULL DEFAULT now()
   )`,
   `CREATE TABLE IF NOT EXISTS customers (
@@ -84,4 +84,34 @@ export const DDL: string[] = [
   `ALTER TABLE time_entries ALTER COLUMN customer_id DROP NOT NULL`,
   `ALTER TABLE time_entries ALTER COLUMN service_item_id DROP NOT NULL`,
   `CREATE INDEX IF NOT EXISTS time_entries_user_date_idx ON time_entries (user_id, date)`,
+  // Billing workbook: lump sum, parts, contract/PO, invoiced and held time on each entry; billing rates default to 250.
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS is_lump_sum boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS parts_note text`,
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS internal_note text`,
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS contract_po varchar(255)`,
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS is_invoiced boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS invoiced_on date`,
+  `ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS is_held boolean NOT NULL DEFAULT false`,
+  `ALTER TABLE users ALTER COLUMN default_hourly_rate SET DEFAULT 250.00`,
+  `CREATE TABLE IF NOT EXISTS billing_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    kind varchar(20) NOT NULL,
+    customer varchar(255) NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(12,2) NOT NULL DEFAULT 0,
+    notes text,
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS invoices (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+    customer_name varchar(255) NOT NULL,
+    date_from date NOT NULL,
+    date_to date NOT NULL,
+    total numeric(12,2) NOT NULL DEFAULT 0,
+    snapshot text,
+    created_by varchar(255),
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS invoices_customer_idx ON invoices (customer_id, date_to)`,
 ];

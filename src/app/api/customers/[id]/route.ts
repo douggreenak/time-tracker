@@ -12,7 +12,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (body.isActive !== undefined && !isManager(g.user))
       return NextResponse.json({ success: false, error: "Only an accountant or admin can archive or restore." }, { status: 403 });
     const updates: Record<string, unknown> = {};
-    for (const key of ["name", "qbName", "isActive"]) if (body[key] !== undefined) updates[key] = body[key];
+    for (const key of ["name", "isActive"]) if (body[key] !== undefined) updates[key] = body[key];
     if (typeof updates.name === "string") {
       updates.name = updates.name.trim();
       if (!updates.name) return NextResponse.json({ success: false, error: "Name can't be empty" }, { status: 400 });

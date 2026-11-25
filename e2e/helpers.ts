@@ -12,9 +12,9 @@ export async function loginAs(page: Page, name: string, path = "/engineer") {
   await page.goto(path);
 }
 
-export const ENGINEER = "Priya Nair";
-export const ACCOUNTANT = "Marguerite Okafor";
-export const ADMIN = "Ingrid Solberg";
+export const ENGINEER = "Jeff Green";
+export const ACCOUNTANT = "Molly Green";
+export const ADMIN = "Doug Green";
 
 /** Older weeks start collapsed; open them all so sample rows are reachable. */
 export async function expandAllWeeks(page: Page) {

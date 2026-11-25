@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import * as schema from "./schema";
 import type { Db } from "./client";
 import { hashPassword } from "../lib/password";
-import { initialCustomers, initialServiceItems, initialTimeEntries, initialUsers } from "./mock-data";
+import { DEMO_LAST_RUN, initialBillingItems, initialCustomers, initialTimeEntries, initialUsers } from "./mock-data";
 
 /** Stable UUID for a sample record, e.g. seedId("user-1"). */
 export function seedId(old: string): string {
@@ -22,6 +22,8 @@ type Exec = Pick<Db, "insert" | "delete">;
 export function demoSeedStatements(db: Exec, demoHash: string) {
   const id = seedId;
   const out: PromiseLike<unknown>[] = [];
+  const chunk = <T,>(rows: T[], n = 150) => Array.from({ length: Math.ceil(rows.length / n) }, (_, i) => rows.slice(i * n, i * n + n));
+
   out.push(db.insert(schema.users).values(
     initialUsers.map((u) => ({
       passwordHash: demoHash,
@@ -29,47 +31,60 @@ export function demoSeedStatements(db: Exec, demoHash: string) {
       name: u.name,
       email: u.email,
       role: u.role,
-      qbEmployeeName: u.qbEmployeeName,
+      qbEmployeeName: u.name,
       defaultHourlyRate: String(u.defaultHourlyRate),
     }))
   ).onConflictDoNothing());
   out.push(db.insert(schema.customers).values(
-    initialCustomers.map((c) => ({ id: id(c.id), name: c.name, qbName: c.qbName, isActive: c.isActive }))
+    initialCustomers.map((c) => ({ id: id(c.id), name: c.name, qbName: c.name, isActive: c.isActive }))
   ).onConflictDoNothing());
-  const jobs = initialCustomers.flatMap((c) => c.jobs);
-  if (jobs.length)
-    out.push(db.insert(schema.jobs).values(
-      jobs.map((j) => ({
-        id: id(j.id),
-        customerId: id(j.customerId),
-        name: j.name,
-        fullQbJobName: j.fullQbJobName,
-        isActive: j.isActive,
-      }))
-    ).onConflictDoNothing());
-  out.push(db.insert(schema.serviceItems).values(
-    initialServiceItems.map((s) => ({ id: id(s.id), name: s.name, qbItemName: s.qbItemName, defaultBillable: s.defaultBillable }))
-  ).onConflictDoNothing());
-  if (initialTimeEntries.length)
+  for (const rows of chunk(initialTimeEntries))
     out.push(db.insert(schema.timeEntries).values(
-      initialTimeEntries.map((e) => ({
+      rows.map((e) => ({
         id: id(e.id),
         userId: id(e.userId),
         customerId: id(e.customerId),
-        jobId: e.jobId ? id(e.jobId) : null,
-        serviceItemId: id(e.serviceItemId),
         date: e.date,
         durationMinutes: e.durationMinutes,
-        locationType: e.locationType,
-        locationName: e.locationName ?? null,
-        latitude: e.latitude != null ? String(e.latitude) : null,
-        longitude: e.longitude != null ? String(e.longitude) : null,
-        notes: e.notes ?? null,
+        notes: e.notes ?? "",
+        isLumpSum: e.isLumpSum,
+        partsNote: e.partsNote ?? "",
+        internalNote: e.internalNote ?? "",
+        contractPo: e.contractPo ?? "",
         isBillable: e.isBillable,
-        status: e.status,
+        isInvoiced: e.isInvoiced,
+        invoicedOn: e.invoicedOn ?? null,
+        isHeld: e.isHeld,
+        status: "draft",
         createdAt: new Date(e.createdAt),
       }))
     ).onConflictDoNothing());
+  out.push(db.insert(schema.billingItems).values(
+    initialBillingItems.map((b) => ({ id: id(b.id), kind: b.kind, customer: b.customer, description: b.description, amount: String(b.amount), notes: b.notes }))
+  ).onConflictDoNothing());
+
+  // Invoice history: one invoice per customer for everything the last run covered.
+  const rate = new Map(initialUsers.map((u) => [u.id, u.defaultHourlyRate]));
+  const byCustomer = new Map<string, { name: string; from: string; to: string; total: number }>();
+  for (const e of initialTimeEntries) {
+    if (!e.isInvoiced || e.isHeld || !e.isBillable) continue;
+    const cur = byCustomer.get(e.customerId) ?? { name: e.customerName, from: e.date, to: e.date, total: 0 };
+    cur.from = e.date < cur.from ? e.date : cur.from;
+    cur.to = e.date > cur.to ? e.date : cur.to;
+    cur.total += (e.durationMinutes / 60) * (rate.get(e.userId) ?? 250);
+    byCustomer.set(e.customerId, cur);
+  }
+  const history = Array.from(byCustomer.entries()).map(([cid, v]) => ({
+    id: id(`inv_${cid}`),
+    customerId: id(cid),
+    customerName: v.name,
+    dateFrom: v.from,
+    dateTo: v.to,
+    total: v.total.toFixed(2),
+    createdBy: "Jeff Green",
+    createdAt: new Date(`${DEMO_LAST_RUN}T18:00:00Z`),
+  }));
+  if (history.length) out.push(db.insert(schema.invoices).values(history).onConflictDoNothing());
   return out;
 }
 

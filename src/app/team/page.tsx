@@ -65,7 +65,7 @@ function TeamPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-[-0.02em]">Team</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Accountants and admins can add people and change names, emails and rates. Only admins change roles, set or reset passwords, or remove people. Engineers appear in the timesheet’s engineer picker; the QuickBooks name must match the employee name in QuickBooks.
+          Accountants and admins can add people and change names, emails and rates. Only admins change roles, set or reset passwords, or remove people. The billing rate is what that person is charged out at on invoices (the old workbook used $250 for everyone) — change it and later invoices use it, saved invoices keep what they were made with.
         </p>
       </div>
 
@@ -105,8 +105,7 @@ function TeamPage() {
                 <th>Name</th>
                 <th>Email</th>
                 <th className="w-36">Role</th>
-                <th>QuickBooks employee name</th>
-                <th className="w-28 text-right">Rate / hr</th>
+                <th className="w-32 text-right">Billing rate / hr</th>
                 <th className="w-44">Password</th>
                 <th className="w-24" />
               </tr>
@@ -118,8 +117,7 @@ function TeamPage() {
                 <td data-label="Role">
                   <Dropdown aria-label="New person role" value={draft.role} onChange={(v) => setDraft({ ...draft, role: v })} options={(isAdmin ? ROLES : ROLES.filter((r) => r !== "admin")).map((r) => ({ value: r, label: r }))} className={selectCell} />
                 </td>
-                <td data-label="QuickBooks name" className="px-2 text-[11px] text-muted-foreground text-[11px] cell-hide-mobile">{draft.name.trim() || "Same as name"}</td>
-                <td data-label="Rate / hr"><input aria-label="New person rate" inputMode="decimal" placeholder="125" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} onKeyDown={onEnter} className={cn(cellBase, "text-right font-mono tabular-nums")} /></td>
+                <td data-label="Billing rate / hr"><input aria-label="New person rate" inputMode="decimal" placeholder="250" value={draft.rate} onChange={(e) => setDraft({ ...draft, rate: e.target.value })} onKeyDown={onEnter} className={cn(cellBase, "text-right font-mono tabular-nums")} /></td>
                 <td data-label="Starting password">
                   <input aria-label="New person password" type="password" autoComplete="new-password" placeholder={`${MIN_PASSWORD}+ characters`} value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} onKeyDown={onEnter} className={cellBase} />
                 </td>
@@ -140,8 +138,7 @@ function TeamPage() {
                       <span className="px-2 text-[13px] capitalize">{u.role}</span>
                     )}
                   </td>
-                  <td data-label="QuickBooks employee name" className="span-2"><TextCell aria-label="QuickBooks employee name" value={u.qbEmployeeName} onCommit={(v) => v.trim() && run(dir.updateUser(u.id, { qbEmployeeName: v.trim() }))} className="font-mono text-xs" /></td>
-                  <td data-label="Rate / hr"><TextCell aria-label="Rate" inputMode="decimal" value={String(u.defaultHourlyRate)} onCommit={(v) => { const n = Number(v); if (v.trim() !== "" && Number.isFinite(n) && n >= 0) run(dir.updateUser(u.id, { defaultHourlyRate: n })); else setError("Hourly rate must be a number."); }} className="text-right font-mono tabular-nums" /></td>
+                  <td data-label="Billing rate / hr"><TextCell aria-label="Rate" inputMode="decimal" value={String(u.defaultHourlyRate)} onCommit={(v) => { const n = Number(v); if (v.trim() !== "" && Number.isFinite(n) && n >= 0) run(dir.updateUser(u.id, { defaultHourlyRate: n })); else setError("Hourly rate must be a number."); }} className="text-right font-mono tabular-nums" /></td>
                   <td data-label="New password" className="span-2">
                     {isAdmin ? (
                     <div className="flex items-center">
@@ -180,7 +177,7 @@ function TeamPage() {
                 </tr>
               ))}
               {dir.loaded && dir.users.length === 0 && (
-                <tr className="group-row"><td colSpan={8} className="py-10 text-center text-xs text-muted-foreground">No one yet — add yourself in the highlighted row above, then head to the Timesheet.</td></tr>
+                <tr className="group-row"><td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No one yet — add yourself in the highlighted row above, then head to the Timesheet.</td></tr>
               )}
             </tbody>
           </table>

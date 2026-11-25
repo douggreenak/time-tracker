@@ -26,7 +26,7 @@ test("timesheet: entry card works on a phone", async ({ page }) => {
   await expect(page.getByLabel("New entry hours")).toBeVisible();
   await noSidewaysScroll(page);
   await shot(page, "m-timesheet");
-  await page.getByLabel("New entry notes").fill("phone entry");
+  await page.getByLabel("New entry description").fill("phone entry");
   await page.getByLabel("New entry hours").fill("1.25");
   await page.getByRole("button", { name: "Add entry" }).click();
   await expect(page.locator('input[value="phone entry"]')).toHaveCount(1);
@@ -34,11 +34,11 @@ test("timesheet: entry card works on a phone", async ({ page }) => {
 });
 
 test("manager pages fit", async ({ page }) => {
-  await loginAs(page, ACCOUNTANT, "/accountant");
-  await expect(page.getByRole("heading", { name: "Review & export" })).toBeVisible();
+  await loginAs(page, ACCOUNTANT, "/billing");
+  await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible();
   await noSidewaysScroll(page);
   await shot(page, "m-review");
-  for (const [path, name] of [["/customers", "m-customers"], ["/tasks", "m-tasks"]] as const) {
+  for (const [path, name] of [["/customers", "m-customers"], ["/lump-sum", "m-lump"], ["/held", "m-held"]] as const) {
     await page.goto(path);
     await expect(page.getByRole("heading").first()).toBeVisible();
     await noSidewaysScroll(page);

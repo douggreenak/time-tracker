@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { CustomerItem, ServiceItem, UserItem } from "@/db/mock-data";
+import type { CustomerItem, UserItem } from "@/db/mock-data";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -19,22 +19,15 @@ async function call<T = unknown>(url: string, method: string, body?: unknown): P
   }
 }
 
-/** Customers, projects (jobs), service items and users, with create/update/delete helpers. */
+/** Customers and people, with create/update/delete helpers. */
 export function useDirectory() {
   const [customers, setCustomers] = useState<CustomerItem[]>([]);
-  const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
-    const [c, s, u] = await Promise.all([
-      fetch("/api/customers").then((r) => r.json()),
-      fetch("/api/service-items").then((r) => r.json()),
-      fetch("/api/users").then((r) => r.json()),
-    ]);
-    // Copy so React sees new references even though the dev store is mutated in place.
-    if (c.success) setCustomers(JSON.parse(JSON.stringify(c.data)));
-    if (s.success) setServiceItems(s.data);
+    const [c, u] = await Promise.all([fetch("/api/customers").then((r) => r.json()), fetch("/api/users").then((r) => r.json())]);
+    if (c.success) setCustomers(c.data);
     if (u.success) setUsers(u.data);
     setLoaded(true);
   }, []);
@@ -51,29 +44,15 @@ export function useDirectory() {
 
   return {
     customers,
-    serviceItems,
     users,
     loaded,
     reload,
-    createCustomer: (name: string, qbName?: string) =>
-      mutate(call<CustomerItem>("/api/customers", "POST", { name, qbName })),
-    updateCustomer: (id: string, patch: { name?: string; qbName?: string; isActive?: boolean }) =>
-      mutate(call(`/api/customers/${id}`, "PUT", patch)),
+    createCustomer: (name: string) => mutate(call<CustomerItem>("/api/customers", "POST", { name })),
+    updateCustomer: (id: string, patch: { name?: string; isActive?: boolean }) => mutate(call(`/api/customers/${id}`, "PUT", patch)),
     deleteCustomer: (id: string) => mutate(call(`/api/customers/${id}`, "DELETE")),
-    createJob: (customerId: string, name: string) =>
-      mutate(call<{ id: string }>("/api/customers", "POST", { type: "job", customerId, name })),
-    updateJob: (id: string, patch: { name?: string; isActive?: boolean }) =>
-      mutate(call(`/api/jobs/${id}`, "PUT", patch)),
-    deleteJob: (id: string) => mutate(call(`/api/jobs/${id}`, "DELETE")),
-    createService: (name: string, defaultBillable = true, qbItemName?: string) =>
-      mutate(call<ServiceItem>("/api/service-items", "POST", { name, defaultBillable, qbItemName })),
-    updateService: (id: string, patch: { name?: string; qbItemName?: string; defaultBillable?: boolean }) =>
-      mutate(call(`/api/service-items/${id}`, "PUT", patch)),
-    createUser: (u: { name: string; email: string; role?: string; qbEmployeeName?: string; defaultHourlyRate?: number; password: string }) =>
-      mutate(call<UserItem>("/api/users", "POST", u)),
-    updateUser: (id: string, patch: Partial<Pick<UserItem, "name" | "email" | "role" | "qbEmployeeName" | "defaultHourlyRate">> & { password?: string }) =>
+    createUser: (u: { name: string; email: string; role?: string; defaultHourlyRate?: number; password: string }) => mutate(call<UserItem>("/api/users", "POST", u)),
+    updateUser: (id: string, patch: Partial<Pick<UserItem, "name" | "email" | "role" | "defaultHourlyRate">> & { password?: string }) =>
       mutate(call(`/api/users/${id}`, "PUT", patch)),
     deleteUser: (id: string) => mutate(call(`/api/users/${id}`, "DELETE")),
-    deleteService: (id: string) => mutate(call(`/api/service-items/${id}`, "DELETE")),
   };
 }

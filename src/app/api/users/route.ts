@@ -11,9 +11,8 @@ export async function GET() {
   if (!g.ok) return g.res;
   try {
     const users = await dataStore.getUsers();
-    // Pay rates are for accountants and admins only.
-    const data = isManager(g.user) ? users : users.map((u) => ({ ...u, defaultHourlyRate: 0 }));
-    return NextResponse.json({ success: true, data });
+    // Billing rates show on invoices, so everyone signed in can see them.
+    return NextResponse.json({ success: true, data: users });
   } catch (error) {
     console.error("Failed to load users:", error);
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
@@ -25,7 +24,7 @@ export async function POST(request: Request) {
   const g = await requireUser({ manager: true });
   if (!g.ok) return g.res;
   try {
-    const { name, email, role, qbEmployeeName, defaultHourlyRate, password } = await request.json();
+    const { name, email, role, defaultHourlyRate, password } = await request.json();
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ success: false, error: "Name and email are required" }, { status: 400 });
     }
@@ -46,7 +45,6 @@ export async function POST(request: Request) {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       role,
-      qbEmployeeName: qbEmployeeName?.trim() || undefined,
       defaultHourlyRate: defaultHourlyRate === undefined ? undefined : Number(defaultHourlyRate),
       passwordHash: await hashPassword(password),
     });

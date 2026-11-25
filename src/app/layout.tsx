@@ -5,7 +5,7 @@ import { PwaRegister } from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "TimeTrack",
-  description: "Accurate time tracking with QuickBooks Desktop IIF export.",
+  description: "Time tracking and customer invoicing for Apex Engineering.",
   applicationName: "TimeTrack",
   appleWebApp: { capable: true, title: "TimeTrack", statusBarStyle: "default" },
   icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },

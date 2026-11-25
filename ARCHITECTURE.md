@@ -1,171 +1,32 @@
-# System Architecture & Technical Specifications
+# Architecture
 
-This document outlines the architectural blueprint, database design, API specification, and future iOS native app roadmap for the **Field & Office Time Tracker**.
+Next.js 14 (App Router) + Drizzle ORM. Postgres is Neon over HTTP in production, PGlite (embedded) locally and in tests. Tables are created/upgraded by the idempotent list in `src/db/ddl.ts` (additive only; a schema-version hash in `app_meta` skips it on warm starts).
 
----
+## Data
+| Table | Purpose |
+|---|---|
+| `users` | people; `role` engineer/accountant/admin; `default_hourly_rate` = **billing rate** (default 250) |
+| `customers` | the short names billed under (`BLUE WHALE`, `HARBOR WTP`); `is_active` archives |
+| `time_entries` | one workbook TIME SUMMARY row: `date`, `duration_minutes` (whole tenths = 6 min), `notes` (description), `is_lump_sum`, `parts_note`, `internal_note`, `contract_po`, `is_billable`, `is_invoiced`, `invoiced_on`, `is_held` |
+| `billing_items` | LUMP SUM and OTHER lists (`kind`, customer, description, amount, notes) |
+| `invoices` | saved invoices: customer, date range, total, `snapshot` JSON (lines, parts, rates, entry ids) |
+| `app_meta` | flags (demo, seeded, schema version) |
 
-## 1. High-Level Architecture
+Left in place but unused by the app: `jobs`, `service_items`, `active_timers`, and the old `status`/`flagged`/location columns on `time_entries` (kept so production data is never dropped).
 
-```text
-┌────────────────────────────────────────────────────────┐
-│                   Clients                              │
-│  ┌───────────────────────┐   ┌───────────────────────┐ │
-│  │ Mobile/Desktop Web    │   │ Future iOS App        │ │
-│  │ (Next.js + Tailwind)  │   │ (Swift / SwiftUI)     │ │
-│  └───────────┬───────────┘   └───────────┬───────────┘ │
-└──────────────┼───────────────────────────┼─────────────┘
-               │                           │
-               ▼                           ▼
-┌────────────────────────────────────────────────────────┐
-│                   Next.js API Layer                    │
-│   (Hosted on Vercel Serverless / Edge Functions)       │
-│                                                        │
-│  • /api/time-entries  (CRUD + Filters)                 │
-│  • /api/timer         (Active Stopwatch State)         │
-│  • /api/customers     (Hierarchical Customer:Job)      │
-│  • /api/service-items (QB Service/Payroll items)       │
-│  • /api/export/iif    (QB Desktop IIF Engine)          │
-│  • /api/export/csv    (Universal CSV Export)           │
-└──────────────────────────┬─────────────────────────────┘
-                           │
-                           ▼
-┌────────────────────────────────────────────────────────┐
-│                   Neon PostgreSQL                      │
-│             (Serverless Cloud Database)                │
-│                                                        │
-│  • users / employees                                   │
-│  • customers & jobs                                    │
-│  • service_items                                       │
-│  • time_entries                                        │
-│  • active_timers                                       │
-└────────────────────────────────────────────────────────┘
-```
+## Invoice rules (from the workbook macro)
+For a date range, each customer with usable time gets one invoice. Usable = billable, not held, not already invoiced (unless "include invoiced"). Lines are ordered by person then date. `total = hours × rate` (hours to 0.1, money to the cent); lump-sum lines total 0. Summary per person: `LABOR HOURS` / `LABOR TOTAL`; `PARTS TOTAL = Σ qty × unit cost`; `INVOICE AMT. DUE = labor + parts`. The server rebuilds every invoice from the database — the browser only sends dates, customer ids and parts rows.
 
----
-
-## 2. Database Schema (PostgreSQL / Neon)
-
-Using Drizzle ORM for type-safe schema definitions and zero-friction migrations.
-
-### Table: `users`
-Represents engineers and accountants.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key, default random | Unique User ID |
-| `name` | `varchar(255)` | Not Null | Full Name |
-| `email` | `varchar(255)` | Not Null, Unique | Email address |
-| `role` | `varchar(50)` | Not Null | `'engineer'`, `'accountant'`, `'admin'` |
-| `qb_employee_name` | `varchar(255)` | Nullable | Exact name as registered in QuickBooks Desktop |
-| `default_hourly_rate` | `numeric(10,2)` | Nullable | Default billing rate per hour |
-| `created_at` | `timestamp` | Default `now()` | Record creation timestamp |
-
-### Table: `customers`
-Customers and parent accounts.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key, default random | Unique Customer ID |
-| `name` | `varchar(255)` | Not Null | Company or Client Name |
-| `qb_name` | `varchar(255)` | Not Null | Name matching QuickBooks Desktop |
-| `is_active` | `boolean` | Default `true` | Active status flag |
-| `created_at` | `timestamp` | Default `now()` | Record creation timestamp |
-
-### Table: `jobs` (Sub-projects)
-Projects or sub-jobs belonging to a customer.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key, default random | Unique Job ID |
-| `customer_id` | `uuid` | Foreign Key (`customers.id`) | Parent customer reference |
-| `name` | `varchar(255)` | Not Null | Project / Phase name |
-| `full_qb_job_name` | `varchar(255)` | Not Null | Formatted as `Customer:Job` for QuickBooks Desktop |
-| `is_active` | `boolean` | Default `true` | Active status flag |
-
-### Table: `service_items`
-QuickBooks service items for activity classification.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key, default random | Unique Item ID |
-| `name` | `varchar(255)` | Not Null | Display name (e.g., "Site Inspection") |
-| `qb_item_name` | `varchar(255)` | Not Null | QuickBooks Service Item name |
-| `default_billable` | `boolean` | Default `true` | Whether defaulted to billable |
-
-### Table: `time_entries`
-The core timesheet logs.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key, default random | Unique Entry ID |
-| `user_id` | `uuid` | Foreign Key (`users.id`) | Engineer logging the time |
-| `customer_id` | `uuid` | Foreign Key (`customers.id`) | Customer worked on |
-| `job_id` | `uuid` | Nullable, Foreign Key (`jobs.id`)| Specific Job / Phase |
-| `service_item_id` | `uuid` | Foreign Key (`service_items.id`)| Service Item |
-| `date` | `date` | Not Null | Work date (`YYYY-MM-DD`) |
-| `duration_minutes` | `integer` | Not Null | Total elapsed time in minutes |
-| `location_type` | `varchar(50)` | Not Null | `'office'`, `'on_site'`, `'remote'`, `'travel'` |
-| `location_name` | `varchar(255)` | Nullable | Specific site address or office room |
-| `latitude` | `numeric(10,7)` | Nullable | GPS latitude coordinate (optional) |
-| `longitude` | `numeric(10,7)`| Nullable | GPS longitude coordinate (optional) |
-| `notes` | `text` | Nullable | Description of work performed |
-| `is_billable` | `boolean` | Default `true` | Billable to client flag |
-| `status` | `varchar(50)` | Default `'submitted'` | `'draft'`, `'submitted'`, `'approved'`, `'exported'` |
-| `created_at` | `timestamp` | Default `now()` | Logged at timestamp |
-| `updated_at` | `timestamp` | Default `now()` | Updated at timestamp |
-
-### Table: `active_timers`
-Persists currently ticking timers so engineers do not lose active sessions upon closing the browser or changing locations.
-| Column | Type | Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | Primary Key, default random | Unique Timer ID |
-| `user_id` | `uuid` | Unique, Foreign Key (`users.id`)| Single active timer per user |
-| `customer_id` | `uuid` | Nullable | Pre-selected customer |
-| `job_id` | `uuid` | Nullable | Pre-selected job |
-| `service_item_id` | `uuid` | Nullable | Pre-selected service item |
-| `location_type` | `varchar(50)` | Default `'office'` | Current location category |
-| `start_time` | `timestamp` | Not Null | Time when stopwatch started |
-| `paused_duration_seconds`| `integer` | Default `0` | Accumulated seconds before pause |
-| `is_running` | `boolean` | Default `true` | Running vs paused flag |
-| `notes` | `text` | Nullable | Draft notes |
-
----
-
-## 3. API Contract (REST)
-
-All API responses return JSON with standard HTTP status codes:
-- `200 OK` / `201 Created`
-- `400 Bad Request` (Validation errors)
-- `404 Not Found`
-- `500 Internal Server Error`
-
-### Endpoints Overview
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/time-entries` | Query time logs with query params (`startDate`, `endDate`, `userId`, `customerId`, `status`, `billable`) |
-| `POST` | `/api/time-entries` | Create a new manual time log |
-| `PUT` | `/api/time-entries/:id` | Update an existing time log |
-| `DELETE` | `/api/time-entries/:id` | Delete a time log |
-| `GET` | `/api/timer` | Fetch current active timer session for a user |
-| `POST` | `/api/timer/start` | Start or resume active stopwatch |
-| `POST` | `/api/timer/pause` | Pause active stopwatch |
-| `POST` | `/api/timer/stop` | Stop active stopwatch and convert directly into a `time_entry` |
-| `GET` | `/api/customers` | List all active customers and their jobs |
-| `POST` | `/api/customers` | Create a customer |
-| `GET` | `/api/service-items`| List service items |
-| `GET` | `/api/users` | List engineers & accountants |
-| `GET` | `/api/export/iif` | Generate and download QuickBooks Desktop `.iif` timer file |
-| `GET` | `/api/export/csv` | Generate and download structured CSV file |
-
----
-
-## 4. Mobile Responsiveness & iOS Expansion Plan
-
-### Current Phase: Responsive Mobile Web App
-* Built with a "mobile-first" mindset using Tailwind responsive breakpoints (`sm:`, `md:`, `lg:`).
-* Touch-target sizes are at least 44x44px.
-* Single-handed bottom bar or prominent action buttons for starting/stopping the timer on phones.
-* Supports HTML5 Geolocation API (`navigator.geolocation`) to stamp site locations automatically on arrival.
-
-### Future Phase: Native iOS App (Swift & SwiftUI)
-Because the Next.js backend is fully decoupled into REST API endpoints:
-1. **Networking**: The Swift app uses `URLSession` or `Alamofire` calling `https://your-domain.vercel.app/api/...`.
-2. **Offline Mode**: iOS app can store entries in SwiftData / CoreData and sync to `/api/time-entries` when regaining cell reception.
-3. **Live Activities / Dynamic Island**: Track active stopwatch directly on the iOS Lock Screen and Dynamic Island using iOS ActivityKit.
-4. **Geofencing**: Trigger notifications to start timer when arriving at a customer's registered job site coordinates.
+## API (all require sign-in; JSON `{success,data|error}`)
+| Route | |
+|---|---|
+| `GET/POST /api/time-entries`, `GET/PUT/DELETE /api/time-entries/[id]` | engineers: own rows only; only managers set `isInvoiced` or delete invoiced rows |
+| `GET/POST /api/customers`, `PUT/DELETE /api/customers/[id]` | `lastInvoiceDate` is computed from saved invoices |
+| `GET/POST /api/users`, `PUT/DELETE /api/users/[id]` | rates, roles, passwords (admin rules in `src/lib/auth.ts`) |
+| `GET /api/billing/summary?from&to&includeInvoiced` | MACRO DATA table |
+| `POST /api/billing/preview` | invoices for `{from,to,customers:[{id,parts}]}` (saves nothing) |
+| `POST /api/billing/excel` | same body → `.xlsx`, one sheet per customer |
+| `GET/POST /api/invoices`, `GET/DELETE /api/invoices/[id]`, `GET /api/invoices/[id]/excel` | record / list / undo (managers) / re-download |
+| `GET/POST /api/billing-items`, `PUT/DELETE /api/billing-items/[id]` | lump sum and other lists |
+| `GET /api/export/csv` | time log in workbook column order, formula-safe |
+| `/api/auth/*`, `/api/demo`, `/api/health`, backup routes | sign-in, demo clear, health, JSON backup |

@@ -26,7 +26,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       delete body.role;
     }
     const updates: Record<string, unknown> = {};
-    for (const k of ["name", "email", "role", "qbEmployeeName"]) {
+    for (const k of ["name", "email", "role"]) {
       if (typeof body[k] === "string") updates[k] = k === "email" ? body[k].trim().toLowerCase() : body[k].trim();
     }
     if (body.defaultHourlyRate !== undefined) {

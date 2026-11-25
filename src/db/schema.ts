@@ -7,7 +7,7 @@ export const users = pgTable("users", {
   role: varchar("role", { length: 50 }).notNull().default("engineer"), // 'engineer', 'accountant', 'admin'
   qbEmployeeName: varchar("qb_employee_name", { length: 255 }),
   passwordHash: text("password_hash"), // scrypt "salt:hash"; null = cannot sign in yet
-  defaultHourlyRate: numeric("default_hourly_rate", { precision: 10, scale: 2 }).default("125.00"),
+  defaultHourlyRate: numeric("default_hourly_rate", { precision: 10, scale: 2 }).default("250.00"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -55,8 +55,40 @@ export const timeEntries = pgTable("time_entries", {
   flagReason: text("flag_reason"),
   dismissedIssues: text("dismissed_issues"), // JSON list of automatic checks an accountant dismissed for this entry
   flagHistory: text("flag_history"), // JSON list of every question / edit note / withdrawal, kept even after the flag clears
+  // Billing workbook columns
+  isLumpSum: boolean("is_lump_sum").default(false).notNull(),
+  partsNote: text("parts_note"), // what parts were used, and their prices; non-empty means "has parts"
+  internalNote: text("internal_note"), // private comment (the workbook's cell comments)
+  contractPo: varchar("contract_po", { length: 255 }),
+  isInvoiced: boolean("is_invoiced").default(false).notNull(),
+  invoicedOn: date("invoiced_on"),
+  isHeld: boolean("is_held").default(false).notNull(), // held time: not billed yet, kept out of invoices
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// The workbook's LUMP SUM and OTHER sheets: things to bill that aren't hours x rate.
+export const billingItems = pgTable("billing_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: varchar("kind", { length: 20 }).notNull(), // 'lump_sum' | 'other'
+  customer: varchar("customer", { length: 255 }).notNull().default(""),
+  description: text("description").notNull().default(""),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// One row per invoice sheet created (what the macro builds), with a snapshot of what was on it.
+export const invoices = pgTable("invoices", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  dateFrom: date("date_from").notNull(),
+  dateTo: date("date_to").notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull().default("0"),
+  snapshot: text("snapshot"), // JSON: labor lines, parts rows, per-person summary
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const activeTimers = pgTable("active_timers", {
