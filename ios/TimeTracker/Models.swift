@@ -53,6 +53,18 @@ struct Customer: Codable, Identifiable, Hashable {
     var qbName: String?
     var isActive: Bool
     var jobs: [Job]
+
+    enum CodingKeys: String, CodingKey { case id, name, qbName, isActive, jobs }
+
+    // The server no longer sends projects (`jobs`), so default to none.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        qbName = try? c.decode(String.self, forKey: .qbName)
+        isActive = (try? c.decode(Bool.self, forKey: .isActive)) ?? true
+        jobs = (try? c.decode([Job].self, forKey: .jobs)) ?? []
+    }
 }
 
 struct ServiceItem: Codable, Identifiable, Hashable {
@@ -115,6 +127,41 @@ struct TimeEntry: Codable, Identifiable, Hashable {
     var flagged: Bool?
     var flagReason: String?
     var flagHistory: [FlagNote]?
+    var isInvoiced: Bool?
+    var isHeld: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case id, userId, userName, customerId, customerName, jobId, jobName, serviceItemId, serviceItemName
+        case date, durationMinutes, locationType, locationName, notes, isBillable, status
+        case flagged, flagReason, flagHistory, isInvoiced, isHeld
+    }
+
+    // The server's entries no longer carry task / location / status, so fall back to sensible defaults:
+    // invoiced time shows as locked ("In QuickBooks" label), everything else as a plain draft.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        userId = try c.decode(String.self, forKey: .userId)
+        userName = try? c.decode(String.self, forKey: .userName)
+        customerId = try? c.decode(String.self, forKey: .customerId)
+        customerName = try? c.decode(String.self, forKey: .customerName)
+        jobId = try? c.decode(String.self, forKey: .jobId)
+        jobName = try? c.decode(String.self, forKey: .jobName)
+        serviceItemId = try? c.decode(String.self, forKey: .serviceItemId)
+        serviceItemName = try? c.decode(String.self, forKey: .serviceItemName)
+        date = try c.decode(String.self, forKey: .date)
+        durationMinutes = try c.decode(Int.self, forKey: .durationMinutes)
+        locationType = (try? c.decode(String.self, forKey: .locationType)) ?? "office"
+        locationName = try? c.decode(String.self, forKey: .locationName)
+        notes = try? c.decode(String.self, forKey: .notes)
+        isBillable = (try? c.decode(Bool.self, forKey: .isBillable)) ?? true
+        isInvoiced = try? c.decode(Bool.self, forKey: .isInvoiced)
+        isHeld = try? c.decode(Bool.self, forKey: .isHeld)
+        status = (try? c.decode(String.self, forKey: .status)) ?? ((isInvoiced ?? false) ? "exported" : "draft")
+        flagged = try? c.decode(Bool.self, forKey: .flagged)
+        flagReason = try? c.decode(String.self, forKey: .flagReason)
+        flagHistory = try? c.decode([FlagNote].self, forKey: .flagHistory)
+    }
 
     var statusValue: EntryStatus { EntryStatus(rawValue: status) ?? .draft }
     var location: LocationKind { LocationKind(rawValue: locationType) ?? .office }
