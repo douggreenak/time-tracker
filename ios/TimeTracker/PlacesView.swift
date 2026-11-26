@@ -192,6 +192,12 @@ struct PlacesView: View {
     @State private var newName = ""
     @State private var camera: MapCameraPosition = .automatic
 
+    #if DEBUG
+    private static let hideSuggestionsForScreenshot = UserDefaults.standard.bool(forKey: "debugHideSuggestions")
+    #else
+    private static let hideSuggestionsForScreenshot = false
+    #endif
+
     private var current: PlaceDay? { model.days.first { $0.date == day } }
     private var stays: [PlaceStay] { (current?.items ?? []).compactMap { if case .stay(let s) = $0 { s } else { nil } } }
 
@@ -208,7 +214,7 @@ struct PlacesView: View {
                     statusCard.listRowBackground(Color.clear).listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
 
-                    if !model.suggestions.isEmpty {
+                    if !model.suggestions.isEmpty, !Self.hideSuggestionsForScreenshot {
                         Section {
                             ForEach(model.suggestions) { s in suggestionCard(s) }
                         } header: { sectionTitle("Proposed time entries", "Based on where you spent time. Nothing is logged until you add it.") }

@@ -372,6 +372,7 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
             if day > 0 { add(day, 16, 20, siteB.0, siteB.1); add(day, 17, 5, home.0, home.1); add(day, 23, 30, home.0, home.1) }
         }
         fixes = out.sorted { $0.t < $1.t }
+        syncedUpTo = 0; namesSynced = []   // demo data always uploads afresh
         names = [
             Self.key(home.0, home.1): PlaceName(title: "Home", subtitle: "Anchorage, AK"),
             Self.key(siteA.0, siteA.1): PlaceName(title: "Substation 4 Upgrade", subtitle: "E Tudor Rd, Anchorage, AK"),
