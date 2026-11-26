@@ -178,8 +178,8 @@ struct PlacesView: View {
     private func draft(for s: WorkSuggestion, name: PlaceName?) -> EntryDraft {
         var d = EntryDraft(userId: app.me?.id ?? "")
         d.date = Calendar.current.startOfDay(for: s.stay.start)
-        d.hours = s.minutes / 60; d.minutes = s.minutes % 60
-        d.location = .on_site
+        let tenths = Int((Double(s.minutes) / 6).rounded()) * 6   // billed in tenths of an hour
+        d.hours = tenths / 60; d.minutes = tenths % 60
         d.notes = "At \(name?.title ?? "a location") (\(Self.range(s.stay)))"
         return d
     }

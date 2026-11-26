@@ -86,7 +86,7 @@ struct MainTabs: View {
             if app.isManager {
                 Tab("Review", systemImage: "checkmark.seal", value: 2) { ReviewView() }
             }
-            Tab("Data", systemImage: "folder", value: 3) { DataView() }
+            Tab("Customers", systemImage: "building.2", value: 3) { DataView() }
             Tab("Account", systemImage: "person.crop.circle", value: 4) { AccountView() }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -101,5 +101,33 @@ struct MainTabs: View {
             }
         }
         .animation(.smooth, value: app.toast)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let problem = app.syncError { SyncBanner(message: problem) }
+        }
+        .animation(.smooth, value: app.syncError)
+    }
+}
+
+/// Shown on every tab while the last sync failed, so empty or old lists are never mistaken for the truth.
+struct SyncBanner: View {
+    @Environment(AppState.self) private var app
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wifi.exclamationmark").foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Not up to date").font(.footnote.weight(.semibold))
+                Text(message).font(.footnote).foregroundStyle(.secondary)
+                if let t = app.lastSynced { Text("Last updated \(t.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 8)
+            Button(app.loadingEntries ? "Trying…" : "Retry") { Task { await app.refresh() } }
+                .buttonStyle(.glassProminent).controlSize(.small).disabled(app.loadingEntries)
+        }
+        .padding(12)
+        .glassEffect(.regular.tint(.red.opacity(0.18)), in: .rect(cornerRadius: 18))
+        .padding(.horizontal, 12).padding(.top, 4)
+        .accessibilityElement(children: .combine)
     }
 }

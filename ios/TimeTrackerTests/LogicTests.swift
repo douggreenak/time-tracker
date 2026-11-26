@@ -40,30 +40,28 @@ final class DecodingTests: XCTestCase {
         try JSONDecoder().decode(T.self, from: Data(json.utf8))
     }
 
-    func testEntryWithNoCustomerOrTask() throws {
+    func testEntryWithNoCustomer() throws {
         let e: TimeEntry = try decode("""
-        {"id":"a","userId":"u","userName":"Pat","customerId":"","customerName":"","jobId":null,"jobName":null,
-         "serviceItemId":"","serviceItemName":"","date":"2026-11-23","durationMinutes":90,"locationType":"on_site",
-         "locationName":null,"latitude":null,"longitude":null,"notes":"x","isBillable":true,"status":"draft",
-         "flagged":false,"flagReason":null,"flagHistory":[],"dismissedIssues":[],"createdAt":"2026-11-24T04:10:56.781Z"}
+        {"id":"a","userId":"u","userName":"Pat","customerId":"","customerName":"","date":"2026-11-23","durationMinutes":90,
+         "notes":"x","isLumpSum":false,"partsNote":"","internalNote":"","contractPo":"","isBillable":true,
+         "isInvoiced":false,"invoicedOn":null,"isHeld":false,"createdAt":"2026-11-24T04:10:56.781Z"}
         """)
         XCTAssertEqual(e.title, "No customer")
-        XCTAssertEqual(e.subtitle, "No task")
-        XCTAssertEqual(e.location, .on_site)
-        XCTAssertEqual(e.statusValue, .draft)
+        XCTAssertNil(e.customerId)
+        XCTAssertEqual(e.subtitle, "x")
+        XCTAssertEqual(e.statusValue, .open)
         XCTAssertFalse(e.isLocked)
     }
 
-    func testEntryTitleAndLockedState() throws {
-        let e: TimeEntry = try decode("""
-        {"id":"a","userId":"u","customerId":"c","customerName":"Acme","jobId":"j","jobName":"Phase 1",
-         "serviceItemId":"s","serviceItemName":"Inspection","date":"2026-11-23","durationMinutes":60,
-         "locationType":"weird_new_type","isBillable":false,"status":"approved","flagged":true,"flagReason":"Accountant asks: why?"}
-        """)
-        XCTAssertEqual(e.title, "Acme · Phase 1")
-        XCTAssertEqual(e.location, .office, "unknown location types fall back instead of failing")
-        XCTAssertTrue(e.isLocked)
-        XCTAssertTrue(e.isFlagged)
+    func testInvoicedAndHeldStates() throws {
+        let inv: TimeEntry = try decode(#"{"id":"a","userId":"u","customerId":"c","customerName":"Acme","date":"2026-11-23","durationMinutes":60,"isBillable":true,"isInvoiced":true,"invoicedOn":"2026-11-24","isHeld":false,"partsNote":"Relay $40"}"#)
+        XCTAssertEqual(inv.title, "Acme")
+        XCTAssertEqual(inv.statusValue, .invoiced)
+        XCTAssertTrue(inv.isLocked)
+        XCTAssertTrue(inv.hasParts)
+        let held: TimeEntry = try decode(#"{"id":"b","userId":"u","date":"2026-11-23","durationMinutes":0,"isLumpSum":true,"isHeld":true}"#)
+        XCTAssertEqual(held.statusValue, .held)
+        XCTAssertEqual(held.subtitle, "Lump sum")
     }
 
     func testUserRateAsNumberOrString() throws {
@@ -79,48 +77,40 @@ final class DecodingTests: XCTestCase {
     }
 
     func testEnvelopeWithNullData() throws {
-        let t: Envelope<TimerState> = try decode(#"{"success":true,"data":null}"#)
+        let t: Envelope<Customer> = try decode(#"{"success":true,"data":null}"#)
         XCTAssertTrue(t.success)
         XCTAssertNil(t.data)
-        let e: Envelope<TimerState> = try decode(#"{"success":false,"error":"Please sign in."}"#)
+        let e: Envelope<Customer> = try decode(#"{"success":false,"error":"Please sign in."}"#)
         XCTAssertEqual(e.error, "Please sign in.")
     }
 
-    func testCustomerWithProjects() throws {
-        let c: Customer = try decode("""
-        {"id":"c","name":"Acme","qbName":"Acme","isActive":true,
-         "jobs":[{"id":"j","customerId":"c","name":"Phase 1","fullQbJobName":"Acme:Phase 1","isActive":true}]}
-        """)
-        XCTAssertEqual(c.jobs.count, 1)
+    func testCustomerFromServer() throws {
+        let c: Customer = try decode(#"{"id":"c","name":"Acme","isActive":true,"lastInvoiceDate":"2026-10-31"}"#)
+        XCTAssertEqual(c.name, "Acme")
+        XCTAssertEqual(c.lastInvoiceDate, "2026-10-31")
+        let d: Customer = try decode(#"{"id":"d","name":"Beta","isActive":false,"lastInvoiceDate":null}"#)
+        XCTAssertFalse(d.isActive)
     }
 }
 
 @MainActor
 final class TimerMathTests: XCTestCase {
-    private func state(running: Bool, start: Double, before: Int) -> TimerState {
-        TimerState(userId: "u", locationType: "office", startTime: start, elapsedBeforePause: before, isRunning: running, serverNow: nil)
+    private func state(running: Bool, start: Date, before: Int) -> LocalTimer {
+        LocalTimer(userId: "u", customerId: "", notes: "", startedAt: start, elapsedBeforePause: before, isRunning: running)
     }
 
     func testRunningTimerCountsFromStart() {
         let app = AppState()
         let now = Date()
-        app.timer = state(running: true, start: now.timeIntervalSince1970 * 1000 - 65_000, before: 10)
+        app.timer = state(running: true, start: now.addingTimeInterval(-65), before: 10)
         XCTAssertEqual(app.elapsedSeconds(at: now), 75)
     }
 
     func testPausedTimerIsFrozen() {
         let app = AppState()
-        app.timer = state(running: false, start: 0, before: 300)
+        app.timer = state(running: false, start: Date(), before: 300)
         XCTAssertEqual(app.elapsedSeconds(at: Date()), 300)
         XCTAssertEqual(app.elapsedSeconds(at: Date().addingTimeInterval(500)), 300)
-    }
-
-    func testServerClockSkewIsApplied() {
-        let app = AppState()
-        let now = Date()
-        app.skew = 30_000 // server clock is 30s ahead of the phone
-        app.timer = state(running: true, start: now.timeIntervalSince1970 * 1000 + 30_000 - 20_000, before: 0)
-        XCTAssertEqual(app.elapsedSeconds(at: now), 20)
     }
 
     func testNoTimer() { XCTAssertEqual(AppState().elapsedSeconds(), 0) }
@@ -129,25 +119,23 @@ final class TimerMathTests: XCTestCase {
 final class DraftTests: XCTestCase {
     func testDraftFromEntryAndMinutes() throws {
         let e: TimeEntry = try JSONDecoder().decode(TimeEntry.self, from: Data("""
-        {"id":"a","userId":"u","customerId":"c","jobId":"j","serviceItemId":"s","date":"2026-11-23",
-         "durationMinutes":135,"locationType":"travel","notes":"n","isBillable":false,"status":"draft"}
+        {"id":"a","userId":"u","customerId":"c","date":"2026-11-23","durationMinutes":132,"notes":"n","isBillable":false,"isHeld":true}
         """.utf8))
         let d = EntryDraft(e)
         XCTAssertEqual(d.hours, 2)
-        XCTAssertEqual(d.minutes, 15)
-        XCTAssertEqual(d.totalMinutes, 135)
-        XCTAssertEqual(d.location, .travel)
+        XCTAssertEqual(d.minutes, 12)
+        XCTAssertEqual(d.totalMinutes, 132)
+        XCTAssertTrue(d.held)
         XCTAssertFalse(d.billable)
         XCTAssertEqual(Fmt.string(d.date), "2026-11-23")
     }
 
     func testWeekGrouping() throws {
         func entry(_ id: String, _ date: String, _ mins: Int) throws -> TimeEntry {
-            try JSONDecoder().decode(TimeEntry.self, from: Data(#"{"id":"\#(id)","userId":"u","date":"\#(date)","durationMinutes":\#(mins),"locationType":"office","isBillable":true,"status":"draft"}"#.utf8))
+            try JSONDecoder().decode(TimeEntry.self, from: Data(#"{"id":"\#(id)","userId":"u","date":"\#(date)","durationMinutes":\#(mins),"isBillable":true}"#.utf8))
         }
         let weeks = groupByWeek([try entry("1", "2026-11-22", 60), try entry("2", "2026-11-28", 30), try entry("3", "2026-11-21", 120)])
         XCTAssertEqual(weeks.map(\.start), ["2026-11-22", "2026-11-15"])
         XCTAssertEqual(weeks[0].minutes, 90)
-        XCTAssertEqual(weeks[0].drafts.count, 2)
     }
 }

@@ -6,7 +6,6 @@ struct WeekGroup: Identifiable {
     var id: String { start }
     var minutes: Int { entries.reduce(0) { $0 + $1.durationMinutes } }
     var billable: Int { entries.filter(\.isBillable).reduce(0) { $0 + $1.durationMinutes } }
-    var drafts: [TimeEntry] { entries.filter { $0.status == "draft" } }
 }
 
 func groupByWeek(_ entries: [TimeEntry]) -> [WeekGroup] {
@@ -56,7 +55,7 @@ struct TimesheetView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
                     }
                 }
-                if weeks.isEmpty && !app.loadingEntries {
+                if weeks.isEmpty && !app.loadingEntries && app.syncError == nil {
                     EmptyState(icon: "calendar.badge.plus", title: "No time yet",
                                message: "Start the timer or tap + to add your first entry.")
                         .listRowBackground(Color.clear)
@@ -75,10 +74,10 @@ struct TimesheetView: View {
                                     }
                                 }
                                 .swipeActions(edge: .leading) {
-                                    if e.status == "draft" {
-                                        Button { submit([e]) } label: { Label("Submit", systemImage: "paperplane") }.tint(.blue)
-                                    } else if e.status == "submitted" && !app.isManager {
-                                        Button { unsubmit(e) } label: { Label("Recall", systemImage: "arrow.uturn.backward") }.tint(.orange)
+                                    if !e.isInvoiced {
+                                        Button { Task { _ = await app.setHeld([e.id], !e.isHeld) } } label: {
+                                            Label(e.isHeld ? "Release" : "Hold", systemImage: e.isHeld ? "play.circle" : "pause.circle")
+                                        }.tint(.orange)
                                     }
                                 }
                         }
@@ -140,23 +139,10 @@ struct TimesheetView: View {
             }
             Spacer(minLength: 0)
             Text(Fmt.duration(w.minutes)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-            if !w.drafts.isEmpty {
-                Button { submit(w.drafts) } label: { Label("Submit \(w.drafts.count)", systemImage: "paperplane.fill").font(.caption.weight(.semibold)) }
-                    .buttonStyle(.glassProminent).controlSize(.small)
-            }
         }
         .textCase(nil)
         .padding(.top, 6)
     }
-
-    private func submit(_ list: [TimeEntry]) {
-        Task {
-            let n = await app.setStatus(list.map(\.id), to: .submitted)
-            app.toast = n == list.count ? "Submitted \(n) \(n == 1 ? "entry" : "entries") for review" : "Only \(n) of \(list.count) were submitted"
-        }
-    }
-
-    private func unsubmit(_ e: TimeEntry) { Task { await app.setStatus([e.id], to: .draft) } }
 
     private func delete(_ e: TimeEntry) {
         Task {
@@ -183,18 +169,15 @@ struct EntryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                 Text(showUser ? "\(entry.userName ?? "") · \(entry.subtitle)" : entry.subtitle)
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                if let n = entry.notes, !n.isEmpty, n != "Recorded with stopwatch" {
-                    Text(n).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                }
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer(minLength: 6)
             VStack(alignment: .trailing, spacing: 5) {
-                Text(Fmt.duration(entry.durationMinutes)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                Text(entry.isLumpSum && entry.durationMinutes == 0 ? "Lump" : Fmt.duration(entry.durationMinutes)).font(.subheadline.weight(.semibold)).monospacedDigit()
                 HStack(spacing: 4) {
                     if !entry.isBillable { Image(systemName: "nosign").font(.caption2).foregroundStyle(.secondary) }
-                    Image(systemName: entry.location.icon).font(.caption2).foregroundStyle(.secondary)
-                    if !compact { StatusChip(status: entry.statusValue, flagged: entry.isFlagged) }
+                    if entry.hasParts { Image(systemName: "shippingbox").font(.caption2).foregroundStyle(.secondary) }
+                    if !compact && entry.statusValue != .open { StatusChip(status: entry.statusValue) }
                 }
             }
         }

@@ -14,12 +14,14 @@ enum ServerConfig {
 enum APIError: LocalizedError {
     case message(String)
     case unauthorized(String)
-    case offline
+    case offline(String)
+    case badResponse(String)
 
     var errorDescription: String? {
         switch self {
         case .message(let m), .unauthorized(let m): m
-        case .offline: "Can't reach the server. Check your connection and try again."
+        case .offline(let host): "Can't reach \(host). Check your internet connection and try again."
+        case .badResponse(let what): "The server sent something the app couldn't read (\(what)). Try again, and update the app if it keeps happening."
         }
     }
 }
@@ -54,19 +56,35 @@ final class APIClient {
         }
         let data: Data, resp: URLResponse
         do { (data, resp) = try await session.data(for: req) }
-        catch let e as URLError where e.code != .cancelled { throw APIError.offline }
-        guard let http = resp as? HTTPURLResponse else { throw APIError.offline }
+        catch let e as URLError where e.code != .cancelled { throw APIError.offline(ServerConfig.url.host() ?? "the server") }
+        guard let http = resp as? HTTPURLResponse else { throw APIError.offline(ServerConfig.url.host() ?? "the server") }
         guard (200..<300).contains(http.statusCode) else {
             let msg = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error
             if http.statusCode == 401 { throw APIError.unauthorized(msg ?? "Please sign in.") }
+            if http.statusCode >= 500 { throw APIError.message(msg.map { "The server had a problem: \($0) (\(http.statusCode))." } ?? "The server had a problem (\(http.statusCode)). Try again in a moment.") }
             throw APIError.message(msg ?? "Something went wrong (\(http.statusCode)).")
         }
         return data
     }
 
+    private func envelope<T: Decodable>(_ d: Data, _ path: String, _ type: T.Type) throws -> Envelope<T> {
+        do { return try JSONDecoder().decode(Envelope<T>.self, from: d) }
+        catch { throw APIError.badResponse("\(path): \(Self.describe(error))") }
+    }
+
+    private static func describe(_ e: Error) -> String {
+        guard let e = e as? DecodingError else { return e.localizedDescription }
+        switch e {
+        case .keyNotFound(let k, _): return "missing \(k.stringValue)"
+        case .typeMismatch(_, let c), .valueNotFound(_, let c): return "unexpected value at \(c.codingPath.map(\.stringValue).joined(separator: "."))"
+        case .dataCorrupted: return "not valid data"
+        @unknown default: return "unreadable"
+        }
+    }
+
     func get<T: Decodable>(_ path: String, query: [String: String?] = [:], as type: T.Type = T.self) async throws -> T {
         let d = try await raw("GET", path, query: query)
-        let env = try JSONDecoder().decode(Envelope<T>.self, from: d)
+        let env = try envelope(d, path, T.self)
         guard env.success, let v = env.data else { throw APIError.message(env.error ?? "Unexpected response.") }
         return v
     }
@@ -74,14 +92,14 @@ final class APIClient {
     /// For endpoints whose `data` may legitimately be null (e.g. no active timer, signed out).
     func getOptional<T: Decodable>(_ path: String, query: [String: String?] = [:], as type: T.Type = T.self) async throws -> T? {
         let d = try await raw("GET", path, query: query)
-        let env = try JSONDecoder().decode(Envelope<T>.self, from: d)
+        let env = try envelope(d, path, T.self)
         guard env.success else { throw APIError.message(env.error ?? "Unexpected response.") }
         return env.data
     }
 
     func send<T: Decodable>(_ method: String, _ path: String, body: [String: Any]? = nil, as type: T.Type = T.self) async throws -> T? {
         let d = try await raw(method, path, body: body)
-        let env = try JSONDecoder().decode(Envelope<T>.self, from: d)
+        let env = try envelope(d, path, T.self)
         guard env.success else { throw APIError.message(env.error ?? "Unexpected response.") }
         return env.data
     }

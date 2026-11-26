@@ -40,158 +40,105 @@ struct LoginDirectory: Codable {
     let needsSetup: Bool
 }
 
-struct Job: Codable, Identifiable, Hashable {
-    let id: String
-    let customerId: String
-    var name: String
-    var isActive: Bool
-}
-
 struct Customer: Codable, Identifiable, Hashable {
     let id: String
     var name: String
-    var qbName: String?
     var isActive: Bool
-    var jobs: [Job]
+    var lastInvoiceDate: String?
 
-    enum CodingKeys: String, CodingKey { case id, name, qbName, isActive, jobs }
+    enum CodingKeys: String, CodingKey { case id, name, isActive, lastInvoiceDate }
 
-    // The server no longer sends projects (`jobs`), so default to none.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
-        qbName = try? c.decode(String.self, forKey: .qbName)
         isActive = (try? c.decode(Bool.self, forKey: .isActive)) ?? true
-        jobs = (try? c.decode([Job].self, forKey: .jobs)) ?? []
+        lastInvoiceDate = try? c.decode(String.self, forKey: .lastInvoiceDate)
     }
 }
 
-struct ServiceItem: Codable, Identifiable, Hashable {
-    let id: String
-    var name: String
-    var qbItemName: String?
-    var defaultBillable: Bool
-}
-
-struct FlagNote: Codable, Hashable {
-    let at: String
-    let by: String
-    let kind: String
-    let text: String
-}
-
+/// Where a piece of time stands in billing (the web app's invoice flow).
 enum EntryStatus: String, CaseIterable {
-    case draft, submitted, approved, exported
-    var label: String { self == .exported ? "In QuickBooks" : rawValue.capitalized }
-}
-
-enum LocationKind: String, CaseIterable, Identifiable {
-    case office, on_site, remote, travel
-    var id: String { rawValue }
+    case open, held, invoiced
     var label: String {
         switch self {
-        case .office: "Office"
-        case .on_site: "On-site"
-        case .remote: "Remote"
-        case .travel: "Travel"
-        }
-    }
-    var icon: String {
-        switch self {
-        case .office: "building.2"
-        case .on_site: "mappin.and.ellipse"
-        case .remote: "house"
-        case .travel: "car"
+        case .open: "Not invoiced"
+        case .held: "Held"
+        case .invoiced: "Invoiced"
         }
     }
 }
 
-struct TimeEntry: Codable, Identifiable, Hashable {
+struct TimeEntry: Identifiable, Hashable {
     let id: String
     var userId: String
     var userName: String?
     var customerId: String?
     var customerName: String?
-    var jobId: String?
-    var jobName: String?
-    var serviceItemId: String?
-    var serviceItemName: String?
     var date: String
     var durationMinutes: Int
-    var locationType: String
-    var locationName: String?
     var notes: String?
+    var isLumpSum: Bool
+    var partsNote: String?
+    var internalNote: String?
+    var contractPo: String?
     var isBillable: Bool
-    var status: String
-    var flagged: Bool?
-    var flagReason: String?
-    var flagHistory: [FlagNote]?
-    var isInvoiced: Bool?
-    var isHeld: Bool?
+    var isInvoiced: Bool
+    var invoicedOn: String?
+    var isHeld: Bool
 
+    var statusValue: EntryStatus { isInvoiced ? .invoiced : (isHeld ? .held : .open) }
+    var isLocked: Bool { isInvoiced }
+    var hasParts: Bool { !(partsNote ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+
+    /// The customer's name, or a friendly fallback.
+    var title: String {
+        let c = (customerName ?? "").trimmingCharacters(in: .whitespaces)
+        return c.isEmpty ? "No customer" : c
+    }
+    /// What was done (the workbook's DESCRIPTION column).
+    var subtitle: String {
+        let t = (notes ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? (isLumpSum ? "Lump sum" : "No description") : t
+    }
+}
+
+extension TimeEntry: Decodable {
     enum CodingKeys: String, CodingKey {
-        case id, userId, userName, customerId, customerName, jobId, jobName, serviceItemId, serviceItemName
-        case date, durationMinutes, locationType, locationName, notes, isBillable, status
-        case flagged, flagReason, flagHistory, isInvoiced, isHeld
+        case id, userId, userName, customerId, customerName, date, durationMinutes, notes
+        case isLumpSum, partsNote, internalNote, contractPo, isBillable, isInvoiced, invoicedOn, isHeld
     }
 
-    // The server's entries no longer carry task / location / status, so fall back to sensible defaults:
-    // invoiced time shows as locked ("In QuickBooks" label), everything else as a plain draft.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         userId = try c.decode(String.self, forKey: .userId)
         userName = try? c.decode(String.self, forKey: .userName)
-        customerId = try? c.decode(String.self, forKey: .customerId)
+        let cid = try? c.decode(String.self, forKey: .customerId)
+        customerId = (cid?.isEmpty ?? true) ? nil : cid
         customerName = try? c.decode(String.self, forKey: .customerName)
-        jobId = try? c.decode(String.self, forKey: .jobId)
-        jobName = try? c.decode(String.self, forKey: .jobName)
-        serviceItemId = try? c.decode(String.self, forKey: .serviceItemId)
-        serviceItemName = try? c.decode(String.self, forKey: .serviceItemName)
         date = try c.decode(String.self, forKey: .date)
         durationMinutes = try c.decode(Int.self, forKey: .durationMinutes)
-        locationType = (try? c.decode(String.self, forKey: .locationType)) ?? "office"
-        locationName = try? c.decode(String.self, forKey: .locationName)
         notes = try? c.decode(String.self, forKey: .notes)
+        isLumpSum = (try? c.decode(Bool.self, forKey: .isLumpSum)) ?? false
+        partsNote = try? c.decode(String.self, forKey: .partsNote)
+        internalNote = try? c.decode(String.self, forKey: .internalNote)
+        contractPo = try? c.decode(String.self, forKey: .contractPo)
         isBillable = (try? c.decode(Bool.self, forKey: .isBillable)) ?? true
-        isInvoiced = try? c.decode(Bool.self, forKey: .isInvoiced)
-        isHeld = try? c.decode(Bool.self, forKey: .isHeld)
-        status = (try? c.decode(String.self, forKey: .status)) ?? ((isInvoiced ?? false) ? "exported" : "draft")
-        flagged = try? c.decode(Bool.self, forKey: .flagged)
-        flagReason = try? c.decode(String.self, forKey: .flagReason)
-        flagHistory = try? c.decode([FlagNote].self, forKey: .flagHistory)
-    }
-
-    var statusValue: EntryStatus { EntryStatus(rawValue: status) ?? .draft }
-    var location: LocationKind { LocationKind(rawValue: locationType) ?? .office }
-    var isFlagged: Bool { flagged ?? false }
-    var isLocked: Bool { status == "approved" || status == "exported" }
-
-    /// "Acme Corp · Phase 1", or a friendly fallback.
-    var title: String {
-        let c = (customerName ?? "").trimmingCharacters(in: .whitespaces)
-        let j = (jobName ?? "").trimmingCharacters(in: .whitespaces)
-        if c.isEmpty && j.isEmpty { return "No customer" }
-        return j.isEmpty ? c : (c.isEmpty ? j : "\(c) · \(j)")
-    }
-    var subtitle: String {
-        let t = (serviceItemName ?? "").trimmingCharacters(in: .whitespaces)
-        return t.isEmpty ? "No task" : t
+        isInvoiced = (try? c.decode(Bool.self, forKey: .isInvoiced)) ?? false
+        invoicedOn = try? c.decode(String.self, forKey: .invoicedOn)
+        isHeld = (try? c.decode(Bool.self, forKey: .isHeld)) ?? false
     }
 }
 
-struct TimerState: Codable, Hashable {
+/// The stopwatch lives on the device (the server has no timer); stopping it saves an entry.
+struct LocalTimer: Codable, Hashable {
     var userId: String
-    var customerId: String?
-    var jobId: String?
-    var serviceItemId: String?
-    var locationType: String
-    var startTime: Double          // ms since epoch (server clock)
+    var customerId: String
+    var notes: String
+    var startedAt: Date
     var elapsedBeforePause: Int    // seconds
     var isRunning: Bool
-    var notes: String?
-    var serverNow: Double?
 }
 
 // MARK: - Envelope
@@ -227,6 +174,9 @@ enum Fmt {
         let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("EEE d"); return f
     }()
     private static var weekStartCache: [String: String] = [:]
+
+    /// Time is billed in tenths of an hour, so minutes snap to 0, 6, 12 … 54.
+    static func snapToTenth(_ minutes: Int) -> Int { min(54, Int((Double(minutes) / 6).rounded()) * 6) }
 
     static func date(_ s: String) -> Date { ymd.date(from: s) ?? Date() }
     static func string(_ d: Date) -> String { ymd.string(from: d) }

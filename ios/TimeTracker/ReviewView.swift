@@ -1,25 +1,27 @@
 import SwiftUI
 
+/// Accountant / admin view of everyone's time and where it stands in billing.
 struct ReviewView: View {
     enum Filter: String, CaseIterable, Identifiable {
-        case pending = "To review", approved = "Approved", all = "All"
+        case open = "To invoice", held = "Held", invoiced = "Invoiced", all = "All"
         var id: String { rawValue }
     }
 
     @Environment(AppState.self) private var app
-    @State private var filter: Filter = .pending
+    @State private var filter: Filter = .open
     @State private var detail: TimeEntry?
     @State private var search = ""
 
     private var visible: [TimeEntry] {
         app.entries.filter { e in
             switch filter {
-            case .pending: if !(e.status == "submitted" || e.isFlagged) { return false }
-            case .approved: if !(e.status == "approved" || e.status == "exported") { return false }
+            case .open: if e.statusValue != .open { return false }
+            case .held: if e.statusValue != .held { return false }
+            case .invoiced: if e.statusValue != .invoiced { return false }
             case .all: break
             }
             guard !search.isEmpty else { return true }
-            let hay = "\(e.userName ?? "") \(e.title) \(e.subtitle) \(e.notes ?? "")"
+            let hay = "\(e.userName ?? "") \(e.title) \(e.subtitle) \(e.partsNote ?? "") \(e.contractPo ?? "")"
             return hay.localizedCaseInsensitiveContains(search)
         }
     }
@@ -54,28 +56,30 @@ struct ReviewView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
                 }
-                if byPerson.isEmpty {
-                    EmptyState(icon: filter == .pending ? "checkmark.circle" : "tray",
-                               title: filter == .pending ? "All caught up" : "Nothing here",
-                               message: filter == .pending ? "No submitted time is waiting for review." : "No entries match.")
+                if byPerson.isEmpty && app.syncError == nil {
+                    EmptyState(icon: filter == .open ? "checkmark.circle" : "tray",
+                               title: filter == .open ? "All caught up" : "Nothing here",
+                               message: filter == .open ? "No time is waiting to be invoiced." : "No entries match.")
                         .listRowBackground(Color.clear)
                 }
                 ForEach(byPerson, id: \.name) { group in
                     Section {
                         ForEach(group.entries) { e in
-                            Button { detail = e } label: { EntryRow(entry: e, showUser: false) }
+                            Button { detail = e } label: { EntryRow(entry: e) }
                                 .buttonStyle(.plain)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                 .swipeActions(edge: .leading) {
-                                    if e.status != "approved" && e.status != "exported" {
-                                        Button { Task { await app.setStatus([e.id], to: .approved) } } label: { Label("Approve", systemImage: "checkmark") }.tint(.green)
-                                    }
+                                    Button { Task { _ = await app.setInvoiced([e.id], !e.isInvoiced) } } label: {
+                                        Label(e.isInvoiced ? "Not invoiced" : "Invoiced", systemImage: e.isInvoiced ? "arrow.uturn.backward" : "checkmark")
+                                    }.tint(e.isInvoiced ? .orange : .green)
                                 }
                                 .swipeActions(edge: .trailing) {
-                                    if e.status == "submitted" || e.isLocked {
-                                        Button { Task { await app.setStatus([e.id], to: .draft) } } label: { Label("Send back", systemImage: "arrow.uturn.backward") }.tint(.orange)
+                                    if !e.isInvoiced {
+                                        Button { Task { _ = await app.setHeld([e.id], !e.isHeld) } } label: {
+                                            Label(e.isHeld ? "Release" : "Hold", systemImage: e.isHeld ? "play.circle" : "pause.circle")
+                                        }.tint(.orange)
                                     }
                                 }
                         }
@@ -98,15 +102,14 @@ struct ReviewView: View {
     }
 
     private var stats: some View {
-        let pending = app.entries.filter { $0.status == "submitted" }
-        let minutes = pending.reduce(0) { $0 + $1.durationMinutes }
-        let people = Set(pending.map(\.userId)).count
-        let flagged = app.entries.filter(\.isFlagged).count
+        let open = app.entries.filter { $0.statusValue == .open && $0.isBillable }
+        let held = app.entries.filter { $0.statusValue == .held }
+        let people = Set(open.map(\.userId)).count
         return GlassEffectContainer(spacing: 12) {
             AdaptiveStack {
-                tile("Awaiting", Fmt.duration(minutes), "hourglass")
+                tile("To invoice", Fmt.duration(open.reduce(0) { $0 + $1.durationMinutes }), "hourglass")
+                tile("Held", Fmt.duration(held.reduce(0) { $0 + $1.durationMinutes }), "pause.circle")
                 tile("People", "\(people)", "person.2")
-                tile("Questions", "\(flagged)", "questionmark.bubble")
             }
         }
     }
@@ -122,18 +125,18 @@ struct ReviewView: View {
     }
 
     private func personHeader(_ name: String, _ entries: [TimeEntry]) -> some View {
-        let submitted = entries.filter { $0.status == "submitted" }
+        let todo = entries.filter { $0.statusValue == .open }
         return AdaptiveStack(spacing: 8) {
             Text(name).font(.headline).foregroundStyle(Color.primary)
             Text(Fmt.duration(entries.reduce(0) { $0 + $1.durationMinutes })).font(.subheadline).foregroundStyle(Color.primary.opacity(0.72))
             Spacer(minLength: 0)
-            if !submitted.isEmpty {
+            if !todo.isEmpty {
                 Button {
                     Task {
-                        let n = await app.setStatus(submitted.map(\.id), to: .approved)
-                        app.toast = "Approved \(n) \(n == 1 ? "entry" : "entries") for \(name)"
+                        let n = await app.setInvoiced(todo.map(\.id), true)
+                        if n > 0 { app.toast = "Marked \(n) \(n == 1 ? "entry" : "entries") invoiced for \(name)" }
                     }
-                } label: { Label("Approve \(submitted.count)", systemImage: "checkmark.seal.fill").font(.caption.weight(.semibold)) }
+                } label: { Label("Invoiced \(todo.count)", systemImage: "checkmark.seal.fill").font(.caption.weight(.semibold)) }
                 .buttonStyle(.glassProminent).controlSize(.small).tint(.green)
             }
         }
@@ -145,8 +148,6 @@ struct ReviewDetail: View {
     @Environment(AppState.self) private var app
     @Environment(\.dismiss) private var dismiss
     let entryId: String
-    @State private var question = ""
-    @State private var error: String?
     @State private var editing: EntryDraft?
 
     private var entry: TimeEntry? { app.entries.first { $0.id == entryId } }
@@ -160,75 +161,40 @@ struct ReviewDetail: View {
                             HStack {
                                 Text(e.userName ?? "").font(.headline)
                                 Spacer()
-                                StatusChip(status: e.statusValue, flagged: e.isFlagged)
+                                StatusChip(status: e.statusValue)
                             }
                             Text(e.title).font(.title3.weight(.semibold))
                             Text(e.subtitle).foregroundStyle(.secondary)
                             Divider()
                             row("Date", Fmt.longDay(e.date), "calendar")
                             row("Duration", "\(Fmt.duration(e.durationMinutes))  (\(Fmt.hours(e.durationMinutes)) h)", "clock")
-                            row("Location", e.location.label, e.location.icon)
                             row("Billable", e.isBillable ? "Yes" : "No", "dollarsign.circle")
-                            if let n = e.notes, !n.isEmpty { Divider(); Text(n).font(.callout) }
+                            if e.isLumpSum { row("Lump sum", "Yes", "sum") }
+                            if let po = e.contractPo, !po.isEmpty { row("Contract / PO", po, "number") }
+                            if let on = e.invoicedOn, e.isInvoiced { row("Invoiced on", on, "checkmark.seal") }
+                            if e.hasParts, let p = e.partsNote { Divider(); Label(p, systemImage: "shippingbox").font(.callout) }
+                            if let n = e.internalNote, !n.isEmpty { Divider(); Label(n, systemImage: "lock").font(.callout).foregroundStyle(.secondary) }
                         }
                         .glassCard()
-
-                        if e.isFlagged, let r = e.flagReason {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label("Open question", systemImage: "questionmark.bubble.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
-                                Text(r).font(.callout)
-                                Button("Withdraw question") { run { try await app.withdrawQuestion(e) } }.buttonStyle(.glass).controlSize(.small)
-                            }
-                            .glassCard(tint: .orange)
-                        }
 
                         GlassEffectContainer(spacing: 12) {
                             VStack(spacing: 12) {
                                 HStack(spacing: 12) {
-                                    if !e.isLocked {
-                                        Button { setStatus(.approved) } label: { Label("Approve", systemImage: "checkmark").frame(maxWidth: .infinity) }
-                                            .buttonStyle(.glassProminent).tint(.green)
+                                    Button { Task { _ = await app.setInvoiced([entryId], !e.isInvoiced) } } label: {
+                                        Label(e.isInvoiced ? "Mark not invoiced" : "Mark invoiced", systemImage: e.isInvoiced ? "arrow.uturn.backward" : "checkmark").frame(maxWidth: .infinity)
                                     }
-                                    if e.status == "approved" {
-                                        Button { setStatus(.exported) } label: { Label("Mark sent to QuickBooks", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
-                                            .buttonStyle(.glassProminent).tint(.purple)
-                                    }
-                                    if e.status != "draft" {
-                                        Button { setStatus(.draft) } label: { Label("Send back", systemImage: "arrow.uturn.backward").frame(maxWidth: .infinity) }
-                                            .buttonStyle(.glass)
+                                    .buttonStyle(.glassProminent).tint(e.isInvoiced ? .orange : .green)
+                                    if !e.isInvoiced {
+                                        Button { Task { _ = await app.setHeld([entryId], !e.isHeld) } } label: {
+                                            Label(e.isHeld ? "Release" : "Hold", systemImage: e.isHeld ? "play.circle" : "pause.circle").frame(maxWidth: .infinity)
+                                        }
+                                        .buttonStyle(.glass)
                                     }
                                 }
                                 Button { editing = EntryDraft(e) } label: { Label("Edit entry", systemImage: "pencil").frame(maxWidth: .infinity) }
                                     .buttonStyle(.glass)
                             }
                             .controlSize(.large)
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Ask a question").font(.subheadline.weight(.semibold))
-                            TextField("e.g. Which site was this for?", text: $question, axis: .vertical)
-                                .lineLimit(1...4).insetField()
-                            Button("Send question") {
-                                let q = question.trimmingCharacters(in: .whitespacesAndNewlines)
-                                run { try await app.ask(e, question: q); question = "" }
-                            }
-                            .buttonStyle(.glass).disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                        .glassCard()
-
-                        if let error { ErrorBanner(text: error) }
-
-                        if let h = e.flagHistory, !h.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("History").font(.subheadline.weight(.semibold))
-                                ForEach(h.reversed(), id: \.at) { n in
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(n.text).font(.callout)
-                                        Text("\(n.by) · \(n.kind)").font(.caption).foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                            .glassCard()
                         }
                     }
                     .padding(16)
@@ -246,12 +212,5 @@ struct ReviewDetail: View {
 
     private func row(_ k: String, _ v: String, _ icon: String) -> some View {
         HStack { Label(k, systemImage: icon).foregroundStyle(.secondary); Spacer(); Text(v) }.font(.subheadline)
-    }
-
-    private func setStatus(_ s: EntryStatus) { Task { await app.setStatus([entryId], to: s) } }
-
-    private func run(_ work: @escaping () async throws -> Void) {
-        error = nil
-        Task { do { try await work() } catch { self.error = error.localizedDescription } }
     }
 }

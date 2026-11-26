@@ -124,20 +124,17 @@ extension View {
 
 struct StatusChip: View {
     let status: EntryStatus
-    var flagged = false
 
     private var color: Color {
-        if flagged { return .orange }
         switch status {
-        case .draft: return .gray
-        case .submitted: return .blue
-        case .approved: return .green
-        case .exported: return .purple
+        case .open: .gray
+        case .held: .orange
+        case .invoiced: .purple
         }
     }
 
     var body: some View {
-        Text(flagged ? "Question" : status.label)
+        Text(status.label)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 9).padding(.vertical, 4)
             .foregroundStyle(color)

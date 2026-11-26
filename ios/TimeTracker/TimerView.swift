@@ -4,9 +4,6 @@ struct TimerView: View {
     @Environment(AppState.self) private var app
 
     @State private var customerId = ""
-    @State private var jobId = ""
-    @State private var serviceId = ""
-    @State private var location: LocationKind = .on_site
     @State private var notes = ""
     @State private var busy = false
     @State private var error: String?
@@ -16,9 +13,6 @@ struct TimerView: View {
 
     private var running: Bool { app.timer?.isRunning == true }
     private var hasTimer: Bool { app.timer != nil }
-    private var jobs: [Option] {
-        (app.customer(customerId)?.jobs ?? []).filter(\.isActive).map { Option(id: $0.id, label: $0.name) }
-    }
     private var todays: [TimeEntry] { app.myEntries.filter { $0.date == Fmt.today } }
 
     var body: some View {
@@ -43,17 +37,10 @@ struct TimerView: View {
         }
         .onAppear(perform: syncFromTimer)
         .onChange(of: app.timer == nil) { _, _ in syncFromTimer() }
-        .onChange(of: customerId) { _, _ in if !jobs.contains(where: { $0.id == jobId }) { jobId = "" }; pushUpdate() }
-        .onChange(of: jobId) { _, _ in pushUpdate() }
-        .onChange(of: serviceId) { _, _ in pushUpdate() }
-        .onChange(of: location) { _, _ in pushUpdate() }
-        .task(id: notes) {
-            guard hasTimer, synced else { return }
-            try? await Task.sleep(for: .milliseconds(700))
-            if !Task.isCancelled { pushUpdate() }
-        }
+        .onChange(of: customerId) { _, _ in pushUpdate() }
+        .onChange(of: notes) { _, _ in pushUpdate() }
         .confirmationDialog("Discard this timer?", isPresented: $confirmDiscard, titleVisibility: .visible) {
-            Button("Discard without saving", role: .destructive) { run { try await app.discardTimer() } }
+            Button("Discard without saving", role: .destructive) { app.discardTimer(); resetFields() }
         } message: { Text("The elapsed time won't be saved.") }
     }
 
@@ -79,18 +66,18 @@ struct TimerView: View {
         GlassEffectContainer(spacing: 14) {
             AdaptiveStack(spacing: 14) {
                 if !hasTimer {
-                    Button { run { try await app.startTimer(customerId: customerId, jobId: jobId, serviceId: serviceId, location: location, notes: notes) } } label: {
+                    Button { app.startTimer(customerId: customerId, notes: notes) } label: {
                         Label("Start", systemImage: "play.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
                     .buttonStyle(.glassProminent)
                 } else {
-                    Button { run { running ? try await app.pauseTimer() : try await app.resumeTimer() } } label: {
+                    Button { if running { app.pauseTimer() } else { app.resumeTimer() } } label: {
                         Label(running ? "Pause" : "Resume", systemImage: running ? "pause.fill" : "play.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
                     .buttonStyle(.glass)
                     Button {
                         run {
-                            if try await app.stopTimer() != nil { app.toast = "Saved to your timesheet as a draft" }
+                            if try await app.stopTimer() != nil { app.toast = "Saved to your timesheet" }
                             resetFields()
                         }
                     } label: {
@@ -115,17 +102,7 @@ struct TimerView: View {
         VStack(spacing: 14) {
             OptionMenu(title: "Customer", icon: "building.2", selection: $customerId,
                        options: app.activeCustomers.map { Option(id: $0.id, label: $0.name) })
-            Divider()
-            OptionMenu(title: "Project", icon: "square.stack.3d.up", selection: $jobId, options: jobs, disabled: customerId.isEmpty)
-            Divider()
-            OptionMenu(title: "Task", icon: "wrench.and.screwdriver", selection: $serviceId,
-                       options: app.activeServices.map { Option(id: $0.id, label: $0.name) })
-            Divider()
-            Picker("Location", selection: $location) {
-                ForEach(LocationKind.allCases) { Label($0.label, systemImage: $0.icon).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            TextField("Notes", text: $notes, axis: .vertical)
+            TextField("What are you working on?", text: $notes, axis: .vertical)
                 .lineLimit(1...4)
                 .insetField()
         }
@@ -154,21 +131,15 @@ struct TimerView: View {
     // MARK: Logic
 
     private func syncFromTimer() {
-        if let t = app.timer {
-            customerId = t.customerId ?? ""
-            jobId = t.jobId ?? ""
-            serviceId = t.serviceItemId ?? ""
-            location = LocationKind(rawValue: t.locationType) ?? .on_site
-            notes = t.notes ?? ""
-        }
+        if let t = app.timer { customerId = t.customerId; notes = t.notes }
         DispatchQueue.main.async { synced = true }
     }
 
-    private func resetFields() { customerId = ""; jobId = ""; serviceId = ""; notes = "" }
+    private func resetFields() { customerId = ""; notes = "" }
 
     private func pushUpdate() {
         guard hasTimer, synced else { return }
-        Task { await app.updateTimer(customerId: customerId, jobId: jobId, serviceId: serviceId, location: location, notes: notes) }
+        app.updateTimer(customerId: customerId, notes: notes)
     }
 
     private func run(_ work: @escaping () async throws -> Void) {
