@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, timestamp, boolean, integer, numeric, date, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, numeric, date, uuid, bigint, doublePrecision, primaryKey } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -121,3 +121,50 @@ export const appMeta = pgTable("app_meta", {
   key: varchar("key", { length: 100 }).primaryKey(),
   value: text("value"),
 });
+
+// Location history (private to each person): the raw track, visits/trips imported from Arc, names for places, and dismissed suggestions.
+export const locationPoints = pgTable("location_points", {
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  t: bigint("t", { mode: "number" }).notNull(), // epoch milliseconds
+  lat: doublePrecision("lat").notNull(),
+  lon: doublePrecision("lon").notNull(),
+  acc: doublePrecision("acc"),
+  src: varchar("src", { length: 10 }).notNull().default("device"), // 'device' | 'arc'
+}, (x) => [primaryKey({ columns: [x.userId, x.t] })]);
+
+export const locationVisits = pgTable("location_visits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  extId: varchar("ext_id", { length: 100 }), // the source's own id, so re-importing the same file adds nothing twice
+  startMs: bigint("start_ms", { mode: "number" }).notNull(),
+  endMs: bigint("end_ms", { mode: "number" }).notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lon: doublePrecision("lon").notNull(),
+  name: varchar("name", { length: 255 }),
+  address: varchar("address", { length: 500 }),
+  src: varchar("src", { length: 10 }).notNull().default("arc"),
+});
+
+export const locationTrips = pgTable("location_trips", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  extId: varchar("ext_id", { length: 100 }),
+  startMs: bigint("start_ms", { mode: "number" }).notNull(),
+  endMs: bigint("end_ms", { mode: "number" }).notNull(),
+  meters: doublePrecision("meters").notNull().default(0),
+  activity: varchar("activity", { length: 40 }),
+  src: varchar("src", { length: 10 }).notNull().default("arc"),
+});
+
+export const locationPlaces = pgTable("location_places", {
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  key: varchar("key", { length: 40 }).notNull(), // lat,lon rounded to 3 decimals (about 100 m)
+  name: varchar("name", { length: 255 }).notNull(),
+  subtitle: varchar("subtitle", { length: 500 }).notNull().default(""),
+  byUser: boolean("by_user").notNull().default(false), // a name someone typed is never overwritten by an automatic one
+}, (x) => [primaryKey({ columns: [x.userId, x.key] })]);
+
+export const locationDismissed = pgTable("location_dismissed", {
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  stayId: varchar("stay_id", { length: 80 }).notNull(),
+}, (x) => [primaryKey({ columns: [x.userId, x.stayId] })]);

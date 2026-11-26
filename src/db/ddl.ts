@@ -125,4 +125,53 @@ export const DDL: string[] = [
   )`,
   `ALTER TABLE saved_exports ALTER COLUMN period TYPE varchar(20)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS saved_exports_period_idx ON saved_exports (kind, period)`,
+  // Location history: raw points, imported Arc visits/trips, place names, dismissed suggestions.
+  `CREATE TABLE IF NOT EXISTS location_points (
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    t bigint NOT NULL,
+    lat double precision NOT NULL,
+    lon double precision NOT NULL,
+    acc double precision,
+    src varchar(10) NOT NULL DEFAULT 'device',
+    PRIMARY KEY (user_id, t)
+  )`,
+  `CREATE TABLE IF NOT EXISTS location_visits (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ext_id varchar(100),
+    start_ms bigint NOT NULL,
+    end_ms bigint NOT NULL,
+    lat double precision NOT NULL,
+    lon double precision NOT NULL,
+    name varchar(255),
+    address varchar(500),
+    src varchar(10) NOT NULL DEFAULT 'arc'
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS location_visits_ext_idx ON location_visits (user_id, ext_id)`,
+  `CREATE INDEX IF NOT EXISTS location_visits_time_idx ON location_visits (user_id, start_ms)`,
+  `CREATE TABLE IF NOT EXISTS location_trips (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ext_id varchar(100),
+    start_ms bigint NOT NULL,
+    end_ms bigint NOT NULL,
+    meters double precision NOT NULL DEFAULT 0,
+    activity varchar(40),
+    src varchar(10) NOT NULL DEFAULT 'arc'
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS location_trips_ext_idx ON location_trips (user_id, ext_id)`,
+  `CREATE INDEX IF NOT EXISTS location_trips_time_idx ON location_trips (user_id, start_ms)`,
+  `CREATE TABLE IF NOT EXISTS location_places (
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key varchar(40) NOT NULL,
+    name varchar(255) NOT NULL,
+    subtitle varchar(500) NOT NULL DEFAULT '',
+    by_user boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (user_id, key)
+  )`,
+  `CREATE TABLE IF NOT EXISTS location_dismissed (
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    stay_id varchar(80) NOT NULL,
+    PRIMARY KEY (user_id, stay_id)
+  )`,
 ];
