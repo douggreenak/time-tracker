@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Clock, Database, FileSpreadsheet, HardDriveDownload, Users } from "lucide-react";
+import { BarChart3, Clock, Database, FileSpreadsheet, HardDriveDownload, MapPin, Sparkles, Users } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { cn } from "@/components/ui";
 
 // Everyone sees every tab; what they can change on each depends on their role.
 const NAV_ITEMS = [
   { href: "/engineer", label: "Timesheet", icon: Clock },
+  { href: "/proposed", label: "Proposed", icon: Sparkles },
+  { href: "/locations", label: "Locations", icon: MapPin },
   { href: "/billing", label: "Billing", icon: BarChart3 },
   { href: "/customers", label: "Customers", icon: Database },
   { href: "/files", label: "Import & saves", icon: FileSpreadsheet },
