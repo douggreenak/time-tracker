@@ -46,6 +46,8 @@ final class AppState {
 
     var phase: Phase = .launching
     var me: AppUser?
+    /// Set by any screen that wants to jump to another tab (MainTabs reads and clears it).
+    var requestedTab: Int?
 
     var customers: [Customer] = []
     var users: [AppUser] = []

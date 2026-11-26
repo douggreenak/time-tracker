@@ -69,7 +69,7 @@ struct TimerView: View {
                     Button { app.startTimer(customerId: customerId, notes: notes) } label: {
                         Label("Start", systemImage: "play.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.glassProminent).tint(.buttonBlue)
                 } else {
                     Button { if running { app.pauseTimer() } else { app.resumeTimer() } } label: {
                         Label(running ? "Pause" : "Resume", systemImage: running ? "pause.fill" : "play.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
@@ -114,7 +114,7 @@ struct TimerView: View {
             HStack {
                 Text("Today").font(.headline)
                 Spacer()
-                Text(Fmt.duration(todays.reduce(0) { $0 + $1.durationMinutes })).font(.headline).foregroundStyle(.tint)
+                Text(Fmt.duration(todays.reduce(0) { $0 + $1.durationMinutes })).font(.headline).foregroundStyle(.primary)
             }
             if todays.isEmpty {
                 Text("Nothing logged yet today.").font(.subheadline).foregroundStyle(.secondary)

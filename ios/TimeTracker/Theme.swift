@@ -59,6 +59,8 @@ enum BackgroundSettings {
 }
 
 extension Color {
+    /// Fill for prominent buttons: deep enough that white labels stay readable in light and dark mode (the accent colour is a light blue in dark mode, for text and icons).
+    static let buttonBlue = Color(hex: 0x1D4ED8)
     init(hex: UInt32) {
         self.init(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }

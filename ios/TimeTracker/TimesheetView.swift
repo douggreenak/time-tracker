@@ -16,10 +16,9 @@ func groupByWeek(_ entries: [TimeEntry]) -> [WeekGroup] {
 
 struct TimesheetView: View {
     @Environment(AppState.self) private var app
-    @Environment(LocationTracker.self) private var tracker
+    @Environment(PlacesModel.self) private var places
     @State private var editing: EntryDraft?
     @State private var error: String?
-    @State private var showPlaces = false
 
     var body: some View {
         let weeks = groupByWeek(app.myEntries)
@@ -35,10 +34,10 @@ struct TimesheetView: View {
                 if let error {
                     Section { ErrorBanner(text: error).listRowBackground(Color.clear) }
                 }
-                let suggested = tracker.enabled ? tracker.suggestions(entries: app.myEntries).count : 0
+                let suggested = places.suggestions.count
                 if suggested > 0 {
                     Section {
-                        Button { showPlaces = true } label: {
+                        Button { app.requestedTab = 5 } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "sparkles").foregroundStyle(.tint)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -90,14 +89,12 @@ struct TimesheetView: View {
             .screenBackground()
             .refreshable { await app.refresh() }
             .screenHeader("Timesheet") {
-                Button { showPlaces = true } label: { Label("Places", systemImage: tracker.isRunning ? "location.fill" : "location") }
                 Button { editing = EntryDraft(userId: app.me?.id ?? "") } label: { Label("Add time", systemImage: "plus") }
             }
             .sheet(item: $editing) { d in EntryEditor(draft: d) }
-            .sheet(isPresented: $showPlaces) { PlacesView() }
             #if DEBUG
             .onAppear {
-                if UserDefaults.standard.string(forKey: "debugSheet") == "places" { showPlaces = true }
+                if UserDefaults.standard.string(forKey: "debugSheet") == "places" { app.requestedTab = 5 }
                 if UserDefaults.standard.string(forKey: "debugSheet") == "editor", editing == nil {
                     editing = app.myEntries.first.map { EntryDraft($0) } ?? EntryDraft(userId: app.me?.id ?? "")
                 }

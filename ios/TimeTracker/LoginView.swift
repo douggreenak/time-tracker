@@ -68,7 +68,7 @@ struct LoginView: View {
                                 Group { if busy { ProgressView() } else { Text("Sign in").fontWeight(.semibold) } }
                                     .frame(maxWidth: .infinity).padding(.vertical, 6)
                             }
-                            .buttonStyle(.glassProminent)
+                            .buttonStyle(.glassProminent).tint(.buttonBlue)
                             .disabled(busy)
                             .controlSize(.large)
                         }

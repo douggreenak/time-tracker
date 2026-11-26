@@ -4,7 +4,7 @@ import Observation
 
 // MARK: - Model
 
-/// One recorded position. Stored only on this device.
+/// One recorded position. Kept on this device until it has been uploaded to the server.
 struct Fix: Codable, Hashable {
     var t: TimeInterval
     var lat: Double
@@ -64,8 +64,8 @@ struct WorkSuggestion: Identifiable, Hashable {
 /// Opt-in location history.
 ///
 /// Power: uses the system's "hundred meter" accuracy tier with a 75 m distance filter and automatic pausing, so the GPS
-/// is not running while you are stationary. At most one point is kept per minute. Everything is stored on the device
-/// (never uploaded) and pruned after 30 days.
+/// is not running while you are stationary. At most one point is kept per minute. Points are uploaded to the server
+/// (so they survive a lost phone and show on the web); the on-device copy is only a cache and queue, pruned after 30 days.
 @Observable @MainActor
 final class LocationTracker: NSObject, CLLocationManagerDelegate {
     private(set) var enabled: Bool
@@ -78,6 +78,11 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
     private var lastKept: TimeInterval = 0
     private var unsaved = 0
     private var geocoding = false
+    private var syncing = false
+    /// Newest fix (epoch seconds) the server has confirmed.
+    private(set) var syncedUpTo: TimeInterval = UserDefaults.standard.double(forKey: "locSyncedT")
+    private var namesSynced: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "locNamesSynced") ?? [])
+    private(set) var lastSyncFailed = false
     private let geocoder = CLGeocoder()
     private static let retentionDays = 30
     private static let minStay = 10          // minutes shown on the timeline
@@ -118,6 +123,9 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
     func eraseHistory() {
         fixes = []; lastKept = 0; unsaved = 0
         dismissed = []; names = [:]
+        syncedUpTo = 0; namesSynced = []
+        UserDefaults.standard.removeObject(forKey: "locSyncedT")
+        UserDefaults.standard.removeObject(forKey: "locNamesSynced")
         UserDefaults.standard.removeObject(forKey: "locNames")
         UserDefaults.standard.removeObject(forKey: "locDismissed")
         try? FileManager.default.removeItem(at: Self.fileURL)
@@ -158,7 +166,7 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
             for f in incoming where f.t - self.lastKept >= 60 {
                 self.fixes.append(f); self.lastKept = f.t; self.unsaved += 1
             }
-            if self.unsaved >= 10 { self.flush() }
+            if self.unsaved >= 10 { self.flush(); Task { await self.syncNow() } }
         }
     }
 
@@ -188,6 +196,37 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
             try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             var v = URLResourceValues(); v.isExcludedFromBackup = true
             try? url.setResourceValues(v)
+        }
+    }
+
+    // MARK: Upload
+
+    /// Sends everything not yet confirmed by the server. Safe to call often: repeats are ignored on both ends.
+    func syncNow() async {
+        guard !syncing else { return }
+        syncing = true
+        defer { syncing = false }
+        flush()
+        do {
+            var pending = fixes.filter { $0.t > syncedUpTo }
+            while !pending.isEmpty {
+                let batch = Array(pending.prefix(2000))
+                let body: [String: Any] = ["points": batch.map { ["t": Int($0.t * 1000), "lat": $0.lat, "lon": $0.lon, "acc": $0.acc] as [String: Any] }]
+                _ = try await APIClient.shared.send("POST", "api/locations/points", body: body, as: Empty.self)
+                syncedUpTo = batch.last!.t
+                UserDefaults.standard.set(syncedUpTo, forKey: "locSyncedT")
+                pending.removeFirst(batch.count)
+            }
+            let fresh = names.filter { !namesSynced.contains($0.key) }
+            if !fresh.isEmpty {
+                let body: [String: Any] = ["auto": true, "places": fresh.map { ["key": $0.key, "name": $0.value.title, "subtitle": $0.value.subtitle] }]
+                _ = try await APIClient.shared.send("PUT", "api/locations/places", body: body, as: Empty.self)
+                namesSynced.formUnion(fresh.keys)
+                UserDefaults.standard.set(Array(namesSynced), forKey: "locNamesSynced")
+            }
+            lastSyncFailed = false
+        } catch {
+            lastSyncFailed = true   // stays queued on the phone; tried again next time
         }
     }
 
@@ -305,6 +344,7 @@ final class LocationTracker: NSObject, CLLocationManagerDelegate {
                 guard let self else { return }
                 self.names[key] = PlaceName(title: title, subtitle: sub)
                 if let data = try? JSONEncoder().encode(self.names) { UserDefaults.standard.set(data, forKey: "locNames") }
+                Task { await self.syncNow() }
                 try? await Task.sleep(for: .seconds(1.2))      // be polite to the geocoder
                 self.geocoding = false
                 self.resolveNames(for: list)

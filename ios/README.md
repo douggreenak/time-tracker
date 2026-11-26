@@ -30,3 +30,8 @@ user is moving (100 m accuracy, 75 m distance filter, auto-pausing), stores them
 (`Application Support/location-history.json`, excluded from backup, pruned after 30 days) and never uploads them.
 Stays of 10+ minutes form the timeline; non-home stays of 20+ minutes not already covered by logged time are offered as
 suggested entries. Signing out stops tracking and erases the history. Debug launch args: `-seedPlaces YES`, `-debugSheet places`.
+
+## Places (location history)
+The Places tab keeps a full timeline (an Arc Timeline replacement). Positions are recorded on the phone, queued locally, and uploaded to
+`/api/locations/points`; the server builds stays, trips and proposed time entries, so the web Locations / Proposed tabs match. Arc exports
+(`.json` / `.json.gz`) can be imported from the tab or on the web. Data is private to each person and is not part of the admin backup file.

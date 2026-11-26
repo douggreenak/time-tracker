@@ -4,8 +4,8 @@ struct AccountView: View {
     @Environment(AppState.self) private var app
     @State private var changingPassword = false
     @Environment(LocationTracker.self) private var tracker
+    @Environment(PlacesModel.self) private var places
     @State private var confirmSignOut = false
-    @State private var showPlaces = false
     @Environment(\.colorScheme) private var scheme
     @AppStorage(BackgroundSettings.enabledKey) private var bgEnabled = true
     @AppStorage(BackgroundSettings.intensityKey) private var bgIntensity = BackgroundSettings.defaultIntensity
@@ -19,7 +19,7 @@ struct AccountView: View {
             List {
                 Section {
                     HStack(spacing: 16) {
-                        Text(initials).font(.title2.weight(.semibold)).foregroundStyle(.tint)
+                        Text(initials).font(.title2.weight(.semibold)).foregroundStyle(.primary)
                             .frame(width: 64, height: 64).glassEffect(.regular, in: .circle)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(app.me?.name ?? "").font(.title3.weight(.semibold))
@@ -63,7 +63,7 @@ struct AccountView: View {
                 }
 
                 Section("Location") {
-                    Button { showPlaces = true } label: {
+                    Button { app.requestedTab = 5 } label: {
                         HStack {
                             Label("Places & suggestions", systemImage: "location")
                             Spacer()
@@ -103,12 +103,11 @@ struct AccountView: View {
             .screenBackground()
             .screenHeader("Account")
             .sheet(isPresented: $changingPassword) { PasswordSheet() }
-            .sheet(isPresented: $showPlaces) { PlacesView() }
             #if DEBUG
             .onAppear { if UserDefaults.standard.string(forKey: "debugSheet") == "password" { changingPassword = true } }
             #endif
             .confirmationDialog("Sign out of Time Tracker?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button("Sign out", role: .destructive) { tracker.disable(); tracker.eraseHistory(); Task { await app.signOut() } }
+                Button("Sign out", role: .destructive) { Task { await tracker.syncNow(); tracker.disable(); tracker.eraseHistory(); places.reset(); await app.signOut() } }
             }
         }
     }

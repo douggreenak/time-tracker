@@ -4,12 +4,14 @@ import SwiftUI
 struct TimeTrackerApp: App {
     @State private var app = AppState()
     @State private var tracker = LocationTracker()
+    @State private var places = PlacesModel()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(app)
                 .environment(tracker)
+                .environment(places)
                 .task {
                     #if DEBUG
                     if UserDefaults.standard.bool(forKey: "seedPlaces") { tracker.seedDemo(); tracker.enable() }
@@ -19,6 +21,7 @@ struct TimeTrackerApp: App {
                     if UserDefaults.standard.bool(forKey: "resetSession") { APIClient.shared.clearSession() }
                     #endif
                     await app.bootstrap()
+                    if case .signedIn = app.phase { await tracker.syncNow(); await places.load() }
                     #if DEBUG
                     // Test hook: -debugUser "Priya Nair" -debugPassword demo1234
                     let d = UserDefaults.standard
@@ -38,6 +41,7 @@ struct RootView: View {
     @Environment(AppState.self) private var app
     @Environment(\.scenePhase) private var scenePhase
     @Environment(LocationTracker.self) private var tracker
+    @Environment(PlacesModel.self) private var places
 
     var body: some View {
         Group {
@@ -51,7 +55,7 @@ struct RootView: View {
                     AuroraBackground()
                     VStack(spacing: 16) {
                         EmptyState(icon: "wifi.slash", title: "Can't connect", message: message)
-                        Button("Try again") { Task { await app.bootstrap() } }.buttonStyle(.glassProminent)
+                        Button("Try again") { Task { await app.bootstrap() } }.buttonStyle(.glassProminent).tint(.buttonBlue)
                     }
                     .glassCard().padding()
                 }
@@ -65,8 +69,8 @@ struct RootView: View {
         .animation(.smooth, value: phaseKey)
         .onChange(of: scenePhase) { _, new in
             if new == .active { tracker.resumeIfNeeded() }
-            if new == .background { tracker.flush() }
-            if new == .active, case .signedIn = app.phase { Task { await app.refresh(minAge: 60) } }
+            if new == .background { tracker.flush(); Task { await tracker.syncNow() } }
+            if new == .active, case .signedIn = app.phase { Task { await app.refresh(minAge: 60); await tracker.syncNow(); await places.load() } }
         }
     }
 
@@ -86,10 +90,12 @@ struct MainTabs: View {
             if app.isManager {
                 Tab("Review", systemImage: "checkmark.seal", value: 2) { ReviewView() }
             }
+            Tab("Places", systemImage: "mappin.and.ellipse", value: 5) { PlacesView() }
             Tab("Customers", systemImage: "building.2", value: 3) { DataView() }
             Tab("Account", systemImage: "person.crop.circle", value: 4) { AccountView() }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .onChange(of: app.requestedTab) { _, t in if let t { tab = t; app.requestedTab = nil } }
         .tabViewBottomAccessory(isEnabled: app.timer != nil && tab != 0) { TimerAccessory { withAnimation { tab = 0 } } }
         .overlay(alignment: .top) {
             if let t = app.toast {
@@ -123,7 +129,7 @@ struct SyncBanner: View {
             }
             Spacer(minLength: 8)
             Button(app.loadingEntries ? "Trying…" : "Retry") { Task { await app.refresh() } }
-                .buttonStyle(.glassProminent).controlSize(.small).disabled(app.loadingEntries)
+                .buttonStyle(.glassProminent).tint(.buttonBlue).controlSize(.small).disabled(app.loadingEntries)
         }
         .padding(12)
         .glassEffect(.regular.tint(.red.opacity(0.18)), in: .rect(cornerRadius: 18))
