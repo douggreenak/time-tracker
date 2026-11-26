@@ -176,21 +176,22 @@ final class PlacesModel {
 
 // MARK: - View
 
-/// Places tab: where you've been (a full Arc Timeline replacement, stored on the server), proposed time entries, and a map.
+/// Places tab: a day-by-day timeline (an Arc Timeline replacement stored on the server), a map, and proposed time entries.
 struct PlacesView: View {
     @Environment(AppState.self) private var app
     @Environment(LocationTracker.self) private var tracker
     @Environment(PlacesModel.self) private var model
     @Environment(\.openURL) private var openURL
     @State private var editing: EntryDraft?
-    @State private var confirmErase = false
-    @State private var importing = false
     @State private var day = Fmt.string(Date())
     @State private var track: [CLLocationCoordinate2D] = []
     @State private var selected: String?
     @State private var renaming: PlaceStay?
     @State private var newName = ""
     @State private var camera: MapCameraPosition = .automatic
+    @State private var pickingDate = false
+    @State private var showAllSuggestions = false
+    @State private var suggestionsOpen = UserDefaults.standard.bool(forKey: "debugSuggestionsOpen")
 
     #if DEBUG
     private static let hideSuggestionsForScreenshot = UserDefaults.standard.bool(forKey: "debugHideSuggestions")
@@ -198,80 +199,48 @@ struct PlacesView: View {
     private static let hideSuggestionsForScreenshot = false
     #endif
 
+    /// The dense timeline parts stop growing at this text size (they would no longer fit beside the time and rail columns).
+    private static let maxType = DynamicTypeSize.xxxLarge
+
     private var current: PlaceDay? { model.days.first { $0.date == day } }
     private var stays: [PlaceStay] { (current?.items ?? []).compactMap { if case .stay(let s) = $0 { s } else { nil } } }
+    private var meters: Double { (current?.items ?? []).reduce(0) { if case .trip(let t) = $1 { $0 + t.meters } else { $0 } } }
 
     var body: some View {
         NavigationStack {
             List {
                 if let problem = model.error {
-                    ErrorBanner(text: problem).listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                    ErrorBanner(text: problem).plain(top: 0, bottom: 8)
                 }
                 if !tracker.enabled && !model.hasHistory {
-                    optIn.listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    optIn.plain()
                 } else {
-                    statusCard.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
-
-                    if !model.suggestions.isEmpty, !Self.hideSuggestionsForScreenshot {
-                        Section {
-                            ForEach(model.suggestions) { s in suggestionCard(s) }
-                        } header: { sectionTitle("Proposed time entries", "Based on where you spent time. Nothing is logged until you add it.") }
-                    }
-
-                    Section {
-                        dayBar.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 4, trailing: 16))
-                        if !stays.isEmpty || !track.isEmpty { map.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16)) }
-                        if current == nil {
-                            EmptyState(icon: "mappin.and.ellipse", title: "Nothing this day",
-                                       message: model.hasHistory ? "No places were recorded on this day." : "Places where you spend 10 minutes or more will show up here as you move around.")
-                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        }
-                        ForEach(current?.items ?? []) { item in
-                            row(item)
-                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 3, leading: 16, bottom: 3, trailing: 16))
-                        }
-                    }
-
-                    importCard.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
-                    Section {
-                        Button(role: .destructive) { confirmErase = true } label: {
-                            Label("Delete all location history", systemImage: "trash").rowCard(padding: 14)
-                        }
-                        .buttonStyle(.plain).foregroundStyle(.red)
-                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
-                        Text("Location history is saved to your Time Tracker account, so it's backed up and shown on the web. Only you can see it.")
-                            .font(.footnote).foregroundStyle(Color.primary.opacity(0.72))
-                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 24, trailing: 20))
-                    }
+                    if !tracker.isRunning { recordingBanner.plain(top: 0, bottom: 10) }
+                    if !model.suggestions.isEmpty, !Self.hideSuggestionsForScreenshot { suggestionsCard.dynamicTypeSize(...Self.maxType).plain(top: 0, bottom: 12) }
+                    dayBar.dynamicTypeSize(...Self.maxType).plain(top: 2, bottom: 8)
+                    if !stays.isEmpty || track.count > 1 { map.plain(top: 0, bottom: 12) }
+                    if let current, !current.items.isEmpty { timeline(current).dynamicTypeSize(...Self.maxType).plain(top: 0, bottom: 28) }
+                    else { quietDay.plain(top: 0, bottom: 28) }
                 }
             }
             .listStyle(.plain)
             .environment(\.defaultMinListHeaderHeight, 0)
             .listSectionSpacing(.custom(0))
             .screenBackground()
-            .screenHeader("Places")
+            .screenHeader("Places") {
+                Menu {
+                    if tracker.enabled { Button { tracker.disable() } label: { Label("Pause recording", systemImage: "pause.circle") } }
+                    else { Button { tracker.enable() } label: { Label("Start recording", systemImage: "record.circle") } }
+                    Button { app.requestedTab = 4 } label: { Label("Import & settings", systemImage: "gearshape") }
+                } label: { Label("Recording", systemImage: tracker.isRunning ? "location.fill" : "location.slash") }
+            }
             .refreshable { await tracker.syncNow(); await model.load() }
             .sheet(item: $editing, onDismiss: { Task { await app.refresh(); await model.load() } }) { d in EntryEditor(draft: d) }
-            .confirmationDialog("Delete all saved location history?", isPresented: $confirmErase, titleVisibility: .visible) {
-                Button("Delete everything, including on the server", role: .destructive) {
-                    Task { tracker.eraseHistory(); await model.eraseAll() }
-                }
-            } message: { Text("This removes your recorded places and imported Arc data from your account and the web. It can't be undone.") }
+            .sheet(isPresented: $pickingDate) { datePicker }
             .alert("Rename place", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
                 TextField("Name", text: $newName)
                 Button("Save") { if let s = renaming { Task { await model.rename(s, to: newName) } }; renaming = nil }
                 Button("Cancel", role: .cancel) { renaming = nil }
-            }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .gzip, .zip, .data]) { result in
-                if case .success(let url) = result { Task { await model.importArc(from: url) } }
             }
             .task { tracker.resumeIfNeeded(); await tracker.syncNow(); await model.load(); await loadTrack() }
             .onChange(of: day) { _, _ in selected = nil; Task { await loadTrack() } }
@@ -279,6 +248,9 @@ struct PlacesView: View {
             .onChange(of: selected) { _, id in
                 if let s = stays.first(where: { $0.id == id }) { withAnimation { camera = .region(.init(center: s.coordinate, span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01))) } }
             }
+            #if DEBUG
+            .onAppear { if let d = UserDefaults.standard.string(forKey: "debugDay") { day = d } }
+            #endif
         }
     }
 
@@ -291,16 +263,15 @@ struct PlacesView: View {
     }
 
     private func fitCamera() {
-        var pts = track + stays.map(\.coordinate)
-        guard let f = pts.first else { return }
-        pts = pts.isEmpty ? [f] : pts
+        let pts = track + stays.map(\.coordinate)
+        guard !pts.isEmpty else { return }
         let lats = pts.map(\.latitude), lons = pts.map(\.longitude)
         let center = CLLocationCoordinate2D(latitude: (lats.min()! + lats.max()!) / 2, longitude: (lons.min()! + lons.max()!) / 2)
-        let span = MKCoordinateSpan(latitudeDelta: max(0.01, (lats.max()! - lats.min()!) * 1.4), longitudeDelta: max(0.01, (lons.max()! - lons.min()!) * 1.4))
+        let span = MKCoordinateSpan(latitudeDelta: max(0.012, (lats.max()! - lats.min()!) * 1.5), longitudeDelta: max(0.012, (lons.max()! - lons.min()!) * 1.5))
         camera = .region(.init(center: center, span: span))
     }
 
-    // MARK: Opt-in
+    // MARK: Opt-in and status
 
     private var optIn: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -308,13 +279,13 @@ struct PlacesView: View {
                 .font(.system(size: 34)).foregroundStyle(.tint)
                 .frame(width: 68, height: 68).glassEffect(.regular, in: .circle)
             Text("Where have you been?").font(.title2.weight(.bold))
-            Text("Turn on location history to keep a timeline of the places you visit, see them on a map here and on the web, and get suggestions for work time you may have forgotten to log.")
+            Text("Keep a timeline of the places you visit, see them on a map here and on the web, and get suggestions for work time you may have forgotten to log.")
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 12) {
-                point("icloud", "Backed up", "History is saved to your Time Tracker account, so a lost phone doesn't lose it. Only you can see it.")
-                point("battery.100percent", "Light on battery", "Checks in about once a minute while you are moving and rests while you are still.")
+                point("icloud", "Backed up", "Saved to your Time Tracker account, so a lost phone doesn't lose it. Only you can see it.")
+                point("battery.100percent", "Light on battery", "Checks in about once a minute while you move and rests while you are still.")
                 point("location.fill", "Always visible", "iOS shows a blue indicator by the clock whenever tracking is active.")
-                point("hand.raised", "You decide", "Turn it off or delete your history at any time.")
+                point("hand.raised", "You decide", "Pause it or delete your history at any time in Account.")
             }
             if tracker.isDenied {
                 ErrorBanner(text: "Location access is turned off for Time Tracker. Allow it in Settings to use this.")
@@ -326,9 +297,8 @@ struct PlacesView: View {
                     Text("Turn on location history").fontWeight(.semibold).frame(maxWidth: .infinity).padding(.vertical, 6)
                 }.buttonStyle(.glassProminent).tint(.buttonBlue).controlSize(.large)
             }
-            Button { importing = true } label: { Label("Import from Arc Timeline", systemImage: "square.and.arrow.down").frame(maxWidth: .infinity) }
-                .buttonStyle(.glass).controlSize(.large)
-            if let m = model.importMessage { Text(m).font(.footnote).foregroundStyle(.secondary) }
+            Text("Coming from Arc? Import your timeline in Account → Location history.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
         .glassCard(radius: 28, padding: 20)
     }
@@ -343,103 +313,77 @@ struct PlacesView: View {
         }
     }
 
-    // MARK: Enabled
-
-    private var statusCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Circle().fill(tracker.isRunning ? .green : .orange).frame(width: 10, height: 10)
-                Text(tracker.isRunning ? "Location history is on" : (tracker.isDenied ? "Location access is off" : (tracker.enabled ? "Waiting for permission" : "Recording is off")))
-                    .font(.headline)
-                Spacer()
-                if tracker.isRunning { Button("Turn off") { tracker.disable() }.buttonStyle(.glass).controlSize(.small) }
-            }
+    /// One slim line, only when recording is not running.
+    private var recordingBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: tracker.isDenied ? "location.slash.fill" : "pause.circle.fill").foregroundStyle(.orange)
+            Text(tracker.isDenied ? "Location access is off" : (tracker.enabled ? "Waiting for permission" : "Recording is paused"))
+                .font(.subheadline.weight(.medium))
+            Spacer(minLength: 8)
             if tracker.isDenied {
-                Text("Allow location access in Settings so Time Tracker can record places.").font(.subheadline).foregroundStyle(.secondary)
-                Button("Open Settings") { if let u = URL(string: UIApplication.openSettingsURLString) { openURL(u) } }
-                    .buttonStyle(.glassProminent).tint(.buttonBlue).controlSize(.small)
-            } else if !tracker.isRunning {
-                Button("Turn on") { tracker.enable() }.buttonStyle(.glassProminent).tint(.buttonBlue).controlSize(.small)
+                Button("Settings") { if let u = URL(string: UIApplication.openSettingsURLString) { openURL(u) } }
             } else {
-                Text(tracker.lastSyncFailed ? "Recording. Waiting to upload — it will send when you're online." : "Recording about once a minute while you move. Saved to your account.")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                Button("Resume") { tracker.enable() }
             }
         }
-        .glassCard(radius: 22, padding: 16)
+        .buttonStyle(.glass).controlSize(.small)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 
-    private var importCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button { importing = true } label: { Label("Import from Arc Timeline", systemImage: "square.and.arrow.down").frame(maxWidth: .infinity) }
-                .buttonStyle(.glass).controlSize(.regular)
-            Text(model.importMessage ?? "In Arc: Settings → Export → Timeline (JSON), then choose the file here. Importing again never adds duplicates.")
-                .font(.footnote).foregroundStyle(Color.primary.opacity(0.72))
-        }
-    }
+    // MARK: Proposed time
 
-    private func sectionTitle(_ t: String, _ sub: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(t).font(.headline).foregroundStyle(Color.primary)
-            Text(sub).font(.footnote).foregroundStyle(Color.primary.opacity(0.72)).textCase(nil)
-        }.textCase(nil).padding(.top, 6)
-    }
-
-    private var dayBar: some View {
-        let d = Fmt.date(day)
-        let isToday = Calendar.current.isDateInToday(d)
-        return HStack(spacing: 8) {
-            Button { shift(-1) } label: { Image(systemName: "chevron.left") }.buttonStyle(.glass).buttonBorderShape(.circle)
-            VStack(spacing: 2) {
-                Text(Self.dayTitle(d)).font(.headline)
-                if let c = current { Text("\(Fmt.duration(c.placeMinutes)) at places").font(.footnote).foregroundStyle(Color.primary.opacity(0.72)) }
-            }.frame(maxWidth: .infinity)
-            Button { shift(1) } label: { Image(systemName: "chevron.right") }.buttonStyle(.glass).buttonBorderShape(.circle).disabled(isToday)
-        }
-    }
-
-    private func shift(_ n: Int) {
-        if let d = Calendar.current.date(byAdding: .day, value: n, to: Fmt.date(day)), d <= Date() { day = Fmt.string(d) }
-    }
-
-    private var map: some View {
-        Map(position: $camera) {
-            if track.count > 1 { MapPolyline(coordinates: track).stroke(.blue, lineWidth: 4) }
-            ForEach(Array(stays.enumerated()), id: \.element.id) { i, s in
-                Annotation(s.isHome ? "Home" : (s.name ?? "Place"), coordinate: s.coordinate) {
-                    Text("\(i + 1)").font(.caption.weight(.bold)).foregroundStyle(.white)
-                        .frame(width: selected == s.id ? 30 : 24, height: selected == s.id ? 30 : 24)
-                        .background(s.isHome ? Color.gray : Color.blue, in: Circle())
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-                        .onTapGesture { selected = s.id }
+    private var suggestionsCard: some View {
+        let list = model.suggestions
+        let shown = showAllSuggestions ? list : Array(list.prefix(4))
+        let total = list.reduce(0) { $0 + $1.minutes }
+        return VStack(alignment: .leading, spacing: 0) {
+            Button { withAnimation(.smooth) { suggestionsOpen.toggle() } } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles").foregroundStyle(.tint).frame(width: 24)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("\(list.count) proposed time \(list.count == 1 ? "entry" : "entries")").font(.subheadline.weight(.semibold))
+                        Text("About \(Fmt.duration(total)) · Review and add").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(suggestionsOpen ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            if suggestionsOpen {
+                VStack(spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { i, s in
+                        Divider().padding(.vertical, 8)
+                        suggestionRow(s)
+                    }
+                }.padding(.top, 2)
+                if list.count > 4 {
+                    Button(showAllSuggestions ? "Show fewer" : "Show \(list.count - 4) more") { withAnimation { showAllSuggestions.toggle() } }
+                        .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity).padding(.top, 10)
                 }
             }
         }
-        .frame(height: 230)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
-    private func suggestionCard(_ s: PlaceSuggestion) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "sparkles").foregroundStyle(.tint).frame(width: 26)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(s.name ?? "Place near \(s.lat.formatted(.number.precision(.fractionLength(3)))), \(s.lon.formatted(.number.precision(.fractionLength(3))))")
-                        .font(.headline)
-                    Text("\(Self.dayTitle(Fmt.date(s.date))) · \(Self.range(s.startDate, s.endDate))")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                Text(Fmt.duration(s.minutes)).font(.headline).foregroundStyle(.primary)
+    private func suggestionRow(_ s: PlaceSuggestion) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(s.name ?? "Place near \(s.lat.formatted(.number.precision(.fractionLength(3)))), \(s.lon.formatted(.number.precision(.fractionLength(3))))")
+                    .font(.subheadline.weight(.semibold)).lineLimit(2)
+                Text("\(Self.dayTitle(Fmt.date(s.date))) · \(Self.range(s.startDate, s.endDate)) · \(Fmt.duration(s.minutes))")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
             }
-            HStack(spacing: 10) {
-                Button { editing = draft(for: s) } label: { Text("Add to timesheet").fontWeight(.semibold).frame(maxWidth: .infinity) }
-                    .buttonStyle(.glassProminent).tint(.buttonBlue)
-                Button("Not work") { Task { await model.dismiss(s) } }.buttonStyle(.glass)
-            }.controlSize(.regular)
+            Spacer(minLength: 6)
+            Button("Add") { editing = draft(for: s) }.buttonStyle(.glassProminent).tint(.buttonBlue).controlSize(.small)
+            Menu {
+                Button(role: .destructive) { Task { await model.dismiss(s) } } label: { Label("Not work", systemImage: "xmark.circle") }
+            } label: { Image(systemName: "ellipsis").frame(width: 28, height: 28).contentShape(Rectangle()) }
+                .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("More")
         }
-        .rowCard()
-        .listRowBackground(Color.clear).listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
     }
 
     private func draft(for s: PlaceSuggestion) -> EntryDraft {
@@ -451,44 +395,175 @@ struct PlacesView: View {
         return d
     }
 
-    @ViewBuilder private func row(_ item: PlaceItem) -> some View {
-        switch item {
-        case .stay(let s):
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: s.isHome ? "house.fill" : "mappin.circle.fill")
-                    .font(.title3).foregroundStyle(s.isHome ? Color.secondary : Color.accentColor).frame(width: 30)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(s.isHome ? "Home" : (s.name ?? "Unnamed place")).font(.headline).lineLimit(2)
-                    Text(Self.range(s.startDate, s.endDate) + ((!s.subtitle.isEmpty && !s.isHome) ? " · \(s.subtitle)" : ""))
-                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+    // MARK: Day
+
+    private var dayBar: some View {
+        let d = Fmt.date(day)
+        let isToday = Calendar.current.isDateInToday(d)
+        let places = stays.filter { !$0.isHome }.count
+        var bits: [String] = []
+        if places > 0 { bits.append("\(places) \(places == 1 ? "place" : "places")") }
+        if let c = current, c.placeMinutes > 0 { bits.append(Fmt.duration(c.placeMinutes)) }
+        if meters > 100 { bits.append(Self.distance(meters)) }
+        return HStack(spacing: 8) {
+            Button { shift(-1) } label: { Image(systemName: "chevron.left").frame(width: 22, height: 22) }
+                .buttonStyle(.glass).buttonBorderShape(.circle).accessibilityLabel("Previous day")
+            Button { pickingDate = true } label: {
+                VStack(spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(Self.dayTitle(d)).font(.headline)
+                        Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                    }
+                    Text(bits.isEmpty ? "No places" : bits.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 8)
-                Text(Fmt.duration(s.minutes)).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-            }
-            .rowCard()
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(selected == s.id ? Color.accentColor : .clear, lineWidth: 2))
-            .contentShape(Rectangle())
-            .onTapGesture { selected = s.id }
-            .contextMenu { Button { newName = s.name ?? ""; renaming = s } label: { Label("Rename place", systemImage: "pencil") } }
-        case .trip(let t):
-            HStack(spacing: 14) {
-                Image(systemName: Self.icon(t.activity)).font(.subheadline).foregroundStyle(.secondary).frame(width: 30)
-                Text("\(t.activity?.capitalized ?? "Travel") · \(Self.distance(t.meters)) · \(Fmt.duration(t.minutes))").font(.subheadline).foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 16).padding(.vertical, 4)
+                .frame(maxWidth: .infinity).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Choose a day")
+            Button { shift(1) } label: { Image(systemName: "chevron.right").frame(width: 22, height: 22) }
+                .buttonStyle(.glass).buttonBorderShape(.circle).disabled(isToday).accessibilityLabel("Next day")
         }
+    }
+
+    private func shift(_ n: Int) {
+        if let d = Calendar.current.date(byAdding: .day, value: n, to: Fmt.date(day)), d <= Date() { day = Fmt.string(d) }
+    }
+
+    private var datePicker: some View {
+        NavigationStack {
+            DatePicker("Day", selection: Binding(get: { Fmt.date(day) }, set: { day = Fmt.string($0) }), in: ...Date(), displayedComponents: .date)
+                .datePickerStyle(.graphical).padding()
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { pickingDate = false } }
+                           ToolbarItem(placement: .cancellationAction) { Button("Today") { day = Fmt.string(Date()); pickingDate = false } } }
+                .navigationTitle("Choose a day").navigationBarTitleDisplayMode(.inline)
+        }.presentationDetents([.medium])
+    }
+
+    private var map: some View {
+        Map(position: $camera) {
+            if track.count > 1 { MapPolyline(coordinates: track).stroke(.blue.opacity(0.85), lineWidth: 4) }
+            ForEach(Array(stays.enumerated()), id: \.element.id) { i, s in
+                Annotation("", coordinate: s.coordinate, anchor: .center) {
+                    Text("\(i + 1)").font(.caption2.weight(.bold)).foregroundStyle(.white).dynamicTypeSize(.large)
+                        .frame(width: selected == s.id ? 30 : 24, height: selected == s.id ? 30 : 24)
+                        .background(s.isHome ? Color.gray : Color.buttonBlue, in: Circle())
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .onTapGesture { withAnimation { selected = s.id } }
+                }
+            }
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .frame(height: 240)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white.opacity(0.15), lineWidth: 0.5))
+    }
+
+    private var quietDay: some View {
+        EmptyState(icon: "mappin.slash", title: "Nothing recorded",
+                   message: model.hasHistory ? "No places were recorded on this day." : "Places where you spend 10 minutes or more will show up here as you move around.")
+    }
+
+    // MARK: Timeline
+
+    private func timeline(_ d: PlaceDay) -> some View {
+        var n = 0
+        let rows: [(item: PlaceItem, number: Int?)] = d.items.map { item in
+            if case .stay = item { n += 1; return (item, n) }
+            return (item, nil)
+        }
+        return VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.item.id) { i, r in
+                switch r.item {
+                case .stay(let s): stayRow(s, number: r.number ?? 0, first: i == 0, last: i == rows.count - 1)
+                case .trip(let t): tripRow(t, first: i == 0, last: i == rows.count - 1)
+                }
+            }
+        }
+        .rowCard(radius: 24, padding: 14)
+    }
+
+    private let railWidth: CGFloat = 30
+
+    /// The vertical line joining the places, drawn behind each row.
+    private func rail(first: Bool, last: Bool) -> some View {
+        VStack(spacing: 0) {
+            Rectangle().fill(first ? .clear : Color.primary.opacity(0.18)).frame(width: 2).frame(height: 18)
+            Rectangle().fill(last ? .clear : Color.primary.opacity(0.18)).frame(width: 2).frame(maxHeight: .infinity)
+        }.frame(width: railWidth)
+    }
+
+    private func stayRow(_ s: PlaceStay, number: Int, first: Bool, last: Bool) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(s.startDate.formatted(date: .omitted, time: .shortened))
+                .font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.6)
+                .frame(width: 58, alignment: .trailing).padding(.top, 5)
+            ZStack(alignment: .top) {
+                rail(first: first, last: last)
+                Image(systemName: s.isHome ? "house.fill" : "mappin")
+                    .font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(s.isHome ? Color.gray : Color.buttonBlue, in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(selected == s.id ? 0.9 : 0), lineWidth: 2))
+            }.frame(width: railWidth)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(s.isHome ? "Home" : (s.name ?? "Unnamed place")).font(.subheadline.weight(.semibold)).lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail(s)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 4).padding(.bottom, last ? 4 : 14)
+            Spacer(minLength: 4)
+            Text(Fmt.duration(s.minutes)).font(.subheadline.weight(.semibold)).monospacedDigit().padding(.top, 4)
+        }
+        .padding(.horizontal, 4)
+        .background(selected == s.id ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation { selected = s.id } }
+        .contextMenu { Button { newName = s.name ?? ""; renaming = s } label: { Label("Rename place", systemImage: "pencil") } }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Shows it on the map. Long-press to rename.")
+    }
+
+    private func detail(_ s: PlaceStay) -> String {
+        let span = "\(s.startDate.formatted(date: .omitted, time: .shortened)) – \(s.endDate.formatted(date: .omitted, time: .shortened))"
+        if s.isHome { return "Until \(s.endDate.formatted(date: .omitted, time: .shortened))" }
+        if s.name == nil { return "\(span) · Touch and hold to name it" }
+        return s.subtitle.isEmpty ? span : s.subtitle
+    }
+
+    private func tripRow(_ t: PlaceTrip, first: Bool, last: Bool) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Color.clear.frame(width: 58, height: 1)
+            ZStack { rail(first: false, last: false)
+                Image(systemName: Self.icon(t.activity)).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22).background(.regularMaterial, in: Circle())
+            }.frame(width: railWidth)
+            Text("\(Self.activityName(t.activity)) · \(Self.distance(t.meters)) · \(Fmt.duration(t.minutes))")
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.85)
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: 30).padding(.horizontal, 4)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Formatting
 
     private static func icon(_ activity: String?) -> String {
         switch activity?.lowercased() {
-        case "walking", "running": "figure.walk"
-        case "cycling", "bicycle": "bicycle"
-        case "train", "bus", "tram", "metro": "tram.fill"
-        case "airplane": "airplane"
+        case "walking", "running", "hiking": "figure.walk"
+        case "cycling", "bicycle", "biking": "bicycle"
+        case "train", "bus", "tram", "metro", "transit": "tram.fill"
+        case "airplane", "flying": "airplane"
         default: "car.fill"
+        }
+    }
+
+    private static func activityName(_ a: String?) -> String {
+        switch a?.lowercased() {
+        case nil, "automotive", "car", "driving": "Drive"
+        case "walking": "Walk"
+        case "running": "Run"
+        case "cycling", "bicycle", "biking": "Bike"
+        case let x?: x.capitalized
         }
     }
 
@@ -507,5 +582,13 @@ struct PlacesView: View {
         let metric = Locale.current.measurementSystem == .metric
         let v = Measurement(value: m, unit: UnitLength.meters).converted(to: metric ? .kilometers : .miles)
         return v.formatted(.measurement(width: .abbreviated, usage: .asProvided, numberFormatStyle: .number.precision(.fractionLength(0...1))))
+    }
+}
+
+private extension View {
+    /// A transparent list row with the page's standard side margins.
+    func plain(top: CGFloat = 4, bottom: CGFloat = 4) -> some View {
+        self.listRowBackground(Color.clear).listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: top, leading: 16, bottom: bottom, trailing: 16))
     }
 }

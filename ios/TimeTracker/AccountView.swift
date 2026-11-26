@@ -1,7 +1,10 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AccountView: View {
     @Environment(AppState.self) private var app
+    @State private var importingArc = false
+    @State private var confirmEraseLocations = false
     @State private var changingPassword = false
     @Environment(LocationTracker.self) private var tracker
     @Environment(PlacesModel.self) private var places
@@ -62,14 +65,21 @@ struct AccountView: View {
                     .glassRow()
                 }
 
-                Section("Location") {
-                    Button { app.requestedTab = 5 } label: {
-                        HStack {
-                            Label("Places & suggestions", systemImage: "location")
-                            Spacer()
-                            Text(tracker.isRunning ? "On" : "Off").foregroundStyle(.secondary)
-                        }
+                Section {
+                    Toggle(isOn: Binding(get: { tracker.enabled }, set: { $0 ? tracker.enable() : tracker.disable() })) {
+                        Label("Record places", systemImage: "location")
                     }.glassRow()
+                    if tracker.isDenied {
+                        Text("Location access is off for Time Tracker. Allow it in the iOS Settings app.").font(.footnote).foregroundStyle(.secondary).glassRow()
+                    }
+                    Button { app.requestedTab = 5 } label: {
+                        HStack { Label("Open Places", systemImage: "mappin.and.ellipse"); Spacer()
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary) }
+                    }.glassRow()
+                    Button { importingArc = true } label: { Label("Import from Arc Timeline…", systemImage: "square.and.arrow.down") }.glassRow()
+                    Button(role: .destructive) { confirmEraseLocations = true } label: { Label("Delete all location history", systemImage: "trash") }.glassRow()
+                } header: { Text("Location history") } footer: {
+                    Text(places.importMessage ?? "Saved to your account, so it's backed up and shown on the web. To import Arc: in Arc choose Settings → Export → Timeline (JSON), then pick the .json or .json.gz file here. Importing again never adds duplicates.")
                 }
 
                 if app.isManager {
@@ -103,6 +113,12 @@ struct AccountView: View {
             .screenBackground()
             .screenHeader("Account")
             .sheet(isPresented: $changingPassword) { PasswordSheet() }
+            .fileImporter(isPresented: $importingArc, allowedContentTypes: [.json, .gzip, .zip, .data]) { result in
+                if case .success(let url) = result { Task { await places.importArc(from: url) } }
+            }
+            .confirmationDialog("Delete all saved location history?", isPresented: $confirmEraseLocations, titleVisibility: .visible) {
+                Button("Delete everything, including on the server", role: .destructive) { Task { tracker.eraseHistory(); await places.eraseAll() } }
+            } message: { Text("This removes your recorded places and imported Arc data from your account and the web. It can't be undone.") }
             #if DEBUG
             .onAppear { if UserDefaults.standard.string(forKey: "debugSheet") == "password" { changingPassword = true } }
             #endif
