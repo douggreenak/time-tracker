@@ -13,9 +13,14 @@ const TABLES = [
   ["activeTimers", t.activeTimers],
   ["billingItems", t.billingItems],
   ["invoices", t.invoices],
+  ["locationPoints", t.locationPoints],
+  ["locationVisits", t.locationVisits],
+  ["locationTrips", t.locationTrips],
+  ["locationPlaces", t.locationPlaces],
+  ["locationDismissed", t.locationDismissed],
 ] as const;
 /** Sections an older backup may not have; they restore as empty. */
-const OPTIONAL = new Set<string>(["billingItems", "invoices"]);
+const OPTIONAL = new Set<string>(["billingItems", "invoices", "locationPoints", "locationVisits", "locationTrips", "locationPlaces", "locationDismissed"]);
 
 export const BACKUP_FORMAT = "timetrack-backup";
 export const BACKUP_VERSION = 1;
@@ -85,7 +90,8 @@ export async function importBackup(b: Backup) {
     for (const [, table] of [...TABLES].reverse()) q.push(x.delete(table as PgTable));
     for (const [name, table] of TABLES) {
       const rows = b.tables[name].map((r) => revive(table as PgTable, r));
-      for (let i = 0; i < rows.length; i += CHUNK) q.push(x.insert(table as PgTable).values(rows.slice(i, i + CHUNK) as never));
+      const step = name.startsWith("location") ? 1000 : CHUNK; // location points can number in the hundreds of thousands
+      for (let i = 0; i < rows.length; i += step) q.push(x.insert(table as PgTable).values(rows.slice(i, i + step) as never));
     }
     q.push(x.delete(t.appMeta).where(sql`${t.appMeta.key} not in ('schema_version')`));
     const meta = { ...b.meta, seeded: "true", demo_pw_v1: "true", demo_people_v2: "true" };
